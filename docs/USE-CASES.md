@@ -97,7 +97,7 @@ sequenceDiagram
   participant R as Registro público (Polygon Amoy)
   participant O as OpenTimestamps
   actor V as Verificador
-  A->>W: lê respostas, notas e pendências; valida
+  A->>W: lê respostas, notas e pendências e valida
   W->>S: POST /sessions/{id}/validate
   W->>S: POST /sessions/{id}/finalize
   S->>S: payload → JSON canônico (RFC 8785) → SHA-256 com salt
