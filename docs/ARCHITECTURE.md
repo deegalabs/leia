@@ -20,6 +20,9 @@
                                              SQLite (sessões, respostas, logs)
 ```
 - **Interface** (`apps/web`): fina. Não chama modelo de linguagem; não calcula hash. Exibe, coleta e chama a API.
+  Dois layouts no mesmo código: **PWA mobile-first da cidadã** (`/c/...`, instalável, service worker com o conteúdo da
+  sessão) e **painel desktop do advogado** (`/lawyer/...`). **Login social** (Google) com Auth.js; o app web chama o serviço
+  com chave interna e envia `user_ref` pseudonimizado. Detalhes em [SCREENS.md](SCREENS.md).
 - **Serviço cognitivo** (`apps/llm-service`): toda a inteligência e o registro. Um processo, sem filas. Contrato em [LLM-API-CONTRACT.md](LLM-API-CONTRACT.md).
 - **Base de referência** (`prompts/knowledge/`): Estatuto da Advocacia, Código de Ética, tabela de honorários OAB-PR 2026, glossário. Somente leitura, versionada.
 
@@ -35,7 +38,8 @@
 | Decisão | Escolha | Motivo |
 |---|---|---|
 | Serviço de IA | FastAPI (Python) | ecossistema de PDF, LLM e web3 em Python; dono do serviço trabalha em Python |
-| Interface | Next.js, Tailwind | rápida de montar, mobile-first, acessível |
+| Interface | Next.js, Tailwind; PWA para a cidadã, painel desktop para o advogado | rápida de montar, instalável no celular, acessível |
+| Acesso | login social Google (Auth.js) para advogado e cidadã; link com token continua obrigatório para a cidadã | um toque no Android; identidade fraca vinculada ao consentimento; sem senha |
 | Modelos | Claude Sonnet 5 (explicação, citações), GPT-5.4-mini (juiz) | citações nativas por bloco; juiz de outro fornecedor |
 | RAG | documento inteiro no contexto, segmentado por cláusula; sem vector store | documento de 2 a 15 páginas cabe no contexto; citação por cláusula é auditável |
 | Recusa | resposta literal `NAO_ESTA_NO_DOCUMENTO` | mensurável em teste |
@@ -50,6 +54,8 @@ Ver [SCALING.md](SCALING.md): o trabalho caro de IA é por documento, não por c
 ```
 LLM_SERVICE_URL=http://localhost:8000
 ANTHROPIC_API_KEY=            OPENAI_API_KEY=
+AUTH_SECRET=                  GOOGLE_CLIENT_ID=            GOOGLE_CLIENT_SECRET=
+LLM_SERVICE_API_KEY=          # chave interna app web → serviço
 ANCHOR_CHAIN=amoy             AMOY_RPC_URL=https://polygon-amoy.drpc.org
 ANCHOR_PRIVATE_KEY=           CONSENT_REGISTRY_ADDRESS=
 ID_PEPPER=                    DATABASE_URL=sqlite:///./data/ciente.db

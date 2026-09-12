@@ -1,7 +1,8 @@
 # Contrato da API do serviço de LLM (FastAPI)
 
 Proposta da interface para o serviço. Vale até o dono do serviço confirmar ou ajustar. JSON, UTF-8, `snake_case`.
-Base: `http://localhost:8000/api/v1`. Sem autenticação na PoC (rede local); CORS liberado para a origem da interface.
+Base: `http://localhost:8000/api/v1`. Autenticação: cabeçalho `X-Api-Key` (chave interna do app web); o login social fica no
+app web (Auth.js), que envia `user_ref` (pseudônimo) nos endpoints de sessão. CORS liberado para a origem da interface.
 Erros: `{ "error": { "code": "...", "message": "..." } }` com HTTP 4xx/5xx.
 
 ## Endpoints mínimos para a V1 (texto)
@@ -11,7 +12,8 @@ Erros: `{ "error": { "code": "...", "message": "..." } }` com HTTP 4xx/5xx.
 | `POST /documents` | `multipart/form-data`: `file` (PDF com texto), `document_type` (`procuracao` \| `contrato_honorarios` \| `acordo`) | `{ document_id, pages, clauses: [{ clause_id, index, page, text }] }` | tela do advogado |
 | `POST /documents/{document_id}/explain` | `{ }` | `{ sections: [{ section_id, order, clause_id, title, plain_text, why_it_matters, quote, quote_verified, risk_level }], prompt_version, model }` | tela do advogado (revisão) e do cliente (tópicos) |
 | `POST /documents/{document_id}/questions` | `{ "n": 3 }` | `{ questions: [{ question_id, clause_id, question, expected_elements: [...] }] }` (`expected_elements` só para o advogado) | tela do advogado |
-| `POST /sessions` | `{ document_id, lawyer_id, question_ids: [...] }` | `{ session_id, client_token }` | tela do advogado (aprovar e gerar link) |
+| `POST /sessions` | `{ document_id, lawyer_ref, question_ids: [...] }` | `{ session_id, client_token }` | tela do advogado (aprovar e gerar link) |
+| `POST /sessions/{session_id}/bind` | `{ client_token, user_ref }` | `{ status }` vincula a cidadã logada à sessão | tela C0 |
 | `GET /sessions/{session_id}` | | `{ status, document_type, sections, questions (sem expected_elements), answers, pending_for_lawyer }` | ambas |
 | `POST /sessions/{session_id}/answers` | `{ question_id, answer_text, attempt }` | `{ score: 0..3, matched_elements, missing_elements, feedback_for_client, re_explanation }` | tela do cliente |
 | `POST /sessions/{session_id}/chat` | `{ message }` | `{ answer, clause_id, quote, refused: bool }` (`refused=true` → `answer` = `NAO_ESTA_NO_DOCUMENTO`) | tela do cliente |

@@ -1,11 +1,29 @@
 # Telas
 
-Mobile-first para o cidadão (usuário principal); desktop para o advogado (supervisão). Um tópico por tela; três ações por tela no máximo; sem login
-para o cliente; sem tempo limite; texto grande; nada em caixa alta; sem vocabulário de prova ("nota", "errado").
+## Plataforma e acesso
+- **Cidadã: PWA mobile-first.** Aplicação web instalável no celular (manifesto, ícone, tela cheia, sem barra do navegador),
+  com service worker que guarda o shell e o conteúdo da sessão já carregado (tópicos, perguntas, áudio): se a rede cair,
+  a cidadã continua lendo e ouvindo; respostas ficam em fila e sobem quando voltar. Alvos de toque ≥ 48 px, texto grande,
+  navegação inferior com no máximo três ações, uma tela por tópico.
+- **Advogado: versão desktop separada.** Layout de painel (barra lateral, tabelas, revisão lado a lado do texto simples e
+  do trecho original). Mesmo código, rota e layout próprios (`/lawyer/...`); funciona no celular, mas é desenhado para tela grande.
+- **Login social** (Google na V1; Apple e gov.br no roadmap) para os dois perfis, via Auth.js no app web:
+  - Advogado: obrigatório. Primeiro acesso pede nome e número da OAB/UF (conferência no Cadastro Nacional dos Advogados
+    fica para o roadmap; responde ao "golpe do falso advogado" do canvas).
+  - Cidadã: um toque no Android já logado no Google; vincula a sessão à conta para retomar depois e receber o comprovante.
+    O link com token continua obrigatório (login não abre sessão de outra pessoa). Decisão pendente do time: manter
+    "continuar sem conta" como alternativa de acessibilidade.
+  - O serviço FastAPI não faz login: recebe do app web um `user_ref` pseudonimizado (hash do e-mail com pepper) e a chave
+    interna do app. No registro público nunca vai e-mail nem nome.
+
+## Regras de tela
+Um tópico por tela; três ações por tela no máximo; sem tempo limite; texto grande; nada em caixa alta; sem vocabulário de prova ("nota", "errado").
 Chamadas de API em [LLM-API-CONTRACT.md](LLM-API-CONTRACT.md).
 
 | # | Tela | Rota | Elementos | Chamadas | Entrega |
 |---|---|---|---|---|---|
+| A0 | Advogado: entrar | `/lawyer/login` | botão "Entrar com Google"; primeiro acesso: nome, OAB/UF | Auth.js | V1 |
+| C0 | Cidadã: entrar | `/c/{token}/login` | nome do advogado e do documento; "Entrar com Google" (um toque); por que pedimos (voltar depois, receber o comprovante) | Auth.js | V1 |
 | A1 | Advogado: enviar documento | `/lawyer/new` | seletor de tipo, upload, progresso por etapa ("lendo", "separando cláusulas", "escrevendo em linguagem simples") | `POST /documents`, `POST /documents/{id}/explain`, `POST /documents/{id}/questions` | V1 |
 | A2 | Advogado: revisar e aprovar | `/lawyer/documents/{id}` | lista de seções (título, texto simples editável, "ver trecho original"), perguntas sugeridas com seleção de 2 a 3, botão "Aprovar e gerar link", link copiável | `POST /sessions` | V1 |
 | C1 | Cliente: início | `/c/{token}` | nome do advogado e do documento, apresentação da IA ("sou uma assistente automática; explico o que está escrito; não sou advogada"), botão único "Começar" | `GET /sessions/{id}` | V1 |
