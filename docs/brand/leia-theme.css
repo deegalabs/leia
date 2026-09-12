@@ -1,0 +1,62 @@
+/* LeIA theme for the FastAPI templates (drop-in).
+   The templates define colors as CSS variables in :root (--bg, --gold, --tx ...). Linking this file AFTER the
+   page's <style> re-maps those same names to the LeIA palette: zero markup change to rebrand.
+   Usage in each template head, after the <style> block:
+     <link rel="stylesheet" href="/static/leia-theme.css">
+   Citizen page (dashboard.html): add class="leia-citizen" to <body> for the light, large-type variant. */
+
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Atkinson+Hyperlegible:wght@400;700&display=swap');
+
+/* ---------- dark (lawyer panel, task detail, login, workbench) ---------- */
+:root {
+  --bg: #081820;  --bg1: #0C1F2A;  --bg2: #0F2431;  --bg3: #142C3A;  --bg4: #1B3A4A;
+  --gold: #38A8A8;  --gold-lt: #8FD3D3;  --gold-dim: #1F7373;
+  --gold-glow: rgba(56,168,168,.12);  --gold-bd: rgba(56,168,168,.35);
+  --tx: #F0F0E8;  --tx2: #A9B4BF;  --tx3: #8A97A3;
+  --bd: rgba(240,240,232,.08);  --bd2: rgba(240,240,232,.16);
+  --err: #F0A3AA;  --err-bg: rgba(168,50,63,.18);  --err-bd: rgba(168,50,63,.45);
+  --ok: #6FCF97;  --pend: #E8B85B;
+  --sans: 'IBM Plex Sans', system-ui, sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --display: 'Archivo', 'IBM Plex Sans', sans-serif;
+}
+body { background: radial-gradient(120% 55% at 12% -8%, rgba(56,168,168,.10) 0, transparent 60%), var(--bg); font-family: var(--sans); }
+h1, h2, h3, .title { font-family: var(--display) !important; font-weight: 700 !important; letter-spacing: -0.01em; color: var(--tx) !important; }
+h1 { font-size: 1.6rem; }  h2 { font-size: 1.2rem; }
+label, .sub, .status, .meta { text-transform: none !important; letter-spacing: 0 !important; font-family: var(--sans) !important; font-size: .85rem !important; color: var(--tx2) !important; }
+code, .mono, .hash { font-family: var(--mono); }
+
+/* buttons: one primary per screen (add class="primary"); everything else stays secondary */
+button, .btn, a.btn { font-family: var(--sans); font-weight: 600; border-radius: 10px; min-height: 40px; }
+button.primary, .btn.primary { background: #38A8A8 !important; color: #081820 !important; border-color: #38A8A8 !important; }
+button.primary:hover, .btn.primary:hover { background: #4FB6B6 !important; }
+button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px solid #F0F0E8 !important; outline-offset: 2px; }
+input, textarea, select { font-size: 1rem !important; }
+input:focus, textarea:focus { border-color: var(--gold-bd) !important; }
+
+/* status chips (replace APROVADO/REPROVADO wording in the template; colors here) */
+.ok, .aprovado { color: var(--ok) !important; }
+.pend, .reprovado { color: var(--pend) !important; background: rgba(232,184,91,.12) !important; border-color: rgba(232,184,91,.4) !important; }
+
+/* icon sprite usage: <svg class="i"><use href="/static/leia-icons.svg#file-text"/></svg> */
+.i { width: 1.15em; height: 1.15em; vertical-align: -0.2em; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ---------- light, large type (citizen page: <body class="leia-citizen">) ---------- */
+body.leia-citizen {
+  --bg: #FAF8F4;  --bg1: #FFFFFF;  --bg2: #FFFFFF;  --bg3: #F1EFEA;  --bg4: #E3DED6;
+  --gold: #1F7373;  --gold-lt: #1F7373;  --gold-dim: #145A5A;
+  --gold-glow: rgba(31,115,115,.08);  --gold-bd: rgba(31,115,115,.35);
+  --tx: #081820;  --tx2: #3F4B58;  --tx3: #6B7480;
+  --bd: rgba(8,24,32,.10);  --bd2: rgba(8,24,32,.16);
+  --err: #7A4800;  --err-bg: #FFF4DD;  --err-bd: #E8C989;   /* "err" becomes the pending tone: never red for the citizen */
+  --sans: 'Atkinson Hyperlegible', 'IBM Plex Sans', system-ui, sans-serif;
+  background: var(--bg); color: var(--tx); font-size: 17px; line-height: 1.5;
+}
+body.leia-citizen h1 { font-size: 1.5rem; } body.leia-citizen h2 { font-size: 1.25rem; }
+body.leia-citizen p, body.leia-citizen li, body.leia-citizen label { font-size: 1.05rem !important; line-height: 1.5; color: var(--tx) !important; }
+body.leia-citizen button, body.leia-citizen .btn { min-height: 48px; font-size: 1.05rem; border-radius: 12px; }
+body.leia-citizen button.primary { background: #1F7373 !important; color: #FFFFFF !important; border-color: #1F7373 !important; }
+body.leia-citizen button:focus-visible, body.leia-citizen a:focus-visible { outline: 3px solid #081820 !important; outline-offset: 2px; }
+body.leia-citizen .box, body.leia-citizen .card, body.leia-citizen section { background: var(--bg1); border-color: var(--bd); box-shadow: none !important; }
+body.leia-citizen mark, body.leia-citizen .quote { background: #E3F1F1; text-decoration: underline; text-decoration-color: #1F7373; }
+@media (prefers-reduced-motion: reduce) { .spin, [class*="spin"] { animation: none !important; } }
