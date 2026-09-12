@@ -4,6 +4,10 @@
 - **Regra do evento (Manual §2 e §5d; Regras do Jogo):** documentação e protótipo publicados **no repositório oficial da
   OAB/PR, em pasta por equipe**. Esse repositório é a fonte da verdade e o lugar das entregas. Não há repositório
   paralelo em outra organização.
+- **Situação em 12/09 (14h):** a conta `github.com/observatorio-oabpr` (Observatório da OAB Paraná) tem só a página
+  "Hackathon 2026. Em breve."; não há repositório com pastas de equipe nem instruções. Se a OAB abrir um repositório e
+  aceitar pull request, o caminho é fork → branch `team/token-economy` → PR com a pasta da equipe; se adicionar
+  colaboradores, `git subtree add` direto. Se apenas receber links, o repositório próprio da equipe é a publicação.
 - **Até a organização informar a URL e o nome da pasta:** o trabalho continua neste clone local, com commits normais.
   Quando o repositório oficial estiver disponível, o histórico entra inteiro na pasta da equipe com `git subtree`:
   ```bash
