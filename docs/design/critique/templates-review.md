@@ -11,6 +11,8 @@ Seis arquivos Jinja em `temp/` (fora do repositório até o Carlos fazer o push)
 | `tarefa_detalhe.html` | Formulário de login (e-mail e senha) "AI Forensics · Gestão de Tarefas" | A0 | manter na V1; login social é V2 |
 | `login.html` | Workbench "AI Forensics · Groq v43": chat, payload ativo, log de execução, memória persistente, contexto e anexos, protocolo de agentes | não é tela do produto | **usar na auditoria** como "bastidores": mostra o sistema de prompts, o payload e a memória persistente ao auditor (Dimensão 3) |
 
+Validação elemento por elemento, com vereditos e bloqueadores: [templates-validation.md](templates-validation.md).
+
 ## O que já está bom
 - Estrutura das páginas cobre A4, A2/A3, C2–C6 e o estado de espera; link da cliente por token; hash por tentativa; log
   com tempo por etapa; chat restrito ao documento; auto-refresh na espera. Tudo em Jinja simples, fácil de retematizar.
