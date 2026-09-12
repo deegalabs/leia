@@ -1,4 +1,7 @@
-# Revisão do workflow do serviço cognitivo (v0, recebido em 12/09/2026)
+# Validação do workflow do serviço cognitivo (v0, recebido em 12/09/2026)
+
+> Papel deste documento: validar o desenho do serviço contra o produto, a API e a auditoria, e devolver insumos ao dono
+> do serviço. As decisões de implementação são dele.
 
 Fonte: [`prompts/workflow/v0-carlos.json`](../prompts/workflow/v0-carlos.json). Referências: [LLM-API-CONTRACT.md](LLM-API-CONTRACT.md),
 [ARCHITECTURE.md](ARCHITECTURE.md), [POSITIONING.md](POSITIONING.md), manual do hackathon (auditoria D1 confiabilidade, D2 usabilidade, D3 sofisticação).
@@ -20,9 +23,9 @@ Fonte: [`prompts/workflow/v0-carlos.json`](../prompts/workflow/v0-carlos.json). 
 - Determinismo (`temperature 0`, `seed`), saída estruturada, tarefas atômicas e paralelas: bom para auditar e para escalar.
 - Linguagem simples com regras concretas (frases ≤ 25 palavras, sem latim, termos explicados entre parênteses).
 
-## Lacunas em relação ao produto (resolver antes da V1)
+## Pontos a considerar para o encaixe no produto (insumo para o dono do serviço)
 
-| # | Lacuna | Impacto | Proposta |
+| # | Ponto | Por que importa | Sugestão |
 |---|---|---|---|
 | 1 | **Domínio: o workflow é para peças processuais** (autor, réu, juiz, pedidos, fundamentos, "decisão recorrida", número do processo). O produto explica **contrato de honorários, procuração e acordo**. | as classes não existem no documento; T10/T11 vão devolver vazio ou inventar | trocar as 5 classes de fragmentação por: **partes** (contratante/contratado, outorgante/outorgado), **valores e prazos** (honorários, percentual, parcelas, vigência, multa), **poderes e obrigações** (o que cada parte pode e deve fazer; poderes especiais do CPC 105), **condições e riscos** (êxito, sucumbência, rescisão, foro, quitação), **referências legais** (se houver). Seções do resumo: quem são as partes · o que você está autorizando ou contratando · quanto e quando você paga · o que acontece se (perder, desistir, atrasar) · como cancelar ou sair. Tabelas A, B e C de `research/legal/06` (na pasta de trabalho) já listam as cláusulas por tipo. |
 | 2 | **12 questões de múltipla escolha** (T14) no lugar de **2 a 3 perguntas abertas** com resposta nas próprias palavras. | múltipla escolha permite chute e vira "prova"; contraria o canvas, o posicionamento e a pesquisa de UX (teach-back); a rubrica 0–3 e a re-explicação não existem | T14 gera perguntas **abertas** com `expected_elements` (nunca exibidos à cidadã), 2 a 3 por documento, sobre as cláusulas de maior consequência; o advogado escolhe. Se quiser manter múltipla escolha, só como autoconferência opcional, nunca como evidência do consentimento. |
@@ -44,7 +47,7 @@ Fonte: [`prompts/workflow/v0-carlos.json`](../prompts/workflow/v0-carlos.json). 
 | `POST /sessions/{id}/chat` | **T16 (novo)** |
 | `POST /sessions/{id}/finalize`, `GET /verify/{id}` | fora do LLM: hash canônico, ancoragem, OpenTimestamps |
 
-## Perguntas ao Carlos (além das 10 do contrato)
+## Perguntas para alinhar (além das 10 do contrato)
 1. O texto do PDF entra inteiro em cada tarefa da fase 1? Qual o limite de páginas que cabe no contexto do modelo?
 2. Já existe execução ponta a ponta com um contrato de honorários? Qual foi o resultado das classes processuais?
 3. Aceita trocar as 5 classes pelas de contrato hoje, ou prefere um segundo workflow `contrato` ao lado do `processo`?
