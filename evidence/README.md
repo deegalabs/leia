@@ -12,3 +12,6 @@ Regra do evento: **Entrega > Evidência > Prazo > Pontos.** Sem evidência publi
 | `extras/` | Pontos extras | ver prazos | prints dos posts (foto no banner até 10h de sáb; foto da equipe até 15h; live até 15h de dom) |
 
 Nome dos arquivos: `AAAA-MM-DD-HHMM-descricao.ext`. Sem dados pessoais de clientes reais.
+
+Cada pasta de entrega recebe um `MANIFEST.md` (modelo em [MANIFEST.template.md](MANIFEST.template.md)) com a tag e o commit
+correspondentes; a tag congela docs, arquitetura, prompts e código daquela entrega (ver [../docs/DELIVERIES.md](../docs/DELIVERIES.md)).

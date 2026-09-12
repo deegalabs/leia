@@ -16,20 +16,24 @@ categoria **Inovação Aberta e Cidadania**. Licença MIT.
 Não presta consultoria, não interpreta o caso concreto, não recomenda aceitar ou recusar, não substitui a assinatura do documento. Ver [docs/POSITIONING.md](docs/POSITIONING.md).
 
 ## Estado das entregas
-| Entrega | Prazo | Estado |
-|---|---|---|
-| 1. Canvas | sáb 12h | entregue, ver [evidence/01-canvas](evidence/01-canvas/) |
-| 2. V1 com testes internos | sáb 15h30 | em construção, escopo em [docs/MVP.md](docs/MVP.md) |
-| 3. V2 com testes externos | sáb 17h30 | planejada |
-| 4. Produto + auditoria | dom 10h30 | planejada |
-| 5. Slides e pitch | dom 14h30 / 16h30 | planejados |
+Cada entrega é uma tag anotada no git; detalhes e comandos em [docs/DELIVERIES.md](docs/DELIVERIES.md) e [CHANGELOG.md](CHANGELOG.md).
+
+| Entrega | Prazo | Tag | Estado |
+|---|---|---|---|
+| 1. Canvas | sáb 12h | `v0.1.0` | entregue, ver [evidence/01-canvas](evidence/01-canvas/) |
+| 2. V1 com testes internos | sáb 15h30 | `v0.2.0` | em construção, escopo em [docs/MVP.md](docs/MVP.md) |
+| 3. V2 com testes externos | sáb 17h30 | `v0.3.0` | planejada |
+| 4. Produto + auditoria | dom 10h30 | `v0.4.0` | planejada |
+| 5. Slides | dom 14h30 | `v0.5.0` | planejada |
+| Pitch | dom 16h30 | `v1.0.0` | planejado |
 
 ## Estrutura
 ```
-├── README.md, LICENSE
+├── README.md, LICENSE, CHANGELOG.md (uma seção por entrega)
 ├── docs/          arquitetura, casos de uso, telas, contrato da API do serviço de LLM, MVP, roadmap, testes
 ├── prompts/       prompts do produto (versionados) e registro dos prompts usados na construção
 ├── evidence/      evidências de cada entrega e dos pontos extras
+├── scripts/       tag-delivery.sh (fecha uma entrega: tag + changelog)
 └── apps/          web (interface) e llm-service (FastAPI); código a partir de 12/09/2026
 ```
 
