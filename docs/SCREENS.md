@@ -1,6 +1,6 @@
 # Telas
 
-Mobile-first para o cliente; desktop para o advogado. Um tópico por tela; três ações por tela no máximo; sem login
+Mobile-first para o cidadão (usuário principal); desktop para o advogado (supervisão). Um tópico por tela; três ações por tela no máximo; sem login
 para o cliente; sem tempo limite; texto grande; nada em caixa alta; sem vocabulário de prova ("nota", "errado").
 Chamadas de API em [LLM-API-CONTRACT.md](LLM-API-CONTRACT.md).
 

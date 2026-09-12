@@ -3,14 +3,14 @@
 Consentimento esclarecido com prova. Equipe **Token Economy**, Hackathon da Cidadania OAB-PR 2026 (6ª edição),
 categoria **Inovação Aberta e Cidadania**. Licença MIT.
 
-> O sistema não substitui o advogado. Ele registra e comprova, de forma auditável, que o advogado cumpriu o dever
-> de informar o cliente de modo claro, compreensível e verificável (Código de Ética da OAB, art. 9º e 48).
+> Plataforma para o cidadão entender um documento jurídico antes de assinar, em ambiente seguro, com supervisão de
+> advogado e registro auditável de que o esclarecimento ocorreu. Não substitui o advogado.
 
 ## O que faz
-1. O advogado envia o documento (procuração, contrato de honorários ou acordo) e aprova a explicação em linguagem simples gerada pela IA, sempre com o trecho literal da cláusula.
-2. O cliente percorre o documento um tópico por vez, tira dúvidas e responde a perguntas abertas de compreensão, avaliadas por rubrica.
-3. O advogado revisa as respostas e valida.
-4. O sistema gera o registro do consentimento (JSON canônico → SHA-256) e o ancora em registro público com carimbo de tempo; o comprovante traz QR para verificação. Nenhum dado pessoal vai ao registro público.
+1. O documento (procuração, contrato de honorários ou acordo) entra na plataforma; a IA gera a explicação em linguagem simples, sempre com o trecho literal da cláusula; o advogado aprova antes de o cidadão ver.
+2. O cidadão percorre o documento um tópico por vez, tira dúvidas e responde a perguntas abertas de compreensão, avaliadas por rubrica.
+3. O advogado revisa as respostas e valida (supervisão humana).
+4. O sistema gera o registro do consentimento (JSON canônico → SHA-256) e o ancora em registro público com carimbo de tempo; o comprovante do cidadão traz QR para verificação. Nenhum dado pessoal vai ao registro público.
 
 ## O que não faz
 Não presta consultoria, não interpreta o caso concreto, não recomenda aceitar ou recusar, não substitui a assinatura do documento. Ver [docs/POSITIONING.md](docs/POSITIONING.md).

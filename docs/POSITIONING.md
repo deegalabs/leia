@@ -1,13 +1,16 @@
 # Posicionamento
 
 ## Tese
-O sistema não substitui o advogado. Ele **documenta e comprova** o cumprimento do dever de informação realizado pelo
-advogado (Código de Ética e Disciplina da OAB, art. 9º: informar o cliente "de modo claro e inequívoco"; art. 48:
-contrato de honorários com "clareza e precisão"; Recomendação CFOAB 001/2024: consentimento informado, por escrito e
-em linguagem acessível, para o uso de IA na advocacia).
+A plataforma é **para o cidadão**: entender o documento antes de assinar, em ambiente seguro, sem expor dados
+pessoais em ferramentas genéricas e sem cair em falso advogado (canvas, bloco 1). O advogado entra como
+**supervisão humana**: valida a explicação e as respostas antes do registro (canvas, indicadores e ferramentas:
+"supervisão humana", "painel do advogado").
 
-Frase única para a banca: "Não substitui o advogado; cria uma trilha probatória auditável de que o advogado cumpriu
-seu dever ético e legal de informar o cliente de forma clara, compreensível e verificável."
+O que o registro comprova é secundário e serve aos dois: para o cidadão, prova de que foi esclarecido; para o advogado,
+prova do cumprimento do dever de informar (CED art. 9º e 48; Rec. CFOAB 001/2024).
+
+Frase única para a banca: "O cidadão entende antes de assinar; o advogado supervisiona; o registro prova. A IA não
+substitui o advogado, ela dá ao cidadão uma explicação segura e ao advogado a evidência de que o esclarecimento ocorreu."
 
 ## O que a IA faz
 - Traduz cláusulas para linguagem simples, sempre com o trecho literal de origem.
@@ -21,27 +24,32 @@ seu dever ético e legal de informar o cliente de forma clara, compreensível e 
 - Não elabora nem altera o documento.
 - Não substitui a assinatura do documento nem o encontro com o advogado.
 
-## Fluxo com o advogado no centro
+## Fluxo: cidadão no centro, advogado supervisiona
 ```
-1. Advogado carrega o documento
-2. IA gera a explicação simplificada, com citações            → advogado revisa e aprova antes de o cliente ver
-3. Cliente lê ou ouve, tira dúvidas, responde às perguntas
+1. O documento entra na plataforma (ver "decisão pendente" abaixo)
+2. IA gera a explicação simplificada, com citações            → advogado aprova antes de o cidadão ver (supervisão)
+3. Cidadão lê ou ouve, tira dúvidas, responde às perguntas com as próprias palavras
 4. Sistema aponta dúvidas e respostas insuficientes
-5. Advogado revisa e valida                                    → etapa obrigatória
-6. Sistema gera o registro (hash) e o comprovante
+5. Advogado revisa e valida                                    → supervisão humana
+6. Sistema gera o registro (hash) e o comprovante para o cidadão
 ```
-Analogia: o prontuário eletrônico não substitui o médico; registra a atuação do médico. Aqui, o registro é da atuação
-do advogado no dever de informar.
+Decisão pendente do time: quem envia o documento. (a) O advogado envia e manda o link ao cidadão: caminho mais
+simples para a V1. (b) O cidadão envia o documento que recebeu e a plataforma o conecta a um advogado para supervisão:
+é o caminho que responde ao bloco 1 do canvas (hoje ele cola o documento no ChatGPT) e ao golpe do falso advogado
+(validação do advogado na OAB). As telas mudam pouco: só a entrada (A1 ou uma tela C0 de envio pelo cidadão).
 
-## Para quem, dito na ordem certa
-1. Advogado: reduz o risco de alegação futura de vício de consentimento ou falta de esclarecimento; gera prova.
-2. Cliente: entende antes de assinar; pode recusar e pode falar com o advogado a qualquer momento.
-3. Instituições de acesso à justiça: Defensoria, dativos, núcleos de prática, Espaço OAB Cidadania.
+Analogia para a banca: o prontuário eletrônico não substitui o médico; registra a atuação dele. Aqui, o cidadão é o
+paciente que entende o que vai assinar, e o registro comprova o esclarecimento.
+
+## Para quem, na ordem do canvas
+1. Cidadão: entende antes de assinar; não expõe dados em ferramenta genérica; pode recusar e pode falar com o advogado.
+2. Advogado: supervisiona; reduz o risco de alegação futura de falta de esclarecimento; recebe a prova.
+3. OAB e órgãos públicos: instrumento de acesso à justiça e de cidadania (Defensoria, dativos, Espaço OAB Cidadania).
 
 ## Resposta à pergunta "isso não substitui o advogado?"
-"Pelo contrário. O projeto existe porque o advogado continua essencial: a lei exige informação adequada,
-aconselhamento individualizado e atuação técnica, e a IA não faz nada disso. O que entregamos é rastreabilidade e
-prova de que o advogado exerceu esse papel."
+"Não. A plataforma serve ao cidadão, que hoje cola o documento em um chatbot público ou pergunta a quem não é
+advogado. Aqui ele entende o documento em ambiente seguro e o advogado supervisiona cada etapa: a lei exige
+informação adequada e atuação técnica, e a IA não faz nada disso. O registro prova que o esclarecimento ocorreu."
 
 ## Nome e subtítulo
 Nome provisório **Ciente** (fórmula usada nos próprios documentos: "ciente e de acordo"; serve ao cidadão, que fica
