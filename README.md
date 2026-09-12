@@ -48,6 +48,7 @@ Cada entrega é uma tag anotada no git; detalhes e comandos em [docs/DELIVERIES.
 - [docs/INTERNAL-TESTS.md](docs/INTERNAL-TESTS.md): plano e relatório dos testes internos (Entrega 2).
 - [docs/CANVAS.md](docs/CANVAS.md): canvas da Entrega 1.
 - [prompts/README.md](prompts/README.md): política de prompts.
+- [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md): como subir código, publicar na pasta oficial e fechar uma entrega.
 
 ## Como rodar
 A preencher com o código (apps/web e apps/llm-service). Meta: um comando, menos de 5 minutos, PDFs de exemplo incluídos.

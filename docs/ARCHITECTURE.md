@@ -26,6 +26,16 @@
 - **Serviço cognitivo** (`apps/llm-service`): toda a inteligência e o registro. Um processo, sem filas. Contrato em [LLM-API-CONTRACT.md](LLM-API-CONTRACT.md).
 - **Base de referência** (`prompts/knowledge/`): Estatuto da Advocacia, Código de Ética, tabela de honorários OAB-PR 2026, glossário. Somente leitura, versionada.
 
+## Estratégia de transição da interface
+1. **V1 (sáb 15h30):** o serviço FastAPI serve também o **HTML de transição** do Carlos; é a interface testada nos testes
+   internos. Nada de segunda interface antes da V1.
+2. **V2 (sáb 17h30):** a jornada da cidadã (telas C1 a C5) sai do HTML e passa para `apps/web` (Next.js, mobile-first),
+   consumindo os endpoints do serviço; o advogado continua no HTML de transição.
+3. **Produto (dom 10h30):** painel do advogado em `apps/web`; PWA e login social se as credenciais estiverem prontas.
+   Se o tempo não permitir, o HTML de transição adaptado ao celular é o plano B para a auditoria: a auditoria pontua
+   confiabilidade, usabilidade e sofisticação, não o framework.
+A regra é uma só: o serviço é o backend de tudo; a interface, qualquer que seja, só consome a API.
+
 ## Fluxo de dados
 1. Upload do PDF → texto → segmentação por cláusula (`clause_id`, página, texto).
 2. Explicação por tópico: `{title, plain_text, quote, clause_id}`; o serviço confere que `quote` é substring da cláusula antes de responder (controle de alucinação verificável).
