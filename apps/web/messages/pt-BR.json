@@ -1,0 +1,179 @@
+{
+  "app": {
+    "name": "LeIA",
+    "tagline": "Leia antes de assinar.",
+    "subtitle": "Consentimento esclarecido com prova"
+  },
+  "banner": {
+    "line1": "Assistente automática.",
+    "line2": "Explica este documento. Não dá conselho jurídico.",
+    "talkToLawyer": "Falar com o advogado"
+  },
+  "common": {
+    "back": "Voltar",
+    "next": "Entendi, próximo",
+    "listen": "Ouvir explicação",
+    "pause": "Pausar",
+    "listenAgain": "Ouvir de novo",
+    "speed": "Velocidade",
+    "originalExcerpt": "Ver trecho original",
+    "hideExcerpt": "Fechar trecho original",
+    "record": "Gravar minha resposta",
+    "stopRecording": "Parar de gravar",
+    "recording": "Gravando, {seconds} segundos",
+    "typeInstead": "Prefiro escrever",
+    "checkTranscript": "Confira o que você disse",
+    "sendAnswer": "Enviar resposta",
+    "recordAgain": "Gravar de novo",
+    "copyLink": "Copiar link",
+    "linkCopied": "Link copiado",
+    "loading": "Carregando",
+    "checking": "Conferindo o que você disse",
+    "offline": "A conexão caiu. Suas respostas estão salvas. Quando voltar, é só tocar em Continuar.",
+    "continue": "Continuar",
+    "systemError": "Deu um problema do nosso lado, não foi você. Estamos tentando de novo.",
+    "tryAgain": "Tentar de novo",
+    "micDenied": "Sem microfone, tudo bem. Você pode escrever sua resposta aqui.",
+    "voiceConsent": "Sua voz será transformada em texto só para conferir se você entendeu. O áudio não vai para o registro público. Você pode pedir para apagar depois.",
+    "topicOf": "Parte {n} de {total}",
+    "minutesLeft": "faltam uns {minutes} min"
+  },
+  "status": {
+    "toStart": "A começar",
+    "inProgress": "Em andamento",
+    "understood": "Entendido",
+    "receiptReady": "Comprovante disponível",
+    "awaitingReview": "Aguardando revisão",
+    "linkSent": "Link enviado",
+    "awaitingValidation": "Aguardando validação",
+    "registered": "Registrado",
+    "stampPending": "Carimbo pendente",
+    "pendingForLawyer": "Marcado para o advogado"
+  },
+  "ch": {
+    "title": "Seus documentos",
+    "empty": "Nenhum documento por enquanto. Quando um advogado enviar, ele aparece aqui.",
+    "continue": "Continuar",
+    "viewReceipt": "Ver comprovante",
+    "sentBy": "{lawyer} · {date}"
+  },
+  "c0": {
+    "sentYou": "{lawyer}, {oab}, enviou para você:",
+    "intro": "Vamos ler este documento juntos, em partes. No fim, você diz se entendeu.",
+    "whyLogin": "Pedimos o login para você poder voltar depois e receber seu comprovante.",
+    "google": "Entrar com Google",
+    "guest": "Continuar sem conta"
+  },
+  "c1": {
+    "hello": "Oi, {firstName}.",
+    "plan": "Vou explicar este documento em {total} partes. Você pode ouvir ou ler.",
+    "selfIntro": "Sou uma assistente automática do escritório. Explico o que está escrito neste documento. Não sou advogada e não dou conselho jurídico. Quem responde por você é {lawyer}.",
+    "duration": "Leva uns {minutes} minutos. Você pode parar quando quiser.",
+    "startListening": "Começar ouvindo",
+    "preferReading": "Prefiro ler"
+  },
+  "c2": {
+    "haveQuestion": "Tenho uma dúvida"
+  },
+  "c3": {
+    "title": "Qual é a sua dúvida?",
+    "placeholder": "Fale ou escreva aqui",
+    "scope": "Respondo só com o que está neste documento. O que não estiver nele, eu anoto para {lawyer} responder.",
+    "notInDocument": "Isso não está escrito neste documento. Anotei para {lawyer} responder.",
+    "adviceRequest": "Se vale a pena assinar é uma decisão sua com {lawyer}. Eu só explico o que está escrito.",
+    "examples": ["E se eu perder?", "Posso trocar de advogado?", "Quanto custa desistir?"]
+  },
+  "c4": {
+    "checkingOf": "Conferindo {k} de {total}",
+    "framing": "Para eu ter certeza de que expliquei bem:",
+    "ownWords": "Responda com suas palavras. Não tem resposta errada; se eu não expliquei bem, eu explico de novo.",
+    "dontKnow": "Não sei, explica de novo",
+    "seeAgainTitle": "Vamos ver de novo",
+    "whatWasRight": "O que você disse que está certo:",
+    "whatDiffers": "O que está diferente no documento:",
+    "answerAgain": "Responder de novo",
+    "thirdAttempt": "Vou deixar este ponto marcado para {lawyer} conversar com você. Podemos seguir para o próximo tópico.",
+    "understood": "Entendido. Vamos para o próximo."
+  },
+  "c5": {
+    "title": "O que você entendeu",
+    "notSignature": "Ao confirmar, você diz que entendeu o que está acima. Isso não é a assinatura do contrato.",
+    "confirm": "Confirmo que entendi",
+    "review": "Quero rever uma parte",
+    "markedFor": "marcado para {lawyer} explicar"
+  },
+  "c6": {
+    "title": "Seu comprovante",
+    "waitingLawyer": "Aguardando {lawyer} validar. Você recebe um aviso quando o comprovante estiver pronto.",
+    "stampPending": "Registro em andamento. O código já existe; o carimbo de tempo chega em alguns minutos.",
+    "proves": "Este código prova que você respondeu estas perguntas neste dia.",
+    "doesNotContain": "Ele não contém seu documento nem suas respostas. Não é a assinatura do contrato. Qualquer pessoa pode conferir pelo QR.",
+    "save": "Salvar comprovante",
+    "verifyLink": "Conferir o registro"
+  },
+  "a0": {
+    "title": "Entrar",
+    "google": "Entrar com Google",
+    "firstAccess": "Primeiro acesso: complete seu cadastro",
+    "name": "Nome",
+    "oab": "Número da OAB",
+    "uf": "UF",
+    "save": "Salvar e entrar"
+  },
+  "a4": {
+    "title": "Sessões",
+    "newDocument": "Novo documento",
+    "pendings": "Pendências para você",
+    "thisWeek": "Esta semana",
+    "empty": "Nenhuma sessão ainda. Envie um documento para gerar o link da sua cliente.",
+    "columns": { "person": "Pessoa", "document": "Documento", "status": "Estado", "time": "Tempo", "pendings": "Pendências", "action": "Ação" },
+    "actions": { "review": "Revisar", "copyLink": "Copiar link", "validate": "Validar", "viewReceipt": "Ver comprovante" },
+    "pendingDoubt": "dúvida fora do documento",
+    "pendingComprehension": "resposta insuficiente em 2 tentativas"
+  },
+  "a1": {
+    "title": "Enviar documento",
+    "type": "Tipo do documento",
+    "types": { "procuracao": "Procuração", "contrato_honorarios": "Contrato de honorários", "acordo": "Acordo" },
+    "upload": "Escolher PDF",
+    "uploadHint": "PDF com texto selecionável, sem dados de terceiros que não fazem parte do documento.",
+    "stages": ["Lendo o PDF", "Separando cláusulas", "Escrevendo em linguagem simples", "Conferindo trechos", "Gerando áudio"],
+    "failedScan": "Este PDF parece ser uma imagem. Envie um PDF com texto selecionável."
+  },
+  "a2": {
+    "title": "Revisar e aprovar",
+    "plainText": "Texto simples (editável)",
+    "original": "Trecho original",
+    "verified": "trecho verificado",
+    "judgeFaithful": "juiz: fiel",
+    "questions": "Perguntas de compreensão (escolha 2 a 3)",
+    "approve": "Aprovar e gerar link",
+    "linkReady": "Link pronto. Envie para a sua cliente.",
+    "mergeSections": "Juntar com a seção anterior"
+  },
+  "a3": {
+    "title": "Validar",
+    "answers": "Respostas",
+    "rubric": {
+      "full": "entendeu e citou a consequência",
+      "ok": "entendeu",
+      "secondTry": "entendeu na 2ª tentativa",
+      "pending": "pendente: conversar com a cliente"
+    },
+    "doubts": "Dúvidas anotadas",
+    "notes": "Observações",
+    "validate": "Validar e gerar registro",
+    "registered": "Registrado. Código, transação e comprovante abaixo."
+  },
+  "p1": {
+    "title": "Verificação do registro",
+    "hash": "Código (SHA-256)",
+    "canonical": "JSON canônico",
+    "transaction": "Transação",
+    "blockTime": "Data e hora do registro",
+    "network": "Rede de testes (Polygon Amoy)",
+    "howTo": "Como conferir",
+    "steps": ["Baixe o JSON canônico.", "Rode sha256sum no arquivo.", "Compare com o código acima.", "Abra a transação e confira o mesmo código."],
+    "noPersonalData": "Esta página não contém nome, documento nem respostas."
+  }
+}

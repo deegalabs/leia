@@ -1,0 +1,76 @@
+/* LeIA design tokens, derived from the logo. Import from apps/web/app/globals.css.
+   Tailwind v4: `@import "tailwindcss"; @import "../../docs/brand/tokens.css";` (or copy into the app). */
+
+@theme {
+  /* brand */
+  --color-navy: #081820;        /* brand ground, splash, app icon, lawyer sidebar */
+  --color-paper: #F0F0E8;       /* text on navy */
+  --color-paper-2: #FAF8F4;     /* citizen light background */
+  --color-teal: #38A8A8;        /* brand teal: dark backgrounds only (2.9:1 with white text) */
+  --color-teal-deep: #1F7373;   /* action teal: buttons and links on light (5.6:1 with white) */
+  --color-teal-soft: #E3F1F1;   /* quote highlight, selected state on light */
+
+  /* neutrals with the navy hue */
+  --color-ink: #081820;
+  --color-ink-2: #3F4B58;
+  --color-ink-3: #6B7480;
+  --color-line: #E3DED6;
+  --color-surface: #FFFFFF;
+
+  /* semantic (never for judging the citizen's answers) */
+  --color-ok: #1F7A4D;   --color-ok-soft: #DDF1E6;
+  --color-pend: #B26A00; --color-pend-soft: #FBEFD3;
+  --color-danger: #A8323F; --color-danger-soft: #F6E4E6;
+
+  /* type */
+  --font-citizen: "Atkinson Hyperlegible", system-ui, sans-serif;
+  --font-lawyer: "IBM Plex Sans", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  --text-citizen-body: 17px;
+  --text-citizen-title: 22px;
+
+  /* shape and size */
+  --radius-button: 12px;
+  --radius-card: 22px;
+  --size-target: 48px;    /* minimum touch target */
+  --size-mic: 64px;
+}
+
+/* shadcn-style semantic variables. Light = citizen journey (default). */
+:root {
+  --background: var(--color-paper-2);
+  --foreground: var(--color-ink);
+  --card: var(--color-surface);
+  --card-foreground: var(--color-ink);
+  --muted: #F1EFEA;
+  --muted-foreground: var(--color-ink-3);
+  --border: var(--color-line);
+  --primary: var(--color-teal-deep);
+  --primary-foreground: #FFFFFF;
+  --secondary: transparent;
+  --secondary-foreground: var(--color-ink);
+  --accent: var(--color-teal-soft);
+  --accent-foreground: var(--color-ink);
+  --ring: var(--color-teal-deep);
+  --success: var(--color-ok);
+  --pending: var(--color-pend);
+}
+
+/* Dark = brand surfaces: splash, lawyer sidebar, receipts on navy. Applied with .dark on the container. */
+.dark {
+  --background: var(--color-navy);
+  --foreground: var(--color-paper);
+  --card: #0F2431;
+  --card-foreground: var(--color-paper);
+  --muted: #142C3A;
+  --muted-foreground: #A9B4BF;
+  --border: #23394A;
+  --primary: var(--color-teal);          /* teal on navy: 6.0:1 with navy text */
+  --primary-foreground: var(--color-navy);
+  --accent: #143E40;
+  --accent-foreground: var(--color-paper);
+  --ring: var(--color-teal);
+}
+
+/* Contrast reference (WCAG 2.2): paper/navy 15.8:1 · teal/navy 6.0:1 · white/teal 2.9:1 (fail) ·
+   white/teal-deep 5.6:1 · teal-deep/paper-2 5.3:1 · ink/paper-2 17:1. */
