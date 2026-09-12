@@ -24,8 +24,13 @@ selo é a verificação de que foi entendido; "IA" em destaque diz onde a inteli
 
 Regra: o teal claro da logo vive no escuro; no claro, a ação usa o teal escuro. Marinho e off-white fazem o resto.
 
+## Ativos
+- [logo-mark.svg](logo-mark.svg): símbolo sem fundo (documento + selo), base do ícone do PWA e do favicon.
+- [logo-horizontal-dark.svg](logo-horizontal-dark.svg): símbolo + wordmark para fundos escuros (transparente).
+- [logo-horizontal-light.svg](logo-horizontal-light.svg): versão para fundos claros (marinho + teal de ação).
+- O texto dos SVGs usa a fonte Archivo; converter em curvas antes de usar fora da web (Inkscape: Objeto → Converter em curvas).
+
 ## Ativos a produzir
-- Versão para fundo claro (wordmark em marinho, "IA" em `#1F7373`).
 - Ícone do aplicativo (PWA): quadrado marinho com o selo, 192 e 512 px, `purpose: maskable`.
 - Favicon 32 px com o selo.
 - Somente o símbolo (documento + selo) para espaços pequenos.
