@@ -3,7 +3,8 @@
 Dois tipos de prompt, dois lugares. Regra válida desde 12/09/2026 (construção da V1): **todo prompt é registrado**.
 
 ## 1. Prompts do produto (`prompts/*.md`)
-Prompts de sistema usados pelo serviço de LLM (`apps/llm-service`). Um arquivo por prompt, em inglês, com cabeçalho:
+Prompts de sistema usados pelo serviço de LLM (`apps/llm-service`). Um arquivo por prompt (ou um workflow JSON em
+`prompts/workflow/`), em português ou inglês, com cabeçalho:
 
 ```
 ---

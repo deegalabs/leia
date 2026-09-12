@@ -36,6 +36,10 @@ Erros: `{ "error": { "code": "...", "message": "..." } }` com HTTP 4xx/5xx.
 4. `finalize` só funciona após `validate` com `approved = true`.
 5. O serviço grava `logs/citations.jsonl` e `logs/judge.jsonl` (auditoria) e expõe `prompt_version` em toda resposta gerada.
 
+## Mapeamento para o workflow recebido
+Ver [LLM-WORKFLOW-REVIEW.md](LLM-WORKFLOW-REVIEW.md): `POST /documents` = fase 1 + T6; `/explain` = T7–T13 + `_ui`; `/questions` = T14 adaptado
+para perguntas abertas; `/answers` e `/chat` = tarefas novas T15 e T16.
+
 ## Perguntas ao dono do serviço (responder hoje até 13h30)
 1. Quais desses endpoints já existem ou existirão até 15h? Quais nomes/campos mudam?
 2. Comando para subir o serviço, porta, variáveis de ambiente e chave de modelo usada.
