@@ -19,7 +19,7 @@
 
   /* semantic (never for judging the citizen's answers) */
   --color-ok: #1F7A4D;   --color-ok-soft: #DDF1E6;
-  --color-pend: #B26A00; --color-pend-soft: #FBEFD3;
+  --color-pend: #7A4800; --color-pend-soft: #FFF4DD;   /* 7.0:1 text on soft; #B26A00 with white failed at 4.2:1 (audit) */
   --color-danger: #A8323F; --color-danger-soft: #F6E4E6;
 
   /* type */
@@ -51,7 +51,7 @@
   --secondary-foreground: var(--color-ink);
   --accent: var(--color-teal-soft);
   --accent-foreground: var(--color-ink);
-  --ring: var(--color-teal-deep);
+  --ring: var(--color-ink);            /* focus ring: 3px solid, offset 2px (audit 2.4.7) */
   --success: var(--color-ok);
   --pending: var(--color-pend);
 }
@@ -69,7 +69,7 @@
   --primary-foreground: var(--color-navy);
   --accent: #143E40;
   --accent-foreground: var(--color-paper);
-  --ring: var(--color-teal);
+  --ring: var(--color-paper);          /* focus ring on navy */
 }
 
 /* Contrast reference (WCAG 2.2): paper/navy 15.8:1 · teal/navy 6.0:1 · white/teal 2.9:1 (fail) ·

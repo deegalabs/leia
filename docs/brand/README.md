@@ -29,3 +29,9 @@ Regra: o teal claro da logo vive no escuro; no claro, a ação usa o teal escuro
 - Ícone do aplicativo (PWA): quadrado marinho com o selo, 192 e 512 px, `purpose: maskable`.
 - Favicon 32 px com o selo.
 - Somente o símbolo (documento + selo) para espaços pequenos.
+
+## Ajustes após a auditoria de acessibilidade (12/09)
+- Pendência (âmbar): texto `#7A4800` sobre `#FFF4DD` (7,0:1). O `#B26A00` com texto branco reprova (4,2:1).
+- Anel de foco: `outline: 3px solid #081820; outline-offset: 2px` no claro; `#F0F0E8` sobre marinho. O `ring` translúcido do shadcn reprova.
+- Destaque do trecho citado: cor de fundo sozinha não basta (1,07:1 contra o papel); combinar com sublinhado ou negrito e texto oculto para leitor de tela.
+- Relatórios: `docs/design/critique/accessibility-audit.md` e `accessibility-fixes.md`.
