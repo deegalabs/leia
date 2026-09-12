@@ -1,4 +1,4 @@
-# Ciente (nome provisório)
+# LeIA
 
 Consentimento esclarecido com prova. Equipe **Token Economy**, Hackathon da Cidadania OAB-PR 2026 (6ª edição),
 categoria **Inovação Aberta e Cidadania**. Licença MIT. Publicado na pasta da equipe do repositório oficial da OAB/PR.

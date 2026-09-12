@@ -52,6 +52,6 @@ advogado. Aqui ele entende o documento em ambiente seguro e o advogado supervisi
 informação adequada e atuação técnica, e a IA não faz nada disso. O registro prova que o esclarecimento ocorreu."
 
 ## Nome e subtítulo
-Nome provisório **Ciente** (fórmula usada nos próprios documentos: "ciente e de acordo"; serve ao cidadão, que fica
-ciente, e ao advogado, que dá ciência). Subtítulo: "consentimento esclarecido com prova". Alternativas discutidas:
-Entenda (voz do cidadão), Atesta (voz do advogado; colide com "atestado"). Decisão do time pendente.
+**LeIA** (decisão do time em 12/09/2026): Lei + IA, e lê-se como o imperativo "leia". Subtítulo: "consentimento esclarecido
+com prova". Frase de chamada para a cidadã: "Leia antes de assinar." Nomes anteriores (ConsentChain, Ciente, Entenda,
+Atesta) ficam só no histórico.

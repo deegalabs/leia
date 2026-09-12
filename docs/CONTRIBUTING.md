@@ -8,7 +8,7 @@
   Quando o repositório oficial estiver disponível, o histórico entra inteiro na pasta da equipe com `git subtree`:
   ```bash
   git clone <URL do repositório oficial> oab && cd oab
-  git subtree add --prefix=equipes/token-economy /caminho/para/ciente main   # ajustar o nome da pasta ao padrão da OAB
+  git subtree add --prefix=equipes/token-economy /caminho/para/leia main   # ajustar o nome da pasta ao padrão da OAB
   git push
   ```
   Depois disso, todo mundo trabalha **dentro do clone do repositório oficial**, na pasta da equipe; o clone local antigo

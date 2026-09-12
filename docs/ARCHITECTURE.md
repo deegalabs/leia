@@ -68,5 +68,5 @@ AUTH_SECRET=                  GOOGLE_CLIENT_ID=            GOOGLE_CLIENT_SECRET=
 LLM_SERVICE_API_KEY=          # chave interna app web → serviço
 ANCHOR_CHAIN=amoy             AMOY_RPC_URL=https://polygon-amoy.drpc.org
 ANCHOR_PRIVATE_KEY=           CONSENT_REGISTRY_ADDRESS=
-ID_PEPPER=                    DATABASE_URL=sqlite:///./data/ciente.db
+ID_PEPPER=                    DATABASE_URL=sqlite:///./data/leia.db
 ```

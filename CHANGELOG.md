@@ -14,6 +14,7 @@ estado exato de uma entrega: `git checkout token-economy/v0.2.0`; entre duas: `g
 
 ## v0.2.0 · Entrega 2: V1 com testes internos (sáb 15h30)
 _A preencher no fechamento da entrega._
+- Nome do produto definido: LeIA (antes ConsentChain / Ciente).
 
 ## v0.3.0 · Entrega 3: V2 com testes externos (sáb 17h30)
 _A preencher._
