@@ -1,7 +1,7 @@
 # Ciente (nome provisório)
 
 Consentimento esclarecido com prova. Equipe **Token Economy**, Hackathon da Cidadania OAB-PR 2026 (6ª edição),
-categoria **Inovação Aberta e Cidadania**. Licença MIT.
+categoria **Inovação Aberta e Cidadania**. Licença MIT. Publicado na pasta da equipe do repositório oficial da OAB/PR.
 
 > Plataforma para o cidadão entender um documento jurídico antes de assinar, em ambiente seguro, com supervisão de
 > advogado e registro auditável de que o esclarecimento ocorreu. Não substitui o advogado.
@@ -20,12 +20,12 @@ Cada entrega é uma tag anotada no git; detalhes e comandos em [docs/DELIVERIES.
 
 | Entrega | Prazo | Tag | Estado |
 |---|---|---|---|
-| 1. Canvas | sáb 12h | `v0.1.0` | entregue, ver [evidence/01-canvas](evidence/01-canvas/) |
-| 2. V1 com testes internos | sáb 15h30 | `v0.2.0` | em construção, escopo em [docs/MVP.md](docs/MVP.md) |
-| 3. V2 com testes externos | sáb 17h30 | `v0.3.0` | planejada |
-| 4. Produto + auditoria | dom 10h30 | `v0.4.0` | planejada |
-| 5. Slides | dom 14h30 | `v0.5.0` | planejada |
-| Pitch | dom 16h30 | `v1.0.0` | planejado |
+| 1. Canvas | sáb 12h | `token-economy/v0.1.0` | entregue, ver [evidence/01-canvas](evidence/01-canvas/) |
+| 2. V1 com testes internos | sáb 15h30 | `token-economy/v0.2.0` | em construção, escopo em [docs/MVP.md](docs/MVP.md) |
+| 3. V2 com testes externos | sáb 17h30 | `token-economy/v0.3.0` | planejada |
+| 4. Produto + auditoria | dom 10h30 | `token-economy/v0.4.0` | planejada |
+| 5. Slides | dom 14h30 | `token-economy/v0.5.0` | planejada |
+| Pitch | dom 16h30 | `token-economy/v1.0.0` | planejado |
 
 ## Estrutura
 ```

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Creates an annotated tag for a hackathon delivery and appends a commit summary
-# to the matching CHANGELOG.md section. Usage: scripts/tag-delivery.sh v0.2.0 "Entrega 2: V1 com testes internos"
+# to the matching CHANGELOG.md section. Usage: scripts/tag-delivery.sh token-economy/v0.2.0 "Entrega 2: V1 com testes internos"
 set -euo pipefail
-version="${1:?version, e.g. v0.2.0}"
+version="${1:?version, e.g. token-economy/v0.2.0}"
 message="${2:?message, e.g. 'Entrega 2: V1 com testes internos'}"
 repo_root="$(git rev-parse --show-toplevel)"
 cd "$repo_root"
@@ -14,12 +14,13 @@ if git rev-parse -q --verify "refs/tags/$version" >/dev/null; then
   echo "tag $version already exists" >&2; exit 1
 fi
 
-previous="$(git describe --tags --abbrev=0 2>/dev/null || true)"
+previous="$(git describe --tags --abbrev=0 --match "${version%%/*}/*" 2>/dev/null || git describe --tags --abbrev=0 2>/dev/null || true)"
 range="${previous:+$previous..}HEAD"
 summary="$(git log --no-merges --pretty='- %s' "$range")"
 stamp="$(date '+%Y-%m-%d %H:%M')"
 
-python3 - "$version" "$message" "$stamp" "$summary" <<'PY'
+bare="${version##*/}"
+python3 - "$bare" "$message" "$stamp" "$summary" <<'PY'
 import re, sys
 version, message, stamp, summary = sys.argv[1:5]
 path = "CHANGELOG.md"

@@ -1,16 +1,21 @@
 # Como trabalhar neste repositório
 
 ## Fonte da verdade e publicação
-- **Fonte da verdade:** este repositório (`deegalabs/ciente` no GitHub), com histórico e uma tag por entrega.
-- **Pasta oficial da OAB/PR:** recebe um **snapshot** a cada entrega (arquivos sem `.git`, mais `MANIFEST.md` apontando a
-  tag e o commit). Comando, assim que a organização informar o repositório e o nome da pasta:
+- **Regra do evento (Manual §2 e §5d; Regras do Jogo):** documentação e protótipo publicados **no repositório oficial da
+  OAB/PR, em pasta por equipe**. Esse repositório é a fonte da verdade e o lugar das entregas. Não há repositório
+  paralelo em outra organização.
+- **Até a organização informar a URL e o nome da pasta:** o trabalho continua neste clone local, com commits normais.
+  Quando o repositório oficial estiver disponível, o histórico entra inteiro na pasta da equipe com `git subtree`:
   ```bash
-  # dentro do clone do repositório oficial, na pasta da equipe
-  rsync -a --delete --exclude '.git' --exclude 'node_modules' --exclude '.venv' --exclude '.env' \
-    /caminho/para/ciente/ ./equipes/token-economy/
-  git add -A && git commit -m "team token-economy: v0.2.0 delivery" && git push
+  git clone <URL do repositório oficial> oab && cd oab
+  git subtree add --prefix=equipes/token-economy /caminho/para/ciente main   # ajustar o nome da pasta ao padrão da OAB
+  git push
   ```
-  Se o repositório oficial aceitar apenas pull requests, o mesmo snapshot vai por branch e PR.
+  Depois disso, todo mundo trabalha **dentro do clone do repositório oficial**, na pasta da equipe; o clone local antigo
+  é descartado.
+- **Tags de entrega** levam o prefixo da equipe para não colidir com outras equipes no mesmo repositório:
+  `token-economy/v0.1.0`, `token-economy/v0.2.0`, ... Se a organização não permitir tags, o `MANIFEST.md` de cada
+  pasta de evidência guarda o hash do commit da entrega, que é a referência estável.
 
 ## Estrutura e donos
 ```
@@ -22,7 +27,7 @@ docs/, evidence/    documentação e evidências (Vida, Camila, Caliane)
 
 ## Subir o serviço (Carlos)
 ```bash
-git clone git@github.com:deegalabs/ciente.git && cd ciente
+git clone <URL do repositório oficial> oab && cd oab/equipes/token-economy    # ou o clone local até a URL existir
 git checkout -b feat/llm-service
 mkdir -p apps/llm-service && cp -r /seu/projeto/* apps/llm-service/    # sem .env, sem .venv, sem __pycache__
 cp /seu/projeto/workflow.json prompts/workflow/v1-carlos.json          # toda versão nova do workflow entra aqui
@@ -38,4 +43,4 @@ como testar com um PDF de `examples/`.
 - Nada de dado pessoal real em `examples/` ou `evidence/`: PDFs anonimizados.
 - Toda mudança de prompt ou workflow entra em `prompts/` com nome e versão; todo prompt usado na construção entra em
   `prompts/build-log.md`.
-- Fechar entrega: `scripts/tag-delivery.sh vX.Y.0 "Entrega N: ..."` (ver `docs/DELIVERIES.md`).
+- Fechar entrega: `scripts/tag-delivery.sh token-economy/vX.Y.0 "Entrega N: ..."` (ver `docs/DELIVERIES.md`).

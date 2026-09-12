@@ -1,7 +1,7 @@
 # Changelog
 
-Uma seção por entrega do hackathon. Cada seção corresponde a uma tag anotada no git; para ver o estado exato de uma
-entrega: `git checkout v0.2.0`; para ver o que mudou entre duas: `git diff v0.1.0..v0.2.0 -- docs/`.
+Uma seção por entrega do hackathon. Cada seção corresponde a uma tag anotada no git com o prefixo da equipe; para ver o
+estado exato de uma entrega: `git checkout token-economy/v0.2.0`; entre duas: `git diff token-economy/v0.1.0..token-economy/v0.2.0 -- docs/`.
 Índice das entregas, evidências e comandos em [docs/DELIVERIES.md](docs/DELIVERIES.md).
 
 ## v0.1.0 · 2026-09-12 · Entrega 1: Canvas
