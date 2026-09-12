@@ -1,5 +1,7 @@
 # LeIA
 
+<img src="docs/brand/logo-dark.jpg" alt="LeIA" width="360">
+
 Consentimento esclarecido com prova. Equipe **Token Economy**, Hackathon da Cidadania OAB-PR 2026 (6ª edição),
 categoria **Inovação Aberta e Cidadania**. Licença MIT. Publicado na pasta da equipe do repositório oficial da OAB/PR.
 
@@ -47,6 +49,7 @@ Cada entrega é uma tag anotada no git; detalhes e comandos em [docs/DELIVERIES.
 - [docs/MVP.md](docs/MVP.md) e [docs/ROADMAP.md](docs/ROADMAP.md): escopo por entrega e evolução.
 - [docs/INTERNAL-TESTS.md](docs/INTERNAL-TESTS.md): plano e relatório dos testes internos (Entrega 2).
 - [docs/CANVAS.md](docs/CANVAS.md): canvas da Entrega 1.
+- [docs/brand/README.md](docs/brand/README.md): logo, paleta e contraste.
 - [prompts/README.md](prompts/README.md): política de prompts.
 - [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md): como subir código, publicar na pasta oficial e fechar uma entrega.
 

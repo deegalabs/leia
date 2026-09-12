@@ -17,6 +17,8 @@
     interna do app. No registro público nunca vai e-mail nem nome.
 
 ## Regras de tela
+Paleta e contraste em [brand/README.md](brand/README.md): marinho `#081820`, off-white `#F0F0E8`, teal da marca `#38A8A8` só
+no escuro, teal de ação `#1F7373` nos botões sobre fundo claro.
 Um tópico por tela; três ações por tela no máximo; sem tempo limite; texto grande; nada em caixa alta; sem vocabulário de prova ("nota", "errado").
 Chamadas de API em [LLM-API-CONTRACT.md](LLM-API-CONTRACT.md).
 
