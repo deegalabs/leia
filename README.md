@@ -37,7 +37,8 @@ Não presta consultoria, não interpreta o caso concreto, não recomenda aceitar
 - [docs/POSITIONING.md](docs/POSITIONING.md): posicionamento, limites da IA, papel do advogado.
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): componentes, fluxo de dados, decisões.
 - [docs/LLM-API-CONTRACT.md](docs/LLM-API-CONTRACT.md): contrato entre a interface e o serviço de LLM (FastAPI).
-- [docs/USE-CASES.md](docs/USE-CASES.md) e [docs/SCREENS.md](docs/SCREENS.md): casos de uso e telas.
+- [docs/USE-CASES.md](docs/USE-CASES.md) e [docs/SCREENS.md](docs/SCREENS.md): personas, casos de uso, diagramas de sequência e telas.
+- [docs/SCALING.md](docs/SCALING.md): escala para 1, 100 e 1.000 usuários e custo por consentimento.
 - [docs/MVP.md](docs/MVP.md) e [docs/ROADMAP.md](docs/ROADMAP.md): escopo por entrega e evolução.
 - [docs/INTERNAL-TESTS.md](docs/INTERNAL-TESTS.md): plano e relatório dos testes internos (Entrega 2).
 - [docs/CANVAS.md](docs/CANVAS.md): canvas da Entrega 1.

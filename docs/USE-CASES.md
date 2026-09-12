@@ -1,5 +1,12 @@
 # Casos de uso
 
+## Personas
+| Persona | Quem é | O que precisa | Como mede sucesso |
+|---|---|---|---|
+| **Cidadã** (usuária principal) | pessoa que vai assinar procuração, contrato de honorários ou acordo; baixa escolaridade; celular básico; prefere ouvir a ler; hoje pesquisa no Google ou cola o documento e seus dados no ChatGPT; medo de golpe e de "assinar errado" | entender o documento antes de assinar, em ambiente seguro, com direito a perguntar, recusar e falar com o advogado | chega ao comprovante em menos de 4 minutos sem instrução; explica com as próprias palavras o que assina |
+| **Advogado** (supervisão) | pequeno escritório, dativo, Defensoria, núcleo de prática; pouco tempo; dever de informar (CED art. 9º e 48) | aprovar a explicação, ver dúvidas e respostas, validar e receber a prova de que o esclarecimento ocorreu | pendências claras; registro gerado; nada dito pela IA sem trecho da cláusula |
+| **Verificador** | auditor da OAB, juiz, a própria cidadã meses depois | conferir que o registro é íntegro e datado, sem depender do sistema | recalcula o hash e encontra a transação no registro público |
+
 Atores: **Cidadão** (usuário principal; link com token, sem cadastro), **Advogado** (supervisão; login simples na PoC),
 **Verificador** (qualquer pessoa com o QR), **Sistema** (interface + serviço de LLM).
 
@@ -17,3 +24,93 @@ Atores: **Cidadão** (usuário principal; link com token, sem cadastro), **Advog
 | UC-10 | Auditar a fidelidade | Auditor | executa a bateria de casos (perguntas fora do documento, PDF com instrução escondida, resposta vaga) e lê os logs de citações | relatório | Produto |
 
 Fora de escopo no hackathon: assinatura eletrônica do documento, identificação forte do cliente, múltiplos escritórios, cobrança.
+
+## Diagramas de sequência
+
+### 1. Preparar o documento (advogado)
+```mermaid
+sequenceDiagram
+  actor A as Advogado
+  participant W as Interface web
+  participant S as Serviço FastAPI
+  participant L as LLM
+  A->>W: envia PDF e tipo do documento
+  W->>S: POST /documents
+  S->>S: extrai texto e segmenta por cláusula
+  S-->>W: document_id e cláusulas
+  W->>S: POST /documents/{id}/explain
+  S->>L: documento por cláusula + base OAB (citações)
+  L-->>S: explicação com trechos literais
+  S->>S: confere que cada trecho é substring da cláusula
+  S->>L: juiz de fidelidade (outro fornecedor)
+  L-->>S: faithful por seção
+  S-->>W: seções verificadas
+  W->>S: POST /documents/{id}/questions
+  S-->>W: perguntas e elementos esperados
+  A->>W: edita o texto simples, escolhe 2 a 3 perguntas, aprova
+  W->>S: POST /sessions
+  S-->>W: link do cidadão
+  A->>A: envia o link
+```
+
+### 2. Entender o documento (cidadã)
+```mermaid
+sequenceDiagram
+  actor C as Cidadã
+  participant W as Interface web
+  participant S as Serviço FastAPI
+  participant L as LLM
+  C->>W: abre o link
+  W->>S: GET /sessions/{id}
+  S-->>W: tópicos e perguntas (sem gabarito)
+  loop cada tópico
+    W-->>C: título, texto simples, trecho original, áudio (V2)
+    opt dúvida
+      C->>W: pergunta
+      W->>S: POST /sessions/{id}/chat
+      S->>L: responder só com o documento e a base OAB
+      L-->>S: resposta com cláusula ou NAO_ESTA_NO_DOCUMENTO
+      S-->>W: resposta citada, ou recusa e pendência para o advogado
+    end
+  end
+  loop cada pergunta, até 2 tentativas
+    C->>W: responde com as próprias palavras
+    W->>S: POST /sessions/{id}/answers
+    S->>L: avaliar pela rubrica 0 a 3
+    L-->>S: nota, o que faltou, feedback
+    alt nota maior ou igual a 2
+      S-->>W: entendido, próxima pergunta
+    else nota menor que 2
+      S-->>W: nova explicação e a mesma pergunta
+    end
+  end
+  C->>W: confirma que entendeu
+  W->>S: POST /sessions/{id}/confirm
+```
+
+### 3. Validar, registrar e verificar
+```mermaid
+sequenceDiagram
+  actor A as Advogado
+  participant W as Interface web
+  participant S as Serviço FastAPI
+  participant R as Registro público (Polygon Amoy)
+  participant O as OpenTimestamps
+  actor V as Verificador
+  A->>W: lê respostas, notas e pendências; valida
+  W->>S: POST /sessions/{id}/validate
+  W->>S: POST /sessions/{id}/finalize
+  S->>S: payload → JSON canônico (RFC 8785) → SHA-256 com salt
+  par ancoragem
+    S->>R: anchor(docHash, payloadHash)
+    R-->>S: transação, bloco, hora
+  and carimbo
+    S->>O: stamp(payloadHash)
+    O-->>S: prova .ots
+  end
+  S-->>W: hash, transação, comprovante com QR
+  W-->>A: comprovante
+  V->>W: abre /verify/{id} pelo QR
+  W->>S: GET /verify/{id}
+  S-->>V: JSON canônico, hash, link da transação
+```

@@ -43,6 +43,9 @@
 | Voz | TTS por API, gerado por sentença; entrada por voz com transcrição editável | acessibilidade para leigos; texto continua o caminho principal |
 | Dados pessoais | pseudônimos e salt; nada em claro no registro público | LGPD art. 8º §2º (ônus da prova) e art. 18 (eliminação) |
 
+## Escala
+Ver [SCALING.md](SCALING.md): o trabalho caro de IA é por documento, não por cidadão; 1, 100 e 1.000 usuários.
+
 ## Variáveis de ambiente (previsão)
 ```
 LLM_SERVICE_URL=http://localhost:8000
