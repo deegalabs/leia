@@ -56,11 +56,11 @@ flowchart LR
 | UC-03 | Acompanhar a preparação | Quem enviou; cidadã com o link | 14 etapas com estado e tempo, texto já marcado e score, atualizados enquanto o serviço processa | no ar |
 | UC-04 | Revisar e liberar a explicação | Advogado | `/painel/{id}/revisao`: abas Marcações, Texto, Conclusões, Explicação e Perguntas; "Aprovar e liberar" muda `pronta` para `enviada` e libera o link | no ar; documentos enviados pela cidadã não passam por revisão |
 | UC-05 | Percorrer o documento | Cidadã | `/t/{hash}`: boas-vindas com o que a assistente faz e não faz, um tópico por vez com o trecho original ao lado, botão Ouvir | no ar |
-| UC-06 | Tirar dúvida com a assistente | Cidadã | gaveta "Tenho uma dúvida": resposta em fluxo, só com o que está no documento; fora dele, recusa explícita | no ar |
+| UC-06 | Tirar dúvida com a assistente | Cidadã | gaveta "Tenho uma dúvida": resposta em fluxo a partir do resumo e da memória do documento; fora deles, o modelo é instruído a dizer que não foi informado (sem verificação automática da recusa) | no ar |
 | UC-07 | Encaminhar dúvida ao advogado | Cidadã | botão na gaveta leva a pergunta e o contexto do chat ao painel do advogado; só quando o documento tem advogado | no ar |
-| UC-08 | Conferir o entendimento | Cidadã | perguntas de múltipla escolha, uma por tela; sem nota exibida; se não passou, a assistente explica de novo e repete (nova tentativa) | no ar; perguntas abertas com rubrica 0 a 3: roadmap |
-| UC-09 | Receber o comprovante | Cidadã | tentativa aprovada gera o registro: JSON canônico sem dados pessoais, SHA-256, carimbo OpenTimestamps, comprovante com QR | no ar; ancoragem em rede pública (Polygon): roadmap |
-| UC-10 | Verificar o comprovante | Verificador | `/verify/{hash}`: recalcula o hash, mostra o JSON canônico, o carimbo e a prova `.ots` para baixar | no ar |
+| UC-08 | Conferir o entendimento | Cidadã | perguntas de múltipla escolha, uma por tela; sem nota exibida; se não passou, volta ao primeiro tópico da mesma explicação e repete as perguntas (nova tentativa) | no ar; perguntas abertas com rubrica 0 a 3: roadmap |
+| UC-09 | Receber o comprovante | Cidadã | tentativa aprovada gera o registro: JSON canônico sem dados pessoais, SHA-256, carimbo OpenTimestamps em segundo plano (o comprovante mostra "Carimbo pendente" até a prova existir), QR | no ar; ancoragem em rede pública (Polygon): roadmap |
+| UC-10 | Verificar o comprovante | Verificador | `/verify/{hash}`: mostra o código do registro, o JSON canônico (ver, copiar, baixar), o carimbo e a prova `.ots`; a conferência do hash é feita pelo verificador, com o passo a passo da página | no ar |
 | UC-11 | Acompanhar documentos e responder dúvidas | Advogado; cidadã no próprio painel | `/painel`: lista com status, origem, última tentativa e dúvidas abertas; `/painel/{id}`: eventos, tentativas, dúvidas e resposta | no ar |
 | UC-12 | Auditar a fidelidade | Auditor | roteiro em `docs/AUDIT-GUIDE.md`; testes `tests_leia.py` e `tests_v3.py`; artefatos de cada etapa em `workspace/{hash}` (T1 a T14, log por etapa) | roteiro pronto |
 
@@ -79,7 +79,7 @@ stateDiagram-v2
   pronta --> assinada : cidadã aprovada nas perguntas (origem cidadã)
   enviada --> assinada : cidadã aprovada nas perguntas
   assinada --> [*]
-  note left of pronta : Com advogado, GET /api/t/{hash} devolve status revisao e as rotas da cidadã respondem 409
+  note left of pronta : Origem advogado: GET /api/t/{hash} devolve status revisao e inferencias, quiz e chat respondem 409
 ```
 
 ## Diagramas de sequência
@@ -142,7 +142,7 @@ sequenceDiagram
   W->>S: GET /api/tarefas/{id}/revisao (Bearer, dono ou admin)
   S-->>W: marcações (classes com trecho e posição no texto), texto, sínteses, explicação, perguntas com gabarito
   W-->>A: abas Marcações, Texto, Conclusões, Explicação e Perguntas
-  Note over W,S: Enquanto a tarefa está pronta e tem advogado, GET /api/t/{hash} devolve status revisao e as rotas da cidadã respondem 409.
+  Note over W,S: Enquanto a tarefa está pronta e a origem é advogado, GET /api/t/{hash} devolve status revisao sem explicação, tópicos nem perguntas, e inferencias, quiz e chat respondem 409 (duvida e vincular não têm essa trava).
   A->>W: Aprovar e liberar
   W->>S: POST /api/tarefas/{id}/aprovar
   S->>S: pronta para enviada, evento aprovada
@@ -165,27 +165,34 @@ sequenceDiagram
   else revisao (advogado ainda não liberou)
     S-->>W: status revisao, sem explicação
     W-->>C: o advogado está revisando, volte em breve
+  else falhou
+    S-->>W: status falhou, sem explicação
+    W-->>C: Não deu certo desta vez, fale com quem enviou o documento
   else pronta, enviada ou assinada
-    S-->>W: explicação, tópicos com trecho original, perguntas sem gabarito, eventos públicos
+    S-->>W: explicação, tópicos (com o trecho original da memória quando ele casa com o tópico), perguntas sem gabarito, eventos públicos
   end
-  opt cidadã logada
-    W->>S: POST /api/t/{hash}/vincular
-    S-->>W: ok (o documento aparece no painel dela)
+  opt conta de papel cidadao e documento ainda sem vínculo
+    W->>S: POST /api/t/{hash}/vincular (Bearer)
+    S-->>W: ok (409 se já vinculado a outra conta), o documento passa a aparecer no painel dela
   end
-  W-->>C: boas-vindas com o que a assistente faz e não faz
+  alt resultado aprovado salvo neste aparelho
+    W-->>C: abre direto em Entendimento registrado, com Ver meu comprovante e Rever a explicação
+  else primeira vez neste aparelho
+    W-->>C: boas-vindas com o que a assistente faz e não faz
+  end
   loop um tópico por vez
-    W-->>C: texto simples, trecho original, botão Ouvir
+    W-->>C: texto simples, botão Ouvir e, quando existe, Ver trecho original
     opt Tenho uma dúvida
       C->>W: pergunta na gaveta
       W->>S: POST /api/t/{hash}/chat (SSE, limite por IP)
       S->>L: system prompt com o resumo humanizado e a memória do documento
       L-->>S: resposta em fluxo
-      S-->>W: data com trechos, depois done
-      W-->>C: resposta, ou "isso não está no documento"
+      S-->>W: eventos SSE data {t} com cada pedaço do texto, depois data {done} (ou data {error})
+      W-->>C: resposta em fluxo, sem trecho do documento (fora do contexto, o modelo é instruído a dizer que não foi informado)
       opt Enviar esta dúvida para o advogado (só com advogado)
-        W->>S: POST /api/t/{hash}/duvida (texto e contexto do chat)
+        W->>S: POST /api/t/{hash}/duvida (última pergunta como texto, últimos 10 turnos como contexto, limite por IP)
         S-->>W: id e criada_em (409 se o documento não tem advogado)
-        W-->>C: sua dúvida foi para o advogado
+        W-->>C: Enviada. Quando o advogado responder, a resposta aparece em Meus documentos
       end
     end
   end
@@ -203,17 +210,21 @@ sequenceDiagram
   S->>S: corrige, cria a tentativa n (acertos, total, aprovado por QUIZ_PASS_RATIO) e o hash_imutavel
   alt aprovada
     S->>S: status assinada, evento assinada
-    S-)S: stamp_attempt em segundo plano
+    S-->>W: numero, acertos, total, aprovado, hash_imutavel, ts, erros (vazio)
+    W-->>C: Entendimento registrado, botão Ver meu comprovante
+    S-)S: stamp_attempt em segundo plano, depois da resposta
     S->>S: payload sem dados pessoais, JSON canônico (chaves ordenadas, sem espaços), SHA-256
-    S->>O: submit(digest) em cada calendário (8 s de limite)
-    O-->>S: prova tentativa_n.ots
-    S-->>W: aprovado, acertos, total, comprovante
-    W-->>C: Entendimento registrado, botão Ver comprovante
-    C->>W: /comprovante/{token}
-    W-->>C: código, data, QR para /verify/{hash_imutavel}, o que o comprovante prova e o que não prova
+    S->>O: submit(digest) nos calendários públicos, um por vez, até o primeiro que responder (8 s cada)
+    O-->>S: prova tentativa_n.ots (sem resposta, o carimbo fica pendente)
+    C->>W: /comprovante/{hash_imutavel}
+    loop a cada 30 s enquanto a página está aberta
+      W->>S: GET /verify/{hash_imutavel}?format=json
+      S-->>W: payload, canonical, payloadHash, otsPresent
+    end
+    W-->>C: Registrado ou Carimbo pendente, código do registro, data, QR para /verify/{hash_imutavel}, o que o comprovante prova e o que não contém
   else não aprovada
-    S-->>W: acertos, total e quais perguntas erraram (sem a resposta certa)
-    W-->>C: Vamos ver de novo: explica de novo e repete as perguntas (nova tentativa)
+    S-->>W: numero, acertos, total, aprovado false, quais perguntas erraram (sem a resposta certa)
+    W-->>C: Vamos ver de novo: lista das perguntas erradas, volta ao primeiro tópico da mesma explicação e repete as perguntas (o novo envio cria a tentativa n+1)
   end
 ```
 
@@ -225,10 +236,15 @@ sequenceDiagram
   participant S as Serviço
   V->>W: lê o QR ou abre /verify/{hash_imutavel}
   W->>S: GET /verify/{hash}?format=json
-  S->>S: monta o payload da tentativa, recalcula o JSON canônico e o SHA-256
-  S-->>W: payload, canonical, payload_hash, carimbo (prova presente ou pendente)
-  W-->>V: hash confere ou não, data, prova para baixar (/verify/{hash}/proof.ots)
-  V->>V: pode recalcular o SHA-256 do JSON canônico por conta própria
+  S->>S: monta o payload da tentativa, o JSON canônico e o SHA-256
+  S-->>W: payload, canonical, payloadHash, otsPresent
+  W-->>V: código do registro (payloadHash), JSON canônico para ver, copiar ou baixar, passo a passo para conferir
+  alt otsPresent
+    W-->>V: registrado em (data da tentativa) e link da prova /verify/{hash}/proof.ots
+  else prova ainda não existe
+    W-->>V: carimbo pendente
+  end
+  V->>V: recalcula o SHA-256 do JSON canônico e confere a prova .ots por conta própria (a página não confere por ele)
 ```
 
 ### UC-11. Acompanhar documentos e responder dúvidas (advogado; cidadã no próprio painel)

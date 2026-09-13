@@ -38,7 +38,8 @@ export function Journey({ hash }: { hash: string }) {
     getTask(hash).then((t) => {
       if (!alive) return;
       setTask(t); setError(null);
-      if (t.ultima_tentativa?.aprovado) { setResult({ ...t.ultima_tentativa, erros: [] }); setStep({ kind: "result" }); return; }
+      /* LeIA: the link is shared by whoever has it, so only a result saved on this device reopens on the final screen.
+         The service's last attempt may belong to someone else (the public example is answered by many people). */
       try {
         const saved = JSON.parse(localStorage.getItem(storageKey) || "null");
         if (saved?.result?.aprovado) { setResult(saved.result); setStep({ kind: "result" }); return; }
