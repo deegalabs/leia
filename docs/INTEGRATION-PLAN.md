@@ -45,6 +45,15 @@ O código do serviço ainda não chegou às 9h, então a interface foi construí
   `protocolo_pdf.json`). Rotas e formas reais documentadas em `docs/LLM-API-CONTRACT.md`. Entra em
   `apps/llm-service/` na integração (sem `workspace/`, `*.db`, `.env`: o exemplo dele contém um processo real com nomes).
 
+## Estado às 12h50: API real integrada e no ar
+- Serviço v2 em `apps/llm-service/` (sem chave no código; tudo por variável de ambiente; `Dockerfile`, `railway.toml`,
+  `.env.example`). No ar em **https://llm-service-production-4278.up.railway.app** (Railway, volume em `/data`).
+- App em **https://leia-snowy.vercel.app** apontando para o serviço (`NEXT_PUBLIC_API_BASE`); "Ver um exemplo" abre uma
+  tarefa real processada pelo workflow a partir de `examples/contrato-honorarios-exemplo.pdf`.
+- Jornada completa verificada no site hospedado com uma segunda tarefa real: quiz aprovado, comprovante, prova .ots.
+  Capturas em `evidence/04-product/screens-servico-real/`.
+- Repositório: https://github.com/deegalabs/leia (privado até a equipe decidir publicar).
+
 ## Plano até a Entrega 4 (10h30) e durante a auditoria
 | Hora | Atividade | Quem |
 |---|---|---|
