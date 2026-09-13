@@ -84,7 +84,8 @@ async def login_post(
     if not u:
         return RedirectResponse("/login?erro=credenciais", status_code=303)
     resp = RedirectResponse("/dashboard", status_code=303)
-    resp.set_cookie("sessao", u.session_token, httponly=True, samesite="lax")
+    resp.set_cookie("sessao", u.session_token, httponly=True, samesite="lax",
+                    secure=os.getenv("SESSION_COOKIE_SECURE", "false").lower() in ("1", "true", "yes"))
     return resp
 
 
@@ -933,7 +934,7 @@ async def api_cliente_chat(
 
     resumo = _ler_artefato(t.hash, "resumo_humanizado.md") or ""
     memoria = _ler_json(t.hash, "memoria_persistente.json") or {}
-    memoria_str = json.dumps(memoria, ensure_ascii=False, indent=2)[:12000]
+    memoria_str = json.dumps(memoria, ensure_ascii=False, indent=2)[:int(os.getenv("CITIZEN_CHAT_MEMORY_CHARS", "12000"))]
 
     system_prompt = (
         "Você é um ASSISTENTE JURÍDICO que ajuda um CLIENTE LEIGO a entender "
@@ -952,13 +953,13 @@ async def api_cliente_chat(
     async def gerar():
         try:
             stream = await gc.chat.completions.create(
-                model="openai/gpt-oss-120b",
+                model=os.getenv("GROQ_MODEL", "openai/gpt-oss-120b"),
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": pergunta},
                 ],
-                temperature=0.3,
-                max_completion_tokens=1500,
+                temperature=float(os.getenv("CITIZEN_CHAT_TEMPERATURE", "0.3")),
+                max_completion_tokens=int(os.getenv("CITIZEN_CHAT_MAX_TOKENS", "1500")),
                 stream=True,
             )
             async for ch in stream:

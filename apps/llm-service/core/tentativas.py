@@ -1,6 +1,6 @@
 """Registro de tentativas do cliente + hash imutável de assinatura."""
 from __future__ import annotations
-import hashlib, json
+import hashlib, json, os
 from datetime import datetime
 from typing import Optional
 
@@ -22,7 +22,8 @@ def _hash_imutavel(
     tarefa_hash: str, numero: int, respostas_json: str,
     ip: str, ua: str, ts: str,
 ) -> str:
-    payload = f"PARA.AI|{tarefa_hash}|{numero}|{respostas_json}|{ip}|{ua}|{ts}"
+    prefix = os.getenv("ATTEMPT_HASH_PREFIX", "PARA.AI")
+    payload = f"{prefix}|{tarefa_hash}|{numero}|{respostas_json}|{ip}|{ua}|{ts}"
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
@@ -46,7 +47,7 @@ def registrar(
         if escolhida is not None and int(escolhida) == correta:
             acertos += 1
 
-    aprovado = acertos >= max(1, int(total * 0.83))   # ≥ 83% (10/12)
+    aprovado = acertos >= max(1, int(total * float(os.getenv("QUIZ_PASS_RATIO", "0.83"))))   # ≥ 83% (10/12)
 
     numero = _proximo_numero(tarefa.id)
     respostas_json = json.dumps(respostas, ensure_ascii=False, sort_keys=True)

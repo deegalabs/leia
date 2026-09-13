@@ -66,6 +66,11 @@ export function Journey({ hash }: { hash: string }) {
   }
 
   if (!task) return <Page><AssistantBanner /><p role="status" className="text-ink-2">{error ?? "Carregando sua explicação."}</p></Page>;
+  if (task.tarefa.status === "falhou") return (
+    <Page><AssistantBanner />
+      <Card><h1 className="mb-2 text-[1.5rem]">Não deu certo desta vez</h1><p>A explicação deste documento não pôde ser preparada. Fale com quem enviou o documento para tentar de novo.</p></Card>
+    </Page>
+  );
   if (!ready) {
     const last = task.eventos && task.eventos.length ? task.eventos[task.eventos.length - 1] : null;
     return (
@@ -73,7 +78,7 @@ export function Journey({ hash }: { hash: string }) {
         <Card>
           <h1 className="mb-2 text-[1.5rem]">Estamos preparando a explicação do seu documento</h1>
           <p>Isso leva alguns minutos. Esta página atualiza sozinha. Você pode fechar e abrir o mesmo link depois.</p>
-          {last && <p className="mt-2 text-[0.95rem] text-ink-2" role="status">Etapa atual: {String(last.tipo ?? "").replace(/_/g, " ")}{last.step ? ` (${String(last.step)})` : ""}</p>}
+          {last && <p className="mt-2 text-[0.95rem] text-ink-2" role="status">Etapa atual: {String(last.tipo ?? "").replace(/_/g, " ")}{last.id ? ` (${String(last.id)}${last.idx !== undefined && last.total ? `, ${Number(last.idx) + 1} de ${String(last.total)}` : ""})` : ""}</p>}
         </Card>
       </Page>
     );

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Seu processo · Para.AI</title>
+<title>Seu documento · LeIA</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
 <style>
@@ -226,21 +226,21 @@ body{
 <div class="wrap">
 
   <header class="cli-header">
-    <h1 class="cli-brand"><b>Para</b>.AI</h1>
-    <div class="cli-sub">Análise do seu processo</div>
+    <h1 class="cli-brand"><b>Le</b>IA</h1>
+    <div class="cli-sub">Entenda o que você vai assinar</div>
     <div class="cli-title">{{ tarefa.titulo }}</div>
   </header>
 
   {# ── 1. Resumo humanizado ── #}
   <section class="card card-gold">
-    <h2>📖 Entenda o que está acontecendo</h2>
+    <h2>Entenda o que você vai assinar</h2>
     <div id="resumo-md" class="resumo"></div>
   </section>
 
   {# ── 2. Quiz ── #}
   {% if questoes and questoes.questoes %}
   <section class="card" id="card-quiz">
-    <h2>❓ Confira se você entendeu</h2>
+    <h2>Vamos conferir se eu expliquei bem</h2>
     <p style="font-size:.78rem;color:var(--tx3);margin:0 0 16px;line-height:1.55">
       Responda as <b style="color:var(--gold-lt)">{{ questoes.questoes|length }} questões</b>
       abaixo. Elas confirmam que você leu e compreendeu o resumo.
@@ -272,73 +272,73 @@ body{
 
     <div class="q-actions">
       <button class="btn btn-gold" id="btn-enviar" onclick="enviarQuiz()">
-        ✓ Enviar respostas
+        Enviar minhas respostas
       </button>
-      <button class="btn" onclick="limparSelecao()">↺ Limpar</button>
-      <button class="btn" onclick="abrirChat()">💬 Tirar dúvida antes</button>
+      <button class="btn" onclick="limparSelecao()">Começar de novo</button>
+      <button class="btn" onclick="abrirChat()">Tenho uma dúvida</button>
     </div>
     <div id="quiz-status" style="font-size:.72rem;color:var(--tx3);margin-top:12px"></div>
   </section>
   {% else %}
   <section class="card">
-    <h2>❓ Questões de verificação</h2>
-    <div class="soon"><span class="ico">⏳</span>As questões ainda não foram geradas para este documento.</div>
+    <h2>Conferindo o que você entendeu</h2>
+    <div class="soon"><span class="ico">⏳</span>As perguntas ainda estão sendo preparadas.</div>
   </section>
   {% endif %}
 
   {# ── 3. Assinatura digital ── #}
   <section class="card" id="card-assinatura">
-    <h2>✍️ Assinatura digital</h2>
+    <h2>Seu comprovante</h2>
     <div id="assinatura-bloco">
       {% if ultima_tentativa and ultima_tentativa.aprovado %}
         <div class="hash-block">
-          <span class="lbl">Hash imutável da assinatura (SHA-256)</span>
+          <span class="lbl">Código do registro</span>
           {{ ultima_tentativa.hash_imutavel }}
         </div>
         <div style="font-size:.75rem;color:var(--tx3);line-height:1.6;text-align:center">
-          Assinado em {{ ultima_tentativa.criada_em.strftime('%d/%m/%Y às %H:%M') }} UTC<br>
-          Rodada {{ ultima_tentativa.numero }} · {{ ultima_tentativa.acertos }}/{{ ultima_tentativa.total }} acertos
+          Registrado em {{ ultima_tentativa.criada_em.strftime('%d/%m/%Y às %H:%M') }} UTC<br>
+          Tentativa {{ ultima_tentativa.numero }} · {{ ultima_tentativa.acertos }}/{{ ultima_tentativa.total }} acertos
         </div>
         <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">
           <a class="btn btn-ok" href="/t/{{ tarefa.hash }}/pdf-assinado">
-            ⬇️ Baixar PDF assinado
+            Salvar comprovante
           </a>
         </div>
       {% else %}
         <div class="soon">
           <span class="ico">🔐</span>
-          A assinatura é liberada após o quiz ser aprovado (≥ 10/12).
+          O comprovante fica pronto depois que suas respostas forem conferidas.
         </div>
       {% endif %}
     </div>
   </section>
 
   <footer class="cli-footer">
-    <div><b>Para.AI</b> · análise assistida por inteligência artificial</div>
+    <div><b>LeIA</b> · análise assistida por inteligência artificial</div>
   </footer>
 
 </div>
 
 <!-- Botão flutuante chat -->
-<button class="chat-fab" onclick="abrirChat()" title="Conversar com o assistente">💬</button>
+<button class="chat-fab" onclick="abrirChat()" title="Conversar com a assistente">💬</button>
 
 <!-- Drawer chat -->
 <div id="chat-drawer" class="chat-drawer">
   <div class="chat-head">
     <div>
-      <h4>Assistente do processo</h4>
-      <div class="sub">responde com base neste documento</div>
+      <h4>Assistente do documento</h4>
+      <div class="sub">responde só com o que está neste documento</div>
     </div>
     <button class="chat-close" onclick="fecharChat()">✕</button>
   </div>
   <div class="chat-body" id="chat-body">
     <div class="chat-msg bot">
-      Olá! Sou o assistente deste processo.
-      Pode me perguntar em linguagem simples — vou responder com base no documento. 👋
+      Sou uma assistente automática. Explico o que está escrito neste documento. Não sou advogada e não dou conselho jurídico.
+      Pode perguntar com suas palavras.
     </div>
   </div>
   <div class="chat-foot">
-    <textarea id="chat-input" placeholder="Digite sua pergunta…"
+    <textarea id="chat-input" placeholder="Fale ou escreva sua dúvida aqui"
       onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();enviarChat()}"></textarea>
     <button class="chat-send" id="chat-send" onclick="enviarChat()">Enviar</button>
   </div>
@@ -408,7 +408,7 @@ body{
 
     if (faltando > 0) {
       status.style.color = 'var(--err)';
-      status.textContent = `⚠️ Faltam ${faltando} questão(ões) por responder.`;
+      status.textContent = `Faltam ${faltando} questão(ões) por responder.`;
       return;
     }
 
@@ -428,7 +428,7 @@ body{
       mostrarModalResultado(data);
     } catch(e){
       status.style.color = 'var(--err)';
-      status.textContent = `❌ Erro: ${e.message}`;
+      status.textContent = `Deu um problema do nosso lado: ${e.message}`;
       btn.disabled = false;
     }
   }
@@ -458,26 +458,26 @@ body{
     if (d.aprovado) {
       content.innerHTML = `
         <div class="ico">✅</div>
-        <h3>Assinatura registrada</h3>
-        <p class="lead">Você compreendeu o resumo e sua assinatura digital foi registrada.</p>
+        <h3>Entendimento registrado</h3>
+        <p class="lead">Você entendeu o documento e o registro foi gerado.</p>
         <div class="score">
           <div class="box"><div class="num" style="color:var(--ok)">${d.acertos}</div><div class="lbl">acertos</div></div>
           <div class="box"><div class="num" style="color:var(--tx3)">${d.total}</div><div class="lbl">total</div></div>
           <div class="box"><div class="num" style="color:var(--gold-lt)">${d.numero}</div><div class="lbl">rodada</div></div>
         </div>
         <div class="hash-block">
-          <span class="lbl">Hash imutável da sua assinatura</span>
+          <span class="lbl">Código do registro</span>
           ${d.hash_imutavel}
         </div>
         <p style="font-size:.72rem;color:var(--tx3);text-align:center;line-height:1.55;margin:14px 0 0">
-          Este hash é a impressão digital da sua assinatura. Guarde-o.<br>
-          Você pode baixar o PDF assinado a qualquer momento.
+          Este código prova que você respondeu neste dia. Guarde-o.<br>
+          Você pode salvar o comprovante a qualquer momento.
         </p>
         <div class="actions">
           <a class="btn btn-ok" style="justify-content:center"
-             href="/t/${HASH}/pdf-assinado">⬇️ Baixar PDF assinado</a>
+             href="/t/${HASH}/pdf-assinado">Salvar comprovante</a>
           <button class="btn" style="justify-content:center" onclick="fecharModal();abrirChat()">
-            💬 Conversar com o assistente
+            💬 Conversar com a assistente
           </button>
           <button class="btn" style="justify-content:center" onclick="fecharModal()">
             Fechar
@@ -488,24 +488,24 @@ body{
         <div class="erro-item">
           <b>Q${e.id} · ${e.area}</b><br>
           ${e.enunciado || ''}<br>
-          <span class="escolha">Você marcou: ${e.escolhida !== null && e.escolhida !== undefined ? 'ABCD'[e.escolhida] : '—'}</span>
+          <span class="escolha">Você respondeu: ${e.escolhida !== null && e.escolhida !== undefined ? 'ABCD'[e.escolhida] : '—'}</span>
         </div>`).join('');
       content.innerHTML = `
         <div class="ico">❗</div>
-        <h3>Ainda não foi desta vez</h3>
+        <h3>Vamos ver de novo</h3>
         <p class="lead">
           Você precisa acertar pelo menos <b style="color:var(--gold-lt)">10 de 12</b>.
-          <br>Uma nova tentativa será gerada pelo administrador do sistema.
+          <br>Você pode responder de novo depois de ler a explicação.
         </p>
         <div class="score">
           <div class="box"><div class="num" style="color:var(--err)">${d.acertos}</div><div class="lbl">acertos</div></div>
           <div class="box"><div class="num" style="color:var(--tx3)">${d.total}</div><div class="lbl">total</div></div>
           <div class="box"><div class="num" style="color:var(--gold-lt)">${d.numero}</div><div class="lbl">rodada</div></div>
         </div>
-        ${erros ? `<div class="erros"><h4>Questões para revisar</h4>${erros}</div>` : ''}
+        ${erros ? `<div class="erros"><h4>O que vale ver de novo</h4>${erros}</div>` : ''}
         <div class="actions">
           <button class="btn btn-err" style="justify-content:center" onclick="fecharModal();abrirChat()">
-            💬 Conversar com o assistente
+            💬 Conversar com a assistente
           </button>
           <button class="btn" style="justify-content:center" onclick="fecharModal()">
             Fechar
@@ -580,7 +580,7 @@ body{
         }
       }
     } catch(e){
-      bot.textContent = '❌ Erro: ' + e.message;
+      bot.textContent = 'Deu um problema do nosso lado: ' + e.message;
     } finally {
       bot.classList.remove('streaming');
       const cursor = bot.querySelector('.cursor');

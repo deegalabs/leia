@@ -53,6 +53,8 @@ O código do serviço ainda não chegou às 9h, então a interface foi construí
 - Jornada completa verificada no site hospedado com uma segunda tarefa real: quiz aprovado, comprovante, prova .ots.
   Capturas em `evidence/04-product/screens-servico-real/`.
 - Repositório: https://github.com/deegalabs/leia (privado até a equipe decidir publicar).
+- Mapa do serviço v2 lido arquivo por arquivo, com verificação independente: `docs/SERVICE-V2-MAP.md` (todos os valores
+  fixos viraram variáveis de ambiente; lista em `apps/llm-service/.env.example`).
 
 ## Plano até a Entrega 4 (10h30) e durante a auditoria
 | Hora | Atividade | Quem |

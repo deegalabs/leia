@@ -1,5 +1,6 @@
 """Gera PDF assinado: carimbo na 1ª página + página de assinatura."""
 from __future__ import annotations
+import os
 from io import BytesIO
 from pathlib import Path
 from datetime import datetime
@@ -35,7 +36,7 @@ def _stamp_primeira_pagina(w, h, dados: dict) -> BytesIO:
     # título
     c.setFillColor(INK)
     c.setFont("Helvetica-Bold", 9)
-    c.drawString(x + 12, y + box_h - 18, "ASSINATURA DIGITAL · Para.AI")
+    c.drawString(x + 12, y + box_h - 18, f"ASSINATURA DIGITAL · {os.getenv('BRAND_NAME', 'LeIA')}")
 
     # dados
     c.setFont("Helvetica", 7)
@@ -66,7 +67,7 @@ def _pagina_assinatura(dados: dict) -> BytesIO:
     c.setFont("Helvetica-Bold", 22)
     c.drawString(48, H - 44, "Assinatura Digital")
     c.setFont("Helvetica", 11)
-    c.drawString(48, H - 60, "Para.AI · AI Forensics · termo de ciência")
+    c.drawString(48, H - 60, f"{os.getenv('BRAND_NAME', 'LeIA')} · termo de ciência")
 
     # corpo
     y = H - 110

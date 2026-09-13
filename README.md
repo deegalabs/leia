@@ -45,6 +45,7 @@ Cada entrega é uma tag anotada no git; detalhes e comandos em [docs/DELIVERIES.
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): componentes, fluxo de dados, decisões.
 - [docs/INTEGRATION-PLAN.md](docs/INTEGRATION-PLAN.md): stack e plano do dia 2, integração com o serviço.
 - [docs/LLM-API-CONTRACT.md](docs/LLM-API-CONTRACT.md): contrato entre a interface e o serviço de LLM (FastAPI).
+- [docs/SERVICE-V2-MAP.md](docs/SERVICE-V2-MAP.md): mapa completo do serviço v2 (rotas, dados, workflow, variáveis, deploy, privacidade, perguntas ao Carlos).
 - [docs/LLM-WORKFLOW-REVIEW.md](docs/LLM-WORKFLOW-REVIEW.md): revisão do workflow do serviço (v0) e adaptação ao produto.
 - [docs/USE-CASES.md](docs/USE-CASES.md) e [docs/SCREENS.md](docs/SCREENS.md): personas, casos de uso, diagramas de sequência e telas.
 - [docs/SCALING.md](docs/SCALING.md): escala para 1, 100 e 1.000 usuários e custo por consentimento.

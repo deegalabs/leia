@@ -27,8 +27,9 @@ RESUMO_API_BASE = os.getenv(
     "https://api.resumoestruturado.com.br",
 )
 
-POLL_INTERVAL = 1.5     # segundos entre consultas de status
-POLL_TIMEOUT  = 600.0   # timeout de segurança (10 min) para o job inteiro
+POLL_INTERVAL = float(os.getenv("EXTERNAL_POLL_INTERVAL", "1.5"))
+POLL_TIMEOUT = float(os.getenv("EXTERNAL_POLL_TIMEOUT", "600"))
+HTTP_TIMEOUT = float(os.getenv("EXTERNAL_HTTP_TIMEOUT", "60"))
 
 
 class ResumoEstruturadoError(Exception):
@@ -61,7 +62,7 @@ async def submeter(
     else:
         data["text"] = texto
 
-    async with httpx.AsyncClient(base_url=RESUMO_API_BASE, timeout=60.0) as cli:
+    async with httpx.AsyncClient(base_url=RESUMO_API_BASE, timeout=HTTP_TIMEOUT) as cli:
         r = await cli.post("/submit", data=data, files=files)
         if r.status_code >= 400:
             raise ResumoEstruturadoError(f"submit falhou ({r.status_code}): {r.text[:300]}")
@@ -70,7 +71,7 @@ async def submeter(
 
 async def consultar_status(job_id: str) -> dict:
     """GET /status/{job_id}"""
-    async with httpx.AsyncClient(base_url=RESUMO_API_BASE, timeout=30.0) as cli:
+    async with httpx.AsyncClient(base_url=RESUMO_API_BASE, timeout=HTTP_TIMEOUT / 2) as cli:
         r = await cli.get(f"/status/{job_id}")
         if r.status_code >= 400:
             raise ResumoEstruturadoError(f"status falhou ({r.status_code}): {r.text[:300]}")
@@ -79,7 +80,7 @@ async def consultar_status(job_id: str) -> dict:
 
 async def obter_resultado(job_id: str) -> dict:
     """GET /result/{job_id}"""
-    async with httpx.AsyncClient(base_url=RESUMO_API_BASE, timeout=60.0) as cli:
+    async with httpx.AsyncClient(base_url=RESUMO_API_BASE, timeout=HTTP_TIMEOUT) as cli:
         r = await cli.get(f"/result/{job_id}")
         if r.status_code >= 400:
             raise ResumoEstruturadoError(f"result falhou ({r.status_code}): {r.text[:300]}")
@@ -88,7 +89,7 @@ async def obter_resultado(job_id: str) -> dict:
 
 async def rerun_step(job_id: str, step_id: str) -> dict:
     """POST /jobs/{job_id}/rerun/{step_id}"""
-    async with httpx.AsyncClient(base_url=RESUMO_API_BASE, timeout=30.0) as cli:
+    async with httpx.AsyncClient(base_url=RESUMO_API_BASE, timeout=HTTP_TIMEOUT / 2) as cli:
         r = await cli.post(f"/jobs/{job_id}/rerun/{step_id}")
         if r.status_code >= 400:
             raise ResumoEstruturadoError(f"rerun falhou ({r.status_code}): {r.text[:300]}")
@@ -100,7 +101,7 @@ async def exportar_pdf(dados_llm: Any, doc_text: str, subtitulo: Optional[str] =
     payload: dict[str, Any] = {"dados_llm": dados_llm, "doc_text": doc_text}
     if subtitulo:
         payload["subtitulo"] = subtitulo
-    async with httpx.AsyncClient(base_url=RESUMO_API_BASE, timeout=60.0) as cli:
+    async with httpx.AsyncClient(base_url=RESUMO_API_BASE, timeout=HTTP_TIMEOUT) as cli:
         r = await cli.post("/export-pdf", json=payload)
         if r.status_code >= 400:
             raise ResumoEstruturadoError(f"export-pdf falhou ({r.status_code}): {r.text[:300]}")

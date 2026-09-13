@@ -22,6 +22,7 @@ Fluxo sequencial:
 Cada passo grava um arquivo no workspace/{hash}/ e um evento no log.jsonl.
 """
 from __future__ import annotations
+import os
 import json, logging, time
 from datetime import datetime
 from pathlib import Path
@@ -35,8 +36,10 @@ from core.workspace import pasta, registrar_evento
 
 log = logging.getLogger("pipeline_pdf")
 
-PROTOCOLO_PDF = Path("protocolo_pdf.json")
-MODELO_PADRAO = "openai/gpt-oss-120b"
+PROTOCOLO_PDF = Path(os.getenv("PDF_PROTOCOL_FILE", str(Path(__file__).resolve().parent.parent / "protocolo_pdf.json")))
+MODELO_PADRAO = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
+PIPELINE_TEMPERATURE = float(os.getenv("PIPELINE_TEMPERATURE", "0.0"))
+PIPELINE_MAX_TOKENS = int(os.getenv("PIPELINE_MAX_TOKENS", "8000"))
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -94,8 +97,8 @@ async def _executar_task_groq(
         kwargs = dict(
             model=modelo,
             messages=messages,
-            temperature=task.get("temperature", 0.0),
-            max_completion_tokens=task.get("max_completion_tokens", 8000),
+            temperature=task.get("temperature", PIPELINE_TEMPERATURE),
+            max_completion_tokens=task.get("max_completion_tokens", PIPELINE_MAX_TOKENS),
             top_p=1,
             stream=True,
         )

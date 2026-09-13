@@ -17,7 +17,7 @@ from sqlmodel import Session
 
 # ─── LOGGING ─────────────────────────────────────────────────────────────
 logging.basicConfig(
-    level=logging.INFO,
+    level=getattr(logging, os.getenv("LOG_LEVEL", "INFO").upper(), logging.INFO),
     format="%(asctime)s │ %(levelname)-7s │ %(message)s",
     datefmt="%H:%M:%S",
 )
@@ -30,6 +30,8 @@ groq_client = AsyncGroq(api_key=groq_key)
 ARQUIVO_CONFIG   = "protocolo.json"
 ARQUIVO_HELP     = "help.md"
 ARQUIVO_CONTEXTO = "contexto_persistente.json"
+CONTEXTO_PATH = Path(os.getenv("PERSISTENT_CONTEXT_FILE", str(Path(os.getenv("DATA_DIR", str(Path(__file__).resolve().parent))) / ARQUIVO_CONTEXTO)))
+CONTEXTO_PATH.parent.mkdir(parents=True, exist_ok=True)
 DELAY_ENTRE_AGENTES = 0.2
 STOP_KEYWORD     = "STOP_PIPELINE:"
 MODELO_PADRAO    = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
@@ -39,7 +41,9 @@ log.info("🚀 ADUC-SDR v45 | Groq: %s",
          "OK" if "gsk_" in groq_key else "⚠️ placeholder")
 
 # ─── APP ─────────────────────────────────────────────────────────────────
-app = FastAPI(title="LeIA · serviço cognitivo")
+_docs_on = os.getenv("DOCS_ENABLED", "false").lower() in ("1", "true", "yes")
+app = FastAPI(title="LeIA · serviço cognitivo", docs_url="/docs" if _docs_on else None,
+              redoc_url="/redoc" if _docs_on else None, openapi_url="/openapi.json" if _docs_on else None)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[o.strip() for o in os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",") if o.strip()],
@@ -190,7 +194,7 @@ def salvar_protocolo(conteudo: str) -> str:
 
 def carregar_contexto_persistente() -> list:
     try:
-        return json.loads((BASE_DIR / ARQUIVO_CONTEXTO).read_text(encoding="utf-8"))
+        return json.loads(CONTEXTO_PATH.read_text(encoding="utf-8"))
     except Exception:
         log.info("📝 contexto persistente vazio")
         return []
@@ -198,7 +202,7 @@ def carregar_contexto_persistente() -> list:
 
 def salvar_contexto_persistente(ctx: list) -> None:
     try:
-        (BASE_DIR / ARQUIVO_CONTEXTO).write_text(
+        CONTEXTO_PATH.write_text(
             json.dumps(ctx, ensure_ascii=False, indent=2), encoding="utf-8")
     except Exception as e:
         log.error("❌ contexto save | %s", e)
@@ -206,7 +210,7 @@ def salvar_contexto_persistente(ctx: list) -> None:
 
 def limpar_contexto_persistente() -> str:
     try:
-        (BASE_DIR / ARQUIVO_CONTEXTO).write_text("[]", encoding="utf-8")
+        CONTEXTO_PATH.write_text("[]", encoding="utf-8")
         log.info("🗑️  contexto limpo")
         return "✅ Contexto limpo"
     except Exception as e:

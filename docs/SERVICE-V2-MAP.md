@@ -316,7 +316,7 @@ status são engolidos e o loop continua; depois `GET /result/{job_id}` e gravaç
 
 | Arquivo:linha | Valor atual | Variável | Obrigatória | Padrão sugerido | Estado na cópia `repo:` |
 |---|---|---|---|---|---|
-| `main.py:26-29` | `os.getenv("API_KEY", "gsk_RIpU…3K4L")` (chave Groq real de 56 caracteres como fallback; também em `__pycache__/main.cpython-312.pyc`) | `GROQ_API_KEY` | sim | nenhum; falhar no boot se vazia | feito: `GROQ_API_KEY` ou `API_KEY`, sem fallback (`repo:main.py:27`) |
+| `main.py:26-29` | `os.getenv("API_KEY", "gsk_…")` (chave Groq real de 56 caracteres como fallback; também em `__pycache__/main.cpython-312.pyc`) | `GROQ_API_KEY` | sim | nenhum; falhar no boot se vazia | feito: `GROQ_API_KEY` ou `API_KEY`, sem fallback (`repo:main.py:27`) |
 | `main.py:63-66` | `admin@local`, `trocar123`, `Administrador`, `fornecedor` (senha logada em `:68`) | `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_NAME` | sim (`ADMIN_PASSWORD`) | sem padrão para a senha | feito (`repo:main.py:67-69`); `papel` continua fixo |
 | `main.py:37`, `core/pipeline_pdf.py:39`, `app_gestao.py:949`, `protocolo.json:5`, `protocolo_pdf.json:10` | `openai/gpt-oss-120b` | `GROQ_MODEL` | não | `openai/gpt-oss-120b` | feito só em `repo:main.py:35`; `pipeline_pdf.py:39` e `app_gestao.py:949` continuam literais |
 | `main.py:571` | `host="0.0.0.0", port=8000, reload=True` | `PORT` (Railway injeta), `HOST`, `UVICORN_RELOAD` | não | `8000`, `0.0.0.0`, `false` | contornado pelo start command (`repo:railway.toml:7`); o bloco `__main__` continua |

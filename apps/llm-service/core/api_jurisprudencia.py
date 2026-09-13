@@ -21,8 +21,9 @@ JURISPRUDENCIA_API_BASE = os.getenv(
     "https://api.jurisprudencia.com.br",
 )
 
-POLL_INTERVAL = 1.5
-POLL_TIMEOUT  = 600.0
+POLL_INTERVAL = float(os.getenv("EXTERNAL_POLL_INTERVAL", "1.5"))
+POLL_TIMEOUT = float(os.getenv("EXTERNAL_POLL_TIMEOUT", "600"))
+HTTP_TIMEOUT = float(os.getenv("EXTERNAL_HTTP_TIMEOUT", "60"))
 
 
 class JurisprudenciaError(Exception):
@@ -51,7 +52,7 @@ async def submeter(
     elif texto:
         data["text"] = texto
 
-    async with httpx.AsyncClient(base_url=JURISPRUDENCIA_API_BASE, timeout=60.0) as cli:
+    async with httpx.AsyncClient(base_url=JURISPRUDENCIA_API_BASE, timeout=HTTP_TIMEOUT) as cli:
         r = await cli.post("/submit", data=data, files=files)
         if r.status_code >= 400:
             raise JurisprudenciaError(f"submit falhou ({r.status_code}): {r.text[:300]}")
@@ -59,7 +60,7 @@ async def submeter(
 
 
 async def consultar_status(job_id: str) -> dict:
-    async with httpx.AsyncClient(base_url=JURISPRUDENCIA_API_BASE, timeout=30.0) as cli:
+    async with httpx.AsyncClient(base_url=JURISPRUDENCIA_API_BASE, timeout=HTTP_TIMEOUT / 2) as cli:
         r = await cli.get(f"/status/{job_id}")
         if r.status_code >= 400:
             raise JurisprudenciaError(f"status falhou ({r.status_code}): {r.text[:300]}")
@@ -67,7 +68,7 @@ async def consultar_status(job_id: str) -> dict:
 
 
 async def obter_resultado(job_id: str) -> dict:
-    async with httpx.AsyncClient(base_url=JURISPRUDENCIA_API_BASE, timeout=60.0) as cli:
+    async with httpx.AsyncClient(base_url=JURISPRUDENCIA_API_BASE, timeout=HTTP_TIMEOUT) as cli:
         r = await cli.get(f"/result/{job_id}")
         if r.status_code >= 400:
             raise JurisprudenciaError(f"result falhou ({r.status_code}): {r.text[:300]}")

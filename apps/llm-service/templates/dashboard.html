@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Painel · AI Forensics</title>
+<title>Painel · LeIA</title>
 <link rel="icon" href="/static/img/beeroot_ico.png" type="image/png">
 <script src="https://cdn.tailwindcss.com"></script>
 
@@ -202,15 +202,15 @@
 
   <header>
     <div class="brand">
-      <h1>Painel de Tarefas</h1>
+      <h1>Sessões</h1>
       <div class="sub">
         <b>{{ usuario.nome }}</b> · {{ usuario.email }}
         <span class="role">{{ usuario.papel }}</span>
       </div>
     </div>
     <div class="actions">
-      <a href="/" class="btn" title="Chat investigador">💬 Chat</a>
-      <a href="/tarefas/nova" class="btn btn-gold">＋ Nova tarefa</a>
+      <a href="/" class="btn" title="Bastidores">Bastidores</a>
+      <a href="/tarefas/nova" class="btn btn-gold">Novo documento</a>
       <form method="post" action="/logout" style="margin:0">
         <button class="btn" type="submit">Sair</button>
       </form>
@@ -264,7 +264,7 @@
           <th class="col-title">Tarefa</th>
           <th class="col-hash">Hash</th>
           <th class="col-data">Status</th>
-          <th class="col-data">Criada em</th>
+          <th class="col-data">Enviado em</th>
           <th class="col-acoes"></th>
         </tr>
       </thead>
@@ -295,7 +295,7 @@
                 <button type="submit" class="btn btn-icon">🔄</button>
               </form>
               {% endif %}
-              <a class="btn" href="/tarefas/{{ t.id }}">Abrir →</a>
+              <a class="btn" href="/tarefas/{{ t.id }}">Abrir</a>
             </div>
           </td>
         </tr>
@@ -306,13 +306,13 @@
     <div class="empty">
       <span class="emoji">📭</span>
       {% if filtro %}
-        Nenhuma tarefa com status <b style="color:var(--gold-lt)">{{ filtro }}</b>.
+        Nenhum documento com status <b style="color:var(--gold-lt)">{{ filtro }}</b>.
         <br><br>
         <a class="btn" href="/dashboard">Limpar filtro</a>
       {% else %}
-        Nenhuma tarefa criada ainda.
+        Nenhum documento enviado ainda.
         <br><br>
-        <a class="btn btn-gold" href="/tarefas/nova">Criar a primeira tarefa</a>
+        <a class="btn btn-gold" href="/tarefas/nova">Enviar o primeiro documento</a>
       {% endif %}
     </div>
     {% endif %}
@@ -321,7 +321,7 @@
   <div style="text-align:center;margin-top:20px;
               font-family:var(--mono);font-size:.66rem;color:var(--tx3);
               letter-spacing:.05em">
-    Para.AI · AI Forensics v44 · {{ contagem.total }} tarefa{{ 's' if contagem.total != 1 else '' }}
+    LeIA · LeIA · {{ contagem.total }} tarefa{{ 's' if contagem.total != 1 else '' }}
   </div>
 
 </div>

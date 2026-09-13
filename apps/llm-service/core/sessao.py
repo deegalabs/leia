@@ -26,7 +26,9 @@ from typing import Any, Literal, Optional
 ABAS = ("jurisprudencia", "resumo_estruturado", "chat")
 Aba = Literal["jurisprudencia", "resumo_estruturado", "chat"]
 
-BASE = Path("workspace") / "_sessoes"
+from .workspace import BASE as _WORKSPACE_BASE
+
+BASE = _WORKSPACE_BASE / "_sessoes"
 BASE.mkdir(parents=True, exist_ok=True)
 
 

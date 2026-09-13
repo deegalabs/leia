@@ -136,11 +136,11 @@
   <div class="card card-gold">
     <div class="row"><div class="k">ID</div><div class="v">#{{ tarefa.id }}</div></div>
     <div class="row"><div class="k">Hash</div><div class="v"><span class="hash">{{ tarefa.hash }}</span></div></div>
-    <div class="row"><div class="k">Rodada</div><div class="v">{{ tarefa.rodada or 1 }}{% if tarefa.clone_de %} · clonada de #{{ tarefa.clone_de }}{% endif %}</div></div>
+    <div class="row"><div class="k">Tentativa</div><div class="v">{{ tarefa.rodada or 1 }}{% if tarefa.clone_de %} · clonada de #{{ tarefa.clone_de }}{% endif %}</div></div>
     <div class="row"><div class="k">PDF</div><div class="v">{{ tarefa.pdf_nome or '—' }}</div></div>
-    <div class="row"><div class="k">Criada em</div><div class="v">{{ tarefa.criada_em.strftime('%Y-%m-%d %H:%M') }} UTC</div></div>
+    <div class="row"><div class="k">Enviado em</div><div class="v">{{ tarefa.criada_em.strftime('%Y-%m-%d %H:%M') }} UTC</div></div>
     <div class="row">
-      <div class="k">Link cliente</div>
+      <div class="k">Link da cliente</div>
       <div class="v">
         <span class="link-box">{{ link_cliente }}</span>
       </div>
@@ -150,18 +150,18 @@
       <div class="v" style="display:flex;gap:8px;flex-wrap:wrap">
         {% if tarefa.status == 'falhou' %}
         <form method="post" action="/tarefas/{{ tarefa.id }}/reprocessar" style="margin:0">
-          <button class="btn btn-gold" type="submit">🔄 Reprocessar pipeline</button>
+          <button class="btn btn-gold" type="submit">Gerar a explicação de novo</button>
         </form>
         {% endif %}
         {% if tarefa.status in ('pronta','assinada') %}
         <form method="post" action="/tarefas/{{ tarefa.id }}/nova-rodada" style="margin:0"
               onsubmit="return confirm('Gerar nova rodada com questões diferentes?')">
-          <button class="btn btn-gold" type="submit">🔁 Gerar nova rodada</button>
+          <button class="btn btn-gold" type="submit">Gerar novas perguntas</button>
         </form>
         {% endif %}
         {% if melhor_tent and melhor_tent.aprovado %}
         <a class="btn btn-ok" href="/tarefas/{{ tarefa.id }}/pdf-assinado">
-          ⬇️ PDF assinado
+          Baixar comprovante
         </a>
         {% endif %}
       </div>
@@ -171,20 +171,20 @@
   {# ── Tentativas do cliente ── #}
   {% if historico %}
   <div class="card">
-    <h2>📝 Tentativas do cliente <span class="badge b-{{ 'assinada' if melhor_tent and melhor_tent.aprovado else 'processando' }}">{{ historico|length }} tentativa{{ 's' if historico|length != 1 else '' }}</span></h2>
+    <h2>Respostas da cliente <span class="badge b-{{ 'assinada' if melhor_tent and melhor_tent.aprovado else 'processando' }}">{{ historico|length }} tentativa{{ 's' if historico|length != 1 else '' }}</span></h2>
 
     <div class="tent-list">
       {% for t in historico %}
       <div class="tent {% if t.aprovado %}tent-ok{% else %}tent-fail{% endif %}">
         <div class="tent-head">
-          <span class="tent-num">Rodada {{ t.numero }}</span>
+          <span class="tent-num">Tentativa {{ t.numero }}</span>
           <span class="tent-score">{{ t.acertos }}/{{ t.total }}</span>
           <span class="badge b-{{ 'assinada' if t.aprovado else 'falhou' }}">
-            <span class="dot"></span>{{ 'APROVADO' if t.aprovado else 'REPROVADO' }}
+            <span class="dot"></span>{{ 'entendeu' if t.aprovado else 'precisa de outra explicação' }}
           </span>
         </div>
         <div class="tent-meta">
-          {{ t.criada_em.strftime('%d/%m/%Y %H:%M') }} UTC · IP {{ t.ip or '—' }}
+          {{ t.criada_em.strftime('%d/%m/%Y %H:%M') }} UTC
         </div>
         <div class="tent-hash">{{ t.hash_imutavel }}</div>
 
@@ -192,14 +192,14 @@
           {% set erros_t = tentativas_erros.get(t.id, []) %}
           {% if erros_t %}
           <details class="erros-details">
-            <summary>Ver as {{ erros_t|length }} questões erradas</summary>
+            <summary>Ver o que precisa de outra explicação ({{ erros_t|length }})</summary>
             <div class="erros-box">
               {% for e in erros_t %}
               <div class="erro-item">
                 <b>Q{{ e.id }} · {{ e.area }}</b><br>
                 {{ e.enunciado }}<br>
-                <span class="wrong">✗ Marcou: {{ 'ABCD'[e.escolhida] if e.escolhida is not none and e.escolhida < 4 else '—' }}) {{ e.alternativas[e.escolhida] if e.escolhida is not none and e.escolhida < 4 else '—' }}</span><br>
-                <span class="right">✓ Correta: {{ 'ABCD'[e.correta] }}) {{ e.alternativas[e.correta] }}</span>
+                <span class="wrong">Respondeu: {{ 'ABCD'[e.escolhida] if e.escolhida is not none and e.escolhida < 4 else '—' }}) {{ e.alternativas[e.escolhida] if e.escolhida is not none and e.escolhida < 4 else '—' }}</span><br>
+                <span class="right">O documento diz: {{ 'ABCD'[e.correta] }}) {{ e.alternativas[e.correta] }}</span>
               </div>
               {% endfor %}
             </div>
@@ -207,14 +207,14 @@
           <div style="margin-top:10px">
             <form method="post" action="/tarefas/{{ tarefa.id }}/nova-rodada" style="margin:0"
                   onsubmit="return confirm('Gerar nova rodada com novas questões?')">
-              <button class="btn btn-gold" type="submit">🔁 Gerar nova rodada de questões</button>
+              <button class="btn btn-gold" type="submit">Gerar novas perguntas</button>
             </form>
           </div>
           {% endif %}
         {% else %}
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
             <a class="btn btn-ok" href="/tarefas/{{ tarefa.id }}/pdf-assinado">
-              ⬇️ Exportar PDF assinado
+              Baixar comprovante
             </a>
           </div>
         {% endif %}
@@ -224,15 +224,15 @@
   </div>
   {% elif tarefa.status in ('pronta','assinada') %}
   <div class="card">
-    <h2>📝 Tentativas do cliente</h2>
-    <div class="pending">Nenhuma tentativa registrada ainda.<br>O link do cliente é <b>{{ link_cliente }}</b></div>
+    <h2>Respostas da cliente</h2>
+    <div class="pending">Nenhuma resposta registrada ainda.<br>O link do cliente é <b>{{ link_cliente }}</b></div>
   </div>
   {% endif %}
 
   {# ── Status pipeline ── #}
   {% if tarefa.status in ('processando', 'criada') %}
   <div class="card">
-    <h2>⏳ Pipeline em execução</h2>
+    <h2>Preparando a explicação</h2>
     {% if eventos %}
       {% for e in eventos[:8] %}
         <div class="log-line">
@@ -249,13 +249,13 @@
   {# ── Artefatos ── #}
   {% if resumo_md or questoes %}
   <div class="card card-gold">
-    <h2>📖 Resumo humanizado</h2>
+    <h2>Explicação em linguagem simples</h2>
     <div id="resumo-admin" style="font-size:.85rem;line-height:1.65"></div>
   </div>
 
   {% if questoes and questoes.questoes %}
   <div class="card">
-    <h2>❓ Questões (rodada atual · {{ num_questoes }})</h2>
+    <h2>Perguntas de compreensão ({{ num_questoes }})</h2>
     {% for q in questoes.questoes %}
       <div style="padding:12px 0;border-bottom:1px solid var(--bd)">
         <div style="font-size:.83rem;color:var(--tx);margin-bottom:6px">
@@ -278,7 +278,7 @@
 
   {# ── Log completo ── #}
   <div class="card">
-    <h2>📡 Log de eventos</h2>
+    <h2>Registro de eventos</h2>
     {% if eventos %}
       {% for e in eventos %}
         <div class="log-line">
