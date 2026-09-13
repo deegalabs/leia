@@ -1,12 +1,14 @@
 {
   "name": "web",
-  "version": "0.1.0",
+  "version": "0.4.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "prebuild": "node scripts/gen-sw.mjs",
+    "predev": "node scripts/gen-sw.mjs"
   },
   "dependencies": {
     "lucide-react": "^1.45.0",

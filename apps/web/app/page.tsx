@@ -1,6 +1,7 @@
 import { BadgeCheck, FileSearch, MessageCircleQuestion, ScrollText } from "lucide-react";
 import { LinkButton } from "@/components/ui";
 import { AuthNav } from "@/components/Session";
+import { VersionBadge } from "@/components/UpdatePrompt";
 
 const steps = [
   { Icon: FileSearch, text: "O documento em PDF é lido e etiquetado. Cada informação guarda o trecho exato de onde veio." },
@@ -69,7 +70,7 @@ export default function Landing() {
       </section>
       <footer className="border-t border-line px-4 py-8 text-[0.95rem] text-ink-2">
         <div className="mx-auto max-w-[680px] space-y-2">
-          <p>Feito no Hackathon da Cidadania OAB-PR 2026, equipe Token Economy. Código aberto, licença MIT.</p>
+          <p>Feito no Hackathon da Cidadania OAB-PR 2026, equipe Token Economy. Código aberto, licença MIT. <VersionBadge /></p>
           <p>A assistente explica o que está escrito. Não dá conselho jurídico e não substitui o advogado. O comprovante não é assinatura de nada: ele registra que você leu a explicação e respondeu às perguntas.</p>
         </div>
       </footer>
