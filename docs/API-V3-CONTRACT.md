@@ -75,3 +75,27 @@ Gate público: para tarefa com advogado (`origem = advogado`) em `pronta`, `GET 
 Tela no app: `/painel/{id}/revisao` com abas Marcações (classes com "Ver no texto" e selo "conferido no texto"), Texto
 (documento com destaques por classe), Conclusões (sínteses com lastro), Explicação (o que a cliente vai ler),
 Perguntas (com a resposta certa marcada) e o botão "Aprovar e liberar para a cliente".
+
+## Preparação visível e tarefas do fluxo externo (13/09, 18h40)
+Pedido do Daniel: a tela de espera deve mostrar todas as etapas do processo (não uma por vez), o documento e o que a
+assistente está marcando, com score quando existir; e explicar por que um link gerado pelo fluxo "Resumo estruturado"
+chega sem explicação.
+
+**Causa do link sem explicação.** O fluxo "Resumo estruturado" do painel do Carlos manda o PDF a uma API externa e grava
+só `resumo_estruturado.json` (`core/api.py:229`); a página da cidadã e o nosso JSON leem `resumo_humanizado.md` e
+`questoes.json`, que só o pipeline local (T1..T14, fluxo "Anexar PDF" / "Nova tarefa") produz. Resultado: `pronta` sem
+explicação nem perguntas ("resumo indisponível", `app_gestao.py:608-610`).
+
+| Método e rota | Mudança |
+|---|---|
+| `GET /api/t/{hash}` | novo campo `etapas: [ { id, nome, estado: "pendente" \| "em_andamento" \| "concluida" \| "erro", tempo } ]` com as 14 etapas do workflow em pt-BR, derivadas de `log.jsonl` (`task_start`/`task_done`/`task_error`) e da presença dos arquivos `T*.json`; `eventos` passa a trazer todos os eventos do pipeline (até 60), sem ip/ua. **Fallback do fluxo externo**: sem `resumo_humanizado.md` mas com `resumo_estruturado.json`, `resumo_md` = `processo.resposta_final.texto` e `topicos` = itens de `processo.classe_*` (titulo = `campo` humanizado, explicacao = `valor` ou `sintese_relacao`, trecho = `trecho_verbatim`, `score` de `_ui`); `questoes: []` |
+| `GET /api/t/{hash}/inferencias` | responde também durante `criada`/`processando` com `parcial: true`, `texto` (se `texto_extraido.txt` existir) e as classes já produzidas (arquivos `T1..T5_*.json`, cada um `{ "<classe>": [itens] }`), para a espera mostrar o documento sendo marcado. Itens ganham `score` quando `_ui` traz `score_trecho_verbatim` (fluxo externo); quando `_ui` traz posição válida (não `0:0`), ela é usada antes da busca por texto |
+
+Nomes das etapas (pt-BR): T1 Identificar as partes · T2 Datas e valores · T3 Fatos · T4 Fundamentos, leis e decisões ·
+T5 Pedidos · T6 Juntar a memória · T7 Resumir os fatos · T8 Resumir os fundamentos · T9 Resumir os pedidos ·
+T10 Quem é quem · T11 Contexto do processo · T12 Marcar o texto · T13 Explicar em linguagem simples ·
+T14 Preparar as perguntas.
+
+App: a tela de espera mostra a lista das 14 etapas com estado e tempo, barra "n de 14", e abaixo "O que a assistente
+está lendo agora": o documento com as marcações parciais e a contagem por classe (atualiza a cada 8 s). Documento sem
+perguntas (fluxo externo) termina a jornada em "Você viu todos os pontos", sem conferência e sem comprovante.
