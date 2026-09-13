@@ -35,7 +35,8 @@ export function evaluateQuiz(f: Fixture, respostas: Record<string, number>) {
 export function verifyRecord(record: AttemptRecord) {
   const payload = buildPayload(record);
   const c = canonical(payload);
-  return { payload, canonical: c, payloadHash: sha256(c), otsPresent: false };
+  /* demo: the hosted mock has no storage, so no public timestamp is ever recorded */
+  return { payload, canonical: c, payloadHash: sha256(c), otsPresent: false, demo: true };
 }
 
 const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");

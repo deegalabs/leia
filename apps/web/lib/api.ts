@@ -19,6 +19,7 @@ export type VerifyResult = {
   canonical: string;
   payloadHash: string;
   otsPresent: boolean;
+  demo?: boolean;
 };
 
 async function check(r: Response) {

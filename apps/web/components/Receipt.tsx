@@ -33,7 +33,7 @@ export function Receipt({ attempt }: { attempt: string }) {
             <p className="mb-4 mt-2 text-center text-[0.95rem] text-ink-2">Aponte a câmera para conferir</p>
             <p className="mb-1 text-[0.95rem] text-ink-2">Código do registro</p>
             <HashDisplay value={data.payloadHash} />
-            {!data.otsPresent && <p className="mt-3 text-[0.95rem] text-pend">{m.c6.stampPending}</p>}
+            {!data.otsPresent && <p className="mt-3 text-[0.95rem] text-pend">{data.demo ? "Nesta demonstração o carimbo público não é gravado. No serviço completo, ele chega em alguns minutos e fica na página de verificação." : m.c6.stampPending}</p>}
           </Card>
           <Card tone="soft" className="mt-3">
             <h2 className="mb-2 text-[1.15rem]">O que este comprovante prova</h2>

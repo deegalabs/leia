@@ -36,7 +36,7 @@ export function Verify({ attempt }: { attempt: string }) {
             <p className="mb-2">Rede: OpenTimestamps (calendários públicos ancorados no Bitcoin).</p>
             {data.otsPresent
               ? <a className="inline-flex min-h-[44px] items-center gap-2 font-bold text-teal-deep underline underline-offset-4" href={proofUrl(attempt)}><Download size={18} aria-hidden /> Baixar prova (.ots)</a>
-              : <p className="text-pend">O código já existe. A gravação na rede pública ainda está sendo confirmada; volte em alguns minutos.</p>}
+              : <p className="text-pend">{data.demo ? "Nesta demonstração o carimbo público não é gravado. No serviço completo, a prova OpenTimestamps fica disponível aqui em alguns minutos." : "O código já existe. A gravação na rede pública ainda está sendo confirmada; volte em alguns minutos."}</p>}
           </Card>
           <Card>
             <details>
