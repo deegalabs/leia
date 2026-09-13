@@ -79,7 +79,7 @@ stateDiagram-v2
   pronta --> assinada : cidadã aprovada nas perguntas (origem cidadã)
   enviada --> assinada : cidadã aprovada nas perguntas
   assinada --> [*]
-  note left of pronta : Origem advogado: GET /api/t/{hash} devolve status revisao e inferencias, quiz e chat respondem 409
+  note left of pronta : Origem advogado, GET /api/t/{hash} devolve status revisao e inferencias, quiz e chat respondem 409
 ```
 
 ## Diagramas de sequência
