@@ -55,3 +55,23 @@ invalida o anterior).
 | `/enviar` | enviar um PDF (cidadã ou advogado); depois vai para `/t/{hash}` (advogado: mostra o link para enviar à cliente) |
 | `/t/{hash}` | jornada; na gaveta de dúvida, botão "Enviar esta dúvida para o advogado" quando `tem_advogado`; se logada como cidadã, vincula a tarefa |
 Sem serviço (`NEXT_PUBLIC_API_BASE` vazio), o mock interno em `app/api/*` responde a tudo com dados em memória do processo.
+
+## Revisão do advogado antes de liberar (13/09, 18h)
+Espelha o fluxo "Resumo estruturado" do painel do Carlos (Status → Resumo → Visualizar → Dna): o advogado revisa o que
+o workflow extraiu e concluiu antes de a cliente receber o link.
+| Método e rota | Quem | Saída |
+|---|---|---|
+| `GET /api/tarefas/{id}/revisao` | Bearer (dono ou admin) | `{ tarefa: { id, hash, titulo, status, origem }, inferencias: <mesmo corpo de GET /api/t/{hash}/inferencias>, resumo_md, questoes: [ { id, area, dificuldade, enunciado, alternativas, correta, justificativa } ], link_cliente }`; 409 enquanto `criada`/`processando`; 404/403 como nas demais |
+| `POST /api/tarefas/{id}/aprovar` | Bearer (dono ou admin) | `{ ok: true, status: "enviada" }`; só de `pronta` para `enviada`; grava evento `aprovada` no workspace e `LogEvento`; 409 em outro estado |
+
+Estados: `pronta` = pronta para revisão do advogado; `enviada` = liberada para a cliente; `assinada` = entendimento
+registrado. Tarefas com `origem = cidadao` não passam por revisão: `pronta` já libera.
+
+Gate público: para tarefa com advogado (`origem = advogado`) em `pronta`, `GET /api/t/{hash}` devolve
+`tarefa.status = "revisao"` com `resumo_md: null, topicos: null, questoes: []` (e `tem_advogado`, `advogado`), e
+`GET /api/t/{hash}/inferencias`, `POST .../quiz` e `POST .../chat` respondem 409 "Em revisão pelo advogado". O app mostra
+"O advogado está revisando a explicação" na tela de espera.
+
+Tela no app: `/painel/{id}/revisao` com abas Marcações (classes com "Ver no texto" e selo "conferido no texto"), Texto
+(documento com destaques por classe), Conclusões (sínteses com lastro), Explicação (o que a cliente vai ler),
+Perguntas (com a resposta certa marcada) e o botão "Aprovar e liberar para a cliente".
