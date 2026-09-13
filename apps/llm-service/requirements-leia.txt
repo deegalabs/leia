@@ -1,4 +1,0 @@
-# Add-ons for the LeIA receipt and verification (install with the service requirements)
-qrcode[pil]>=8.0
-pypdf>=5.0
-opentimestamps-client>=0.7

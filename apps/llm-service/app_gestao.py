@@ -1,0 +1,1057 @@
+# ╔══════════════════════════════════════════════════════════════════════════╗
+# ║   GESTÃO v3.1 — Login · Dashboard · Tarefas · Quiz · Chat · PDF assinado ║
+# ║   Compat Starlette ≥ 0.36 (TemplateResponse(request, name, context))     ║
+# ╚══════════════════════════════════════════════════════════════════════════╝
+from __future__ import annotations
+import os
+import json, logging, shutil, secrets
+from datetime import datetime
+from pathlib import Path
+from typing import Optional
+
+from fastapi import (APIRouter, BackgroundTasks, Depends, Form, HTTPException,
+                     Request, UploadFile, File, status)
+from fastapi.responses import (HTMLResponse, RedirectResponse, FileResponse,
+                               StreamingResponse)
+from fastapi.templating import Jinja2Templates
+from sqlmodel import Session, select
+
+from core.db import (Usuario, Tarefa, LogEvento, Tentativa,
+                     get_session, init_db, engine)
+from core.auth import (autenticar, encerrar_sessao, usuario_atual,
+                       criar_usuario_inicial, hash_senha)
+from core import workspace as ws
+from core import sessao as sess
+from core import tentativas as tn
+from core.pdf_sign import gerar_pdf_assinado
+
+log = logging.getLogger("gestao")
+
+router = APIRouter()
+templates = Jinja2Templates(directory="templates")
+
+
+# ══════════════════════════════════════════════════════════════════════════
+#  HELPERS
+# ══════════════════════════════════════════════════════════════════════════
+def _ok_pdf(up: UploadFile) -> bool:
+    return (up.filename or "").lower().endswith(".pdf")
+
+
+def _ler_artefato(hash_: str, nome: str) -> Optional[str]:
+    p = ws.pasta(hash_) / nome
+    if not p.exists():
+        return None
+    try:
+        return p.read_text(encoding="utf-8")
+    except Exception:
+        return None
+
+
+def _ler_json(hash_: str, nome: str):
+    txt = _ler_artefato(hash_, nome)
+    if txt is None:
+        return None
+    try:
+        return json.loads(txt)
+    except Exception:
+        return None
+
+
+def _permite_ver(u: Usuario, t: Tarefa) -> bool:
+    return u.papel != "advogado" or t.advogado_id == u.id
+
+
+# ══════════════════════════════════════════════════════════════════════════
+#  LOGIN / LOGOUT
+# ══════════════════════════════════════════════════════════════════════════
+@router.get("/login", response_class=HTMLResponse)
+async def login_form(request: Request, erro: Optional[str] = None):
+    return templates.TemplateResponse(
+        request,
+        "login.html",
+        {"erro": erro},
+    )
+
+
+@router.post("/login")
+async def login_post(
+    email: str = Form(...),
+    senha: str = Form(...),
+    session: Session = Depends(get_session),
+):
+    u = autenticar(session, email, senha)
+    if not u:
+        return RedirectResponse("/login?erro=credenciais", status_code=303)
+    resp = RedirectResponse("/dashboard", status_code=303)
+    resp.set_cookie("sessao", u.session_token, httponly=True, samesite="lax")
+    return resp
+
+
+@router.post("/logout")
+async def logout(
+    request: Request,
+    session: Session = Depends(get_session),
+):
+    cookie = request.cookies.get("sessao")
+    if cookie:
+        u = session.exec(select(Usuario).where(Usuario.session_token == cookie)).first()
+        if u:
+            encerrar_sessao(session, u)
+        # memória de sessão (jurisprudência/resumo/chat) não sobrevive ao login
+        sess.encerrar(cookie)
+    resp = RedirectResponse("/login", status_code=303)
+    resp.delete_cookie("sessao")
+    return resp
+
+
+# ══════════════════════════════════════════════════════════════════════════
+#  DASHBOARD
+# ══════════════════════════════════════════════════════════════════════════
+@router.get("/dashboard", response_class=HTMLResponse)
+async def dashboard(
+    request: Request,
+    u: Usuario = Depends(usuario_atual),
+    session: Session = Depends(get_session),
+):
+    q = select(Tarefa).order_by(Tarefa.criada_em.desc())   # type: ignore
+    if u.papel == "advogado":
+        q = q.where(Tarefa.advogado_id == u.id)
+
+    tarefas = session.exec(q).all()
+
+    contagem = {"total": len(tarefas)}
+    for t in tarefas:
+        contagem[t.status] = contagem.get(t.status, 0) + 1
+
+    return templates.TemplateResponse(
+        request,
+        "dashboard.html",
+        {
+            "usuario": u,
+            "tarefas": tarefas,
+            "contagem": contagem,
+        },
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════
+#  NOVA TAREFA
+# ══════════════════════════════════════════════════════════════════════════
+@router.post("/api/pdf/destilar")
+async def api_pdf_destilar(
+    request: Request,
+    bg: BackgroundTasks,
+    pdf: UploadFile = File(...),
+    u: Usuario = Depends(usuario_atual),
+    session: Session = Depends(get_session),
+):
+    """
+    Versão JSON (para o chat/LeIA) do fluxo de `nova_post`: recebe um PDF,
+    cria a Tarefa e dispara o protocolo de destilação (protocolo_pdf.json)
+    em background. O front-end acompanha o progresso via
+    GET /api/tarefas/{id}/status (eventos task_start/task_done/task_error).
+    Não devolvemos HTML — devolvemos {tarefa_id, hash} para o chat renderizar
+    os blocos de inferência.
+    """
+    if not _ok_pdf(pdf):
+        raise HTTPException(400, "Envie um PDF.")
+
+    h = ws.novo_hash()
+    pasta_ws = ws.pasta(h)
+
+    conteudo = await pdf.read()
+    (pasta_ws / "original.pdf").write_bytes(conteudo)
+
+    t = Tarefa(
+        hash=h,
+        titulo=(pdf.filename or "documento")[:200],
+        advogado_id=u.id,
+        status="criada",
+        pdf_nome=pdf.filename,
+        workspace_path=str(pasta_ws),
+        rodada=1,
+    )
+    session.add(t); session.commit(); session.refresh(t)
+
+    ws.salvar_meta(h, {
+        "hash": h,
+        "titulo": t.titulo,
+        "advogado": {"id": u.id, "email": u.email, "nome": u.nome},
+        "pdf_nome": pdf.filename,
+        "pdf_bytes": len(conteudo),
+        "criada_em": t.criada_em.isoformat(),
+        "origem": "chat_destilacao",
+    })
+    ws.registrar_evento(h, "criada", tarefa_id=t.id, advogado_id=u.id)
+    ws.registrar_evento(h, "pdf_salvo", nome=pdf.filename, bytes=len(conteudo))
+
+    session.add(LogEvento(tarefa_id=t.id, tipo="criada",
+                          payload=f'{{"hash":"{h}"}}'))
+    session.commit()
+
+    token = request.cookies.get("sessao")
+    from main import groq_client
+    from core.pipeline_pdf import executar_pipeline_pdf
+    bg.add_task(executar_pipeline_pdf, t.id, groq_client, "", token)
+
+    log.info("📁 [chat] Tarefa criada + destilação agendada | id=%s hash=%s", t.id, h)
+    return {"tarefa_id": t.id, "hash": h}
+
+
+@router.get("/api/pdf/{hash_}/destilado")
+async def api_pdf_destilado(
+    hash_: str,
+    u: Usuario = Depends(usuario_atual),
+    session: Session = Depends(get_session),
+):
+    """
+    Devolve o material DESTILADO da tarefa (nunca o PDF/texto bruto):
+    memoria_persistente.json (fusão T1-T5), resumo_humanizado.md e
+    questoes.json, quando já existirem. É isso — e só isso — que o chat
+    deve guardar/reusar como contexto do documento.
+    """
+    t = session.exec(select(Tarefa).where(Tarefa.hash == hash_)).first()
+    if not t or not _permite_ver(u, t):
+        raise HTTPException(404)
+
+    return {
+        "status": t.status,
+        "titulo": t.titulo,
+        "memoria": _ler_json(hash_, "memoria_persistente.json"),
+        "resumo": _ler_artefato(hash_, "resumo_humanizado.md"),
+    }
+
+
+@router.get("/api/pdf/{hash_}/log")
+async def api_pdf_log(
+    hash_: str,
+    u: Usuario = Depends(usuario_atual),
+    session: Session = Depends(get_session),
+):
+    """
+    Eventos do protocolo de destilação (log.jsonl) para alimentar os
+    blocos de inferência no chat (task_start/task_done/pipeline_done/erro).
+    Nunca expõe o PDF ou o texto bruto — só marcos do processo.
+    """
+    t = session.exec(select(Tarefa).where(Tarefa.hash == hash_)).first()
+    if not t or not _permite_ver(u, t):
+        raise HTTPException(404)
+
+    eventos = [
+        e for e in ws.ler_eventos(hash_)
+        if e.get("tipo") in (
+            "pipeline_start", "texto_extraido", "task_start",
+            "task_done", "task_error", "erro_extracao",
+            "erro_protocolo", "pipeline_done",
+        )
+    ]
+    return {"status": t.status, "eventos": eventos}
+
+
+# ══════════════════════════════════════════════════════════════════════════
+#  RESUMO ESTRUTURADO (novo) — via API pública externa
+#  api.resumoestruturado.com.br. NÃO usa Groq/protocolo_pdf.json local:
+#  quem decompõe o documento é o backend externo (core/pesquisa.py).
+#  O resultado é salvo no workspace no mesmo padrão da destilação local.
+# ══════════════════════════════════════════════════════════════════════════
+@router.post("/api/resumo-estruturado/submit")
+async def api_resumo_estruturado_submit(
+    request: Request,
+    bg: BackgroundTasks,
+    pdf: Optional[UploadFile] = File(default=None),
+    texto: Optional[str] = Form(default=None),
+    u: Usuario = Depends(usuario_atual),
+    session: Session = Depends(get_session),
+):
+    """
+    Recebe um PDF OU um texto colado e dispara o envio para a API pública
+    externa (api.resumoestruturado.com.br) em background. Cria uma Tarefa
+    e um workspace/{hash}/ do mesmo jeito que o fluxo local — só que quem
+    decompõe é o serviço externo, não o Groq.
+    """
+    if not pdf and not (texto and texto.strip()):
+        raise HTTPException(400, "Envie um PDF ou um texto.")
+    if pdf and pdf.filename and not _ok_pdf(pdf):
+        raise HTTPException(400, "Envie um PDF.")
+
+    h = ws.novo_hash()
+    pasta_ws = ws.pasta(h)
+
+    pdf_bytes: Optional[bytes] = None
+    nome_pdf: Optional[str] = None
+    if pdf and pdf.filename:
+        pdf_bytes = await pdf.read()
+        nome_pdf = pdf.filename
+        (pasta_ws / "original.pdf").write_bytes(pdf_bytes)
+
+    t = Tarefa(
+        hash=h,
+        titulo=(nome_pdf or (texto or "").strip()[:60] or "resumo estruturado")[:200],
+        advogado_id=u.id,
+        status="criada",
+        pdf_nome=nome_pdf,
+        workspace_path=str(pasta_ws),
+        rodada=1,
+    )
+    session.add(t); session.commit(); session.refresh(t)
+
+    ws.salvar_meta(h, {
+        "hash": h,
+        "titulo": t.titulo,
+        "advogado": {"id": u.id, "email": u.email, "nome": u.nome},
+        "pdf_nome": nome_pdf,
+        "criada_em": t.criada_em.isoformat(),
+        "origem": "resumo_estruturado_api_externa",
+    })
+    ws.registrar_evento(h, "criada", tarefa_id=t.id, advogado_id=u.id)
+    session.add(LogEvento(tarefa_id=t.id, tipo="criada", payload=f'{{"hash":"{h}"}}'))
+    session.commit()
+
+    token = request.cookies.get("sessao")
+    from core.api import executar_resumo_estruturado
+    bg.add_task(executar_resumo_estruturado, t.id, pdf_bytes, texto,
+                nome_pdf or "documento.pdf", token)
+
+    log.info("📁 [resumo estruturado · API externa] Tarefa criada | id=%s hash=%s", t.id, h)
+    return {"tarefa_id": t.id, "hash": h}
+
+
+@router.get("/api/resumo-estruturado/{hash_}/status")
+async def api_resumo_estruturado_status(
+    hash_: str,
+    u: Usuario = Depends(usuario_atual),
+    session: Session = Depends(get_session),
+):
+    """Eventos do acompanhamento do job na API externa (resumo_estruturado_*)."""
+    t = session.exec(select(Tarefa).where(Tarefa.hash == hash_)).first()
+    if not t or not _permite_ver(u, t):
+        raise HTTPException(404)
+
+    eventos = [
+        e for e in ws.ler_eventos(hash_)
+        if str(e.get("tipo", "")).startswith("resumo_estruturado")
+    ]
+    return {"status": t.status, "eventos": eventos}
+
+
+@router.get("/api/resumo-estruturado/{hash_}/resultado")
+async def api_resumo_estruturado_resultado(
+    hash_: str,
+    u: Usuario = Depends(usuario_atual),
+    session: Session = Depends(get_session),
+):
+    """Devolve o resultado já salvo no workspace (dados_llm + doc_text)."""
+    t = session.exec(select(Tarefa).where(Tarefa.hash == hash_)).first()
+    if not t or not _permite_ver(u, t):
+        raise HTTPException(404)
+
+    return {
+        "status": t.status,
+        "titulo": t.titulo,
+        "dados_llm": _ler_json(hash_, "resumo_estruturado.json"),
+        "doc_text": _ler_artefato(hash_, "resumo_estruturado_texto.txt"),
+    }
+
+
+@router.post("/api/resumo-estruturado/{hash_}/rerun/{step_id}")
+async def api_resumo_estruturado_rerun(
+    hash_: str,
+    step_id: str,
+    u: Usuario = Depends(usuario_atual),
+    session: Session = Depends(get_session),
+):
+    """Proxy para /jobs/{job_id}/rerun/{step_id} na API externa."""
+    t = session.exec(select(Tarefa).where(Tarefa.hash == hash_)).first()
+    if not t or not _permite_ver(u, t):
+        raise HTTPException(404)
+
+    job = _ler_json(hash_, "resumo_estruturado_job.json") or {}
+    job_id = job.get("job_id")
+    if not job_id:
+        raise HTTPException(409, "Nenhum job da API externa associado a esta tarefa.")
+
+    from core.api import rerun_step, ResumoEstruturadoError
+    try:
+        return await rerun_step(job_id, step_id)
+    except ResumoEstruturadoError as e:
+        raise HTTPException(502, str(e))
+
+
+# ══════════════════════════════════════════════════════════════════════════
+#  JURISPRUDÊNCIA — via API pública externa (mesmo padrão do Resumo
+#  Estruturado acima). Aceita PDF, texto colado ou uma consulta de pesquisa.
+# ══════════════════════════════════════════════════════════════════════════
+@router.post("/api/jurisprudencia/submit")
+async def api_jurisprudencia_submit(
+    request: Request,
+    bg: BackgroundTasks,
+    pdf: Optional[UploadFile] = File(default=None),
+    texto: Optional[str] = Form(default=None),
+    consulta: Optional[str] = Form(default=None),
+    u: Usuario = Depends(usuario_atual),
+    session: Session = Depends(get_session),
+):
+    """
+    Recebe um PDF, um texto colado, e/ou uma consulta de pesquisa, e
+    dispara o envio para a API pública externa de jurisprudência em
+    background. Cria uma Tarefa e workspace/{hash}/ no mesmo padrão dos
+    outros dois fluxos.
+    """
+    if not pdf and not (texto and texto.strip()) and not (consulta and consulta.strip()):
+        raise HTTPException(400, "Envie um PDF, um texto ou uma consulta de pesquisa.")
+    if pdf and pdf.filename and not _ok_pdf(pdf):
+        raise HTTPException(400, "Envie um PDF.")
+
+    h = ws.novo_hash()
+    pasta_ws = ws.pasta(h)
+
+    pdf_bytes: Optional[bytes] = None
+    nome_pdf: Optional[str] = None
+    if pdf and pdf.filename:
+        pdf_bytes = await pdf.read()
+        nome_pdf = pdf.filename
+        (pasta_ws / "original.pdf").write_bytes(pdf_bytes)
+
+    titulo = (nome_pdf or (consulta or "").strip()[:60]
+              or (texto or "").strip()[:60] or "pesquisa de jurisprudência")[:200]
+
+    t = Tarefa(
+        hash=h,
+        titulo=titulo,
+        advogado_id=u.id,
+        status="criada",
+        pdf_nome=nome_pdf,
+        workspace_path=str(pasta_ws),
+        rodada=1,
+    )
+    session.add(t); session.commit(); session.refresh(t)
+
+    ws.salvar_meta(h, {
+        "hash": h,
+        "titulo": t.titulo,
+        "advogado": {"id": u.id, "email": u.email, "nome": u.nome},
+        "pdf_nome": nome_pdf,
+        "consulta": consulta,
+        "criada_em": t.criada_em.isoformat(),
+        "origem": "jurisprudencia_api_externa",
+    })
+    ws.registrar_evento(h, "criada", tarefa_id=t.id, advogado_id=u.id)
+    session.add(LogEvento(tarefa_id=t.id, tipo="criada", payload=f'{{"hash":"{h}"}}'))
+    session.commit()
+
+    token = request.cookies.get("sessao")
+    from core.api_jurisprudencia import executar_jurisprudencia
+    bg.add_task(executar_jurisprudencia, t.id, pdf_bytes, texto, consulta,
+                nome_pdf or "documento.pdf", token)
+
+    log.info("📁 [jurisprudência · API externa] Tarefa criada | id=%s hash=%s", t.id, h)
+    return {"tarefa_id": t.id, "hash": h}
+
+
+@router.get("/api/jurisprudencia/{hash_}/status")
+async def api_jurisprudencia_status(
+    hash_: str,
+    u: Usuario = Depends(usuario_atual),
+    session: Session = Depends(get_session),
+):
+    """Eventos do acompanhamento do job na API externa (jurisprudencia_*)."""
+    t = session.exec(select(Tarefa).where(Tarefa.hash == hash_)).first()
+    if not t or not _permite_ver(u, t):
+        raise HTTPException(404)
+
+    eventos = [
+        e for e in ws.ler_eventos(hash_)
+        if str(e.get("tipo", "")).startswith("jurisprudencia")
+    ]
+    return {"status": t.status, "eventos": eventos}
+
+
+@router.get("/api/jurisprudencia/{hash_}/resultado")
+async def api_jurisprudencia_resultado(
+    hash_: str,
+    u: Usuario = Depends(usuario_atual),
+    session: Session = Depends(get_session),
+):
+    """Devolve o resultado já salvo no workspace (dados_llm + doc_text)."""
+    t = session.exec(select(Tarefa).where(Tarefa.hash == hash_)).first()
+    if not t or not _permite_ver(u, t):
+        raise HTTPException(404)
+
+    return {
+        "status": t.status,
+        "titulo": t.titulo,
+        "dados_llm": _ler_json(hash_, "jurisprudencia_resultado.json"),
+        "doc_text": _ler_artefato(hash_, "jurisprudencia_texto.txt"),
+    }
+
+
+# ══════════════════════════════════════════════════════════════════════════
+#  MEMÓRIA DE SESSÃO — anexo compartilhado (jurisprudência + resumo
+#  estruturado + chat) que acompanha toda pergunta do usuário. Persiste
+#  enquanto a sessão de login estiver aberta; some no logout. NUNCA inclui
+#  nada do fluxo de PDF assinado (esse é isolado por completo).
+# ══════════════════════════════════════════════════════════════════════════
+@router.get("/api/sessao/memoria")
+async def api_sessao_memoria(
+    request: Request,
+    u: Usuario = Depends(usuario_atual),
+):
+    """
+    Devolve o estado atual da memória de sessão: quais abas já têm uma
+    destilação processada (para o aviso no topo do chat) + o JSON completo
+    das 3 partes (para inspeção/depuração no painel de Contexto).
+    """
+    token = request.cookies.get("sessao")
+    return {
+        "processadas": sess.resumo_abas_processadas(token),
+        "anexo": sess.anexo_compartilhado(token),
+    }
+
+
+@router.post("/api/sessao/memoria/limpar")
+async def api_sessao_memoria_limpar(
+    request: Request,
+    aba: Optional[str] = Form(default=None),
+    u: Usuario = Depends(usuario_atual),
+):
+    """
+    Limpa a memória de sessão. Se `aba` vier informado
+    (jurisprudencia|resumo_estruturado|chat), limpa só aquela aba;
+    senão, limpa a sessão inteira (as 3 abas).
+    """
+    if aba is not None and aba not in sess.ABAS:
+        raise HTTPException(400, f"aba inválida: {aba}")
+    token = request.cookies.get("sessao")
+    sess.limpar(token, aba)  # type: ignore[arg-type]
+    return {"message": "✅ Memória de sessão limpa" + (f" (aba: {aba})" if aba else "")}
+
+
+@router.get("/tarefas/nova", response_class=HTMLResponse)
+async def nova_form(request: Request, u: Usuario = Depends(usuario_atual)):
+    return templates.TemplateResponse(
+        request,
+        "tarefa_nova.html",
+        {"usuario": u},
+    )
+
+
+@router.post("/tarefas/nova")
+async def nova_post(
+    bg: BackgroundTasks,
+    titulo: str = Form(...),
+    pdf: UploadFile = File(...),
+    u: Usuario = Depends(usuario_atual),
+    session: Session = Depends(get_session),
+):
+    if not _ok_pdf(pdf):
+        raise HTTPException(400, "Envie um PDF.")
+
+    h = ws.novo_hash()
+    pasta = ws.pasta(h)
+
+    conteudo = await pdf.read()
+    (pasta / "original.pdf").write_bytes(conteudo)
+
+    t = Tarefa(
+        hash=h,
+        titulo=titulo.strip()[:200],
+        advogado_id=u.id,
+        status="criada",
+        pdf_nome=pdf.filename,
+        workspace_path=str(pasta),
+        rodada=1,
+    )
+    session.add(t); session.commit(); session.refresh(t)
+
+    ws.salvar_meta(h, {
+        "hash": h,
+        "titulo": t.titulo,
+        "advogado": {"id": u.id, "email": u.email, "nome": u.nome},
+        "pdf_nome": pdf.filename,
+        "pdf_bytes": len(conteudo),
+        "criada_em": t.criada_em.isoformat(),
+    })
+    ws.registrar_evento(h, "criada", tarefa_id=t.id, advogado_id=u.id)
+    ws.registrar_evento(h, "pdf_salvo", nome=pdf.filename, bytes=len(conteudo))
+
+    session.add(LogEvento(tarefa_id=t.id, tipo="criada",
+                          payload=f'{{"hash":"{h}"}}'))
+    session.commit()
+
+    from main import groq_client
+    from core.pipeline_pdf import executar_pipeline_pdf
+    bg.add_task(executar_pipeline_pdf, t.id, groq_client, "")
+
+    log.info("📁 Tarefa criada + pipeline agendada | id=%s hash=%s", t.id, h)
+    return RedirectResponse(f"/tarefas/{t.id}", status_code=303)
+
+
+# ══════════════════════════════════════════════════════════════════════════
+#  DETALHE DA TAREFA (painel do advogado)
+# ══════════════════════════════════════════════════════════════════════════
+@router.get("/tarefas/{tarefa_id}", response_class=HTMLResponse)
+async def detalhe(
+    tarefa_id: int,
+    request: Request,
+    u: Usuario = Depends(usuario_atual),
+    session: Session = Depends(get_session),
+):
+    t = session.get(Tarefa, tarefa_id)
+    if not t:
+        raise HTTPException(404, "Tarefa não encontrada")
+    if not _permite_ver(u, t):
+        raise HTTPException(403, "Sem acesso")
+
+    eventos = ws.ler_eventos(t.hash)
+
+    resumo_md      = _ler_artefato(t.hash, "resumo_humanizado.md")
+    texto_extraido = _ler_artefato(t.hash, "texto_extraido.txt")
+    questoes       = _ler_json(t.hash, "questoes.json")
+    memoria        = _ler_json(t.hash, "memoria_persistente.json")
+    texto_tagueado = _ler_json(t.hash, "texto_tagueado.json")
+
+    # Tarefas criadas via /api/resumo-estruturado/submit (API externa) não
+    # passam pelo pipeline local — o resultado fica em resumo_estruturado.json
+    # / resumo_estruturado_texto.txt, não em memoria_persistente.json.
+    meta = _ler_json(t.hash, "meta.json") or {}
+    resumo_estruturado_externo = None
+    resumo_estruturado_texto = None
+    if meta.get("origem") == "resumo_estruturado_api_externa":
+        resumo_estruturado_externo = _ler_json(t.hash, "resumo_estruturado.json")
+        resumo_estruturado_texto = _ler_artefato(t.hash, "resumo_estruturado_texto.txt")
+
+    link_cliente = (os.getenv("CLIENT_APP_URL") or str(request.base_url)).rstrip("/") + f"/t/{t.hash}"
+
+    lista_tent = tn.listar(t.id)
+    tentativas_erros = {}
+    qs = (questoes or {}).get("questoes", []) if isinstance(questoes, dict) else []
+    for tt in lista_tent:
+        if not tt.aprovado:
+            tentativas_erros[tt.id] = tn.analisar_erros(tt, qs)
+
+    return templates.TemplateResponse(
+        request,
+        "tarefa_detalhe.html",
+        {
+            "usuario": u,
+            "tarefa": t,
+            "eventos": list(reversed(eventos)),
+            "link_cliente": link_cliente,
+            "resumo_md": resumo_md,
+            "texto_extraido": texto_extraido,
+            "questoes": questoes,
+            "memoria": memoria,
+            "texto_tagueado": texto_tagueado,
+            "resumo_estruturado_externo": resumo_estruturado_externo,
+            "resumo_estruturado_texto": resumo_estruturado_texto,
+            "num_questoes": len(qs),
+            "historico": lista_tent,
+            "melhor_tent": tn.melhor(t.id),
+            "tentativas_erros": tentativas_erros,
+        },
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════
+#  REPROCESSAR (reroda pipeline do zero, mesma rodada)
+# ══════════════════════════════════════════════════════════════════════════
+@router.post("/tarefas/{tarefa_id}/reprocessar")
+async def reprocessar(
+    tarefa_id: int,
+    bg: BackgroundTasks,
+    u: Usuario = Depends(usuario_atual),
+    session: Session = Depends(get_session),
+):
+    t = session.get(Tarefa, tarefa_id)
+    if not t:
+        raise HTTPException(404, "Tarefa não encontrada")
+    if not _permite_ver(u, t):
+        raise HTTPException(403, "Sem acesso")
+    if t.status == "processando":
+        raise HTTPException(409, "Já está processando")
+
+    for nome in (
+        "texto_extraido.txt", "memoria_persistente.json", "texto_tagueado.json",
+        "resumo_humanizado.md", "questoes.json", "pdf_assinado.pdf",
+    ):
+        p = ws.pasta(t.hash) / nome
+        if p.exists():
+            p.unlink()
+
+    for p in ws.pasta(t.hash).glob("T*.json"):
+        p.unlink()
+
+    t.status = "criada"
+    t.atualizada_em = datetime.utcnow()
+    session.add(t)
+    session.add(LogEvento(tarefa_id=t.id, tipo="reprocessar", payload=None))
+    session.commit()
+
+    ws.registrar_evento(t.hash, "reprocessar")
+
+    from main import groq_client
+    from core.pipeline_pdf import executar_pipeline_pdf
+    bg.add_task(executar_pipeline_pdf, t.id, groq_client, "")
+
+    log.info("🔄 Reprocessando tarefa %s (hash=%s)", t.id, t.hash)
+    return RedirectResponse(f"/tarefas/{t.id}", status_code=303)
+
+
+# ══════════════════════════════════════════════════════════════════════════
+#  NOVA RODADA (clona a tarefa e gera novas questões)
+# ══════════════════════════════════════════════════════════════════════════
+@router.post("/tarefas/{tarefa_id}/nova-rodada")
+async def nova_rodada(
+    tarefa_id: int,
+    bg: BackgroundTasks,
+    u: Usuario = Depends(usuario_atual),
+    session: Session = Depends(get_session),
+):
+    t = session.get(Tarefa, tarefa_id)
+    if not t:
+        raise HTTPException(404)
+    if not _permite_ver(u, t):
+        raise HTTPException(403)
+
+    rodada_anterior = t.rodada or 1
+    nova_rodada_n = rodada_anterior + 1
+
+    h = ws.novo_hash()
+    nova_pasta = ws.pasta(h)
+    pdf_orig = Path(t.workspace_path) / "original.pdf"
+    if not pdf_orig.exists():
+        raise HTTPException(500, "PDF original não encontrado")
+    shutil.copy(pdf_orig, nova_pasta / "original.pdf")
+
+    novo = Tarefa(
+        hash=h,
+        titulo=f"{t.titulo} · rodada {nova_rodada_n}",
+        advogado_id=t.advogado_id,
+        status="criada",
+        pdf_nome=t.pdf_nome,
+        workspace_path=str(nova_pasta),
+        clone_de=t.id,
+        rodada=nova_rodada_n,
+    )
+    session.add(novo); session.commit(); session.refresh(novo)
+
+    ws.salvar_meta(h, {
+        "hash": h,
+        "titulo": novo.titulo,
+        "clone_de": t.id,
+        "clone_hash": t.hash,
+        "rodada": nova_rodada_n,
+        "criada_em": novo.criada_em.isoformat(),
+    })
+    ws.registrar_evento(h, "clonada", origem=t.hash, rodada=nova_rodada_n)
+
+    from main import groq_client
+    from core.pipeline_pdf import executar_pipeline_pdf
+    variacao = (
+        f"RODADA_{nova_rodada_n}_HASH_{h[:8]}_NONCE_{secrets.token_hex(4)} — "
+        f"Gere 12 questões COMPLETAMENTE DIFERENTES das geradas na rodada anterior "
+        f"(novos enunciados, novas alternativas, novas áreas priorizadas)."
+    )
+    bg.add_task(executar_pipeline_pdf, novo.id, groq_client, variacao)
+
+    log.info("🔁 Nova rodada | origem=%s novo=%s hash=%s", t.id, novo.id, h)
+    return RedirectResponse(f"/tarefas/{novo.id}", status_code=303)
+
+
+# ══════════════════════════════════════════════════════════════════════════
+#  DOWNLOAD DE ARTEFATO (advogado/gerente)
+# ══════════════════════════════════════════════════════════════════════════
+@router.get("/tarefas/{tarefa_id}/artefato/{nome}")
+async def baixar_artefato(
+    tarefa_id: int,
+    nome: str,
+    u: Usuario = Depends(usuario_atual),
+    session: Session = Depends(get_session),
+):
+    t = session.get(Tarefa, tarefa_id)
+    if not t:
+        raise HTTPException(404)
+    if not _permite_ver(u, t):
+        raise HTTPException(403)
+
+    permitidos = {
+        "texto_extraido.txt", "memoria_persistente.json", "texto_tagueado.json",
+        "resumo_humanizado.md", "questoes.json", "log.jsonl", "meta.json",
+    }
+    if nome not in permitidos and not nome.startswith("T"):
+        raise HTTPException(400, "Nome não permitido")
+
+    p = ws.pasta(t.hash) / nome
+    if not p.exists():
+        raise HTTPException(404, "Artefato não existe")
+
+    return FileResponse(p, filename=f"{t.hash}_{nome}")
+
+
+# ══════════════════════════════════════════════════════════════════════════
+#  API AUXILIAR: status da tarefa (auto-refresh seletivo)
+# ══════════════════════════════════════════════════════════════════════════
+@router.get("/api/tarefas/{tarefa_id}/status")
+async def api_status(
+    tarefa_id: int,
+    u: Usuario = Depends(usuario_atual),
+    session: Session = Depends(get_session),
+):
+    t = session.get(Tarefa, tarefa_id)
+    if not t or not _permite_ver(u, t):
+        raise HTTPException(404)
+
+    eventos = ws.ler_eventos(t.hash)
+    return {
+        "status": t.status,
+        "atualizada_em": t.atualizada_em.isoformat(),
+        "eventos_recentes": eventos[-8:],
+    }
+
+
+# ══════════════════════════════════════════════════════════════════════════
+#  LINK PÚBLICO DO CLIENTE — /t/{hash}
+# ══════════════════════════════════════════════════════════════════════════
+@router.get("/t/{hash_}", response_class=HTMLResponse)
+async def cliente_view(
+    hash_: str,
+    request: Request,
+    session: Session = Depends(get_session),
+):
+    t = session.exec(select(Tarefa).where(Tarefa.hash == hash_)).first()
+    if not t:
+        raise HTTPException(404, "Link inválido ou expirado")
+
+    if t.status not in ("pronta", "enviada", "assinada"):
+        return templates.TemplateResponse(
+            request,
+            "cliente_aguarde.html",
+            {"tarefa": t},
+        )
+
+    resumo_md = _ler_artefato(t.hash, "resumo_humanizado.md") or "*(resumo indisponível)*"
+    questoes  = _ler_json(t.hash, "questoes.json")
+    memoria   = _ler_json(t.hash, "memoria_persistente.json")
+
+    lista_tent = tn.listar(t.id)
+    ultima = lista_tent[-1] if lista_tent else None
+    qs = (questoes or {}).get("questoes", []) if isinstance(questoes, dict) else []
+    erros_ultima = tn.analisar_erros(ultima, qs) if ultima else []
+
+    ws.registrar_evento(t.hash, "cliente_abriu",
+                        ip=request.client.host if request.client else "?",
+                        ua=request.headers.get("user-agent", "")[:200])
+
+    return templates.TemplateResponse(
+        request,
+        "cliente_view.html",
+        {
+            "tarefa": t,
+            "resumo_md": resumo_md,
+            "questoes": questoes,
+            "memoria": memoria,
+            "ultima_tentativa": ultima,
+            "erros_ultima": erros_ultima,
+            "historico": lista_tent,
+        },
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════
+#  API PÚBLICA DO CLIENTE — quiz
+# ══════════════════════════════════════════════════════════════════════════
+@router.post("/api/t/{hash_}/quiz")
+async def api_quiz(
+    hash_: str,
+    payload: dict,
+    request: Request,
+    background: BackgroundTasks,
+    session: Session = Depends(get_session),
+):
+    t = session.exec(select(Tarefa).where(Tarefa.hash == hash_)).first()
+    if not t:
+        raise HTTPException(404, "Link inválido")
+
+    questoes_doc = _ler_json(t.hash, "questoes.json") or {}
+    questoes = questoes_doc.get("questoes", [])
+    if not questoes:
+        raise HTTPException(409, "Questões não disponíveis")
+
+    respostas = payload.get("respostas") or {}
+    ip = request.client.host if request.client else "?"
+    ua = request.headers.get("user-agent", "")
+
+    tent = tn.registrar(t, respostas, questoes, ip, ua)
+    erros = tn.analisar_erros(tent, questoes)
+
+    if tent.aprovado:  # LeIA: public timestamp (OpenTimestamps) of the approved attempt, in background
+        from leia.api_cliente import stamp_attempt
+        background.add_task(stamp_attempt, t.hash, tent.numero, tent.hash_imutavel)
+
+    ws.registrar_evento(t.hash, "tentativa",
+                        numero=tent.numero, acertos=tent.acertos,
+                        total=tent.total, aprovado=tent.aprovado,
+                        hash=tent.hash_imutavel)
+
+    if tent.aprovado and t.status != "assinada":
+        t.status = "assinada"
+        t.atualizada_em = datetime.utcnow()
+        session.add(t)
+        session.add(LogEvento(tarefa_id=t.id, tipo="assinada",
+                              payload=f'{{"tentativa":{tent.numero}}}'))
+        session.commit()
+
+    return {
+        "numero": tent.numero,
+        "acertos": tent.acertos,
+        "total": tent.total,
+        "aprovado": tent.aprovado,
+        "hash_imutavel": tent.hash_imutavel,
+        "ts": tent.criada_em.isoformat(),
+        "erros": erros,
+        "pode_baixar_pdf": tent.aprovado,
+    }
+
+
+# ══════════════════════════════════════════════════════════════════════════
+#  API PÚBLICA DO CLIENTE — chat (streaming)
+# ══════════════════════════════════════════════════════════════════════════
+@router.post("/api/t/{hash_}/chat")
+async def api_cliente_chat(
+    hash_: str,
+    payload: dict,
+    session: Session = Depends(get_session),
+):
+    t = session.exec(select(Tarefa).where(Tarefa.hash == hash_)).first()
+    if not t:
+        raise HTTPException(404, "Link inválido")
+
+    pergunta = (payload.get("mensagem") or "").strip()
+    if not pergunta:
+        raise HTTPException(400, "Mensagem vazia")
+
+    resumo = _ler_artefato(t.hash, "resumo_humanizado.md") or ""
+    memoria = _ler_json(t.hash, "memoria_persistente.json") or {}
+    memoria_str = json.dumps(memoria, ensure_ascii=False, indent=2)[:12000]
+
+    system_prompt = (
+        "Você é um ASSISTENTE JURÍDICO que ajuda um CLIENTE LEIGO a entender "
+        "o processo dele. Use APENAS as informações do contexto abaixo. "
+        "NUNCA invente fato, número, data ou dispositivo legal. "
+        "Se a resposta não estiver no contexto, diga que não foi informado. "
+        "Linguagem simples, direta, sem latim, sem juridiquês. "
+        "Se o cliente pedir conselho jurídico (o que fazer), oriente-o a "
+        "conversar com o advogado responsável.\n\n"
+        f"=== RESUMO DO PROCESSO ===\n{resumo}\n\n"
+        f"=== MEMÓRIA ESTRUTURADA ===\n{memoria_str}"
+    )
+
+    from main import groq_client as gc
+
+    async def gerar():
+        try:
+            stream = await gc.chat.completions.create(
+                model="openai/gpt-oss-120b",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": pergunta},
+                ],
+                temperature=0.3,
+                max_completion_tokens=1500,
+                stream=True,
+            )
+            async for ch in stream:
+                delta = ch.choices[0].delta
+                txt = getattr(delta, "content", None) or ""
+                if txt:
+                    payload_json = json.dumps({"t": txt}, ensure_ascii=False)
+                    yield f"data: {payload_json}\n\n"
+            yield "data: {\"done\": true}\n\n"
+        except Exception as e:
+            payload_json = json.dumps({"error": str(e)}, ensure_ascii=False)
+            yield f"data: {payload_json}\n\n"
+
+    return StreamingResponse(
+        gerar(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════
+#  PDF ASSINADO
+# ══════════════════════════════════════════════════════════════════════════
+def _dados_assinatura(t: Tarefa, melhor: Tentativa) -> dict:
+    return {
+        "titulo": t.titulo,
+        "tarefa_hash": t.hash,
+        "numero": melhor.numero,
+        "acertos": melhor.acertos,
+        "total": melhor.total,
+        "ts": melhor.criada_em.isoformat(),
+        "ip": melhor.ip,
+        "user_agent": melhor.user_agent,
+        "hash_imutavel": melhor.hash_imutavel,
+    }
+
+
+@router.get("/t/{hash_}/pdf-assinado")
+async def cliente_baixar_pdf_assinado(
+    hash_: str,
+    session: Session = Depends(get_session),
+):
+    t = session.exec(select(Tarefa).where(Tarefa.hash == hash_)).first()
+    if not t:
+        raise HTTPException(404)
+
+    melhor = tn.melhor(t.id)
+    if not melhor or not melhor.aprovado:
+        raise HTTPException(403, "Nenhuma tentativa aprovada para esta tarefa")
+
+    pdf_orig = Path(t.workspace_path) / "original.pdf"
+    if not pdf_orig.exists():
+        raise HTTPException(404, "PDF original não encontrado")
+
+    dados = _dados_assinatura(t, melhor)
+    saida = Path(t.workspace_path) / "pdf_assinado.pdf"
+    gerar_pdf_assinado(pdf_orig, saida, dados)
+    ws.registrar_evento(t.hash, "pdf_assinado_baixado",
+                        tentativa=melhor.numero)
+    return FileResponse(
+        saida,
+        filename=f"{t.hash}_assinado.pdf",
+        media_type="application/pdf",
+    )
+
+
+@router.get("/tarefas/{tarefa_id}/pdf-assinado")
+async def admin_baixar_pdf_assinado(
+    tarefa_id: int,
+    u: Usuario = Depends(usuario_atual),
+    session: Session = Depends(get_session),
+):
+    t = session.get(Tarefa, tarefa_id)
+    if not t:
+        raise HTTPException(404)
+    if not _permite_ver(u, t):
+        raise HTTPException(403)
+
+    melhor = tn.melhor(t.id)
+    if not melhor or not melhor.aprovado:
+        raise HTTPException(403, "Sem tentativa aprovada")
+
+    pdf_orig = Path(t.workspace_path) / "original.pdf"
+    if not pdf_orig.exists():
+        raise HTTPException(404, "PDF original não encontrado")
+
+    dados = _dados_assinatura(t, melhor)
+    saida = Path(t.workspace_path) / "pdf_assinado.pdf"
+    gerar_pdf_assinado(pdf_orig, saida, dados)
+    ws.registrar_evento(t.hash, "pdf_assinado_admin",
+                        tentativa=melhor.numero)
+    return FileResponse(
+        saida,
+        filename=f"{t.hash}_assinado.pdf",
+        media_type="application/pdf",
+    )

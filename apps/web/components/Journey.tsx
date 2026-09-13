@@ -7,8 +7,20 @@ import { ChatSheet } from "./ChatSheet";
 
 type Step = { kind: "welcome" } | { kind: "topic"; n: number } | { kind: "question"; k: number } | { kind: "result" };
 
+/* Minimal inline markdown: **bold** and *italics*; everything else stays literal text (never HTML). */
+function Inline({ text }: { text: string }) {
+  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g).filter(Boolean);
+  return <>{parts.map((part, i) => part.startsWith("**") ? <strong key={i}>{part.slice(2, -2)}</strong> : part.startsWith("*") ? <em key={i}>{part.slice(1, -1)}</em> : part)}</>;
+}
 function Paragraphs({ text }: { text: string }) {
-  return <>{text.split(/\n\s*\n/).map((p, i) => <p key={i} className="mb-3 last:mb-0">{p.replace(/^[-*]\s+/gm, "").trim()}</p>)}</>;
+  const blocks = text.split(/\n\s*\n/).map((b) => b.trim()).filter(Boolean);
+  return <>{blocks.map((b, i) => {
+    const lines = b.split("\n");
+    if (lines.length > 1 && lines.every((l) => /^\s*([-*]|\d+[.)])\s+/.test(l))) {
+      return <ul key={i} className="mb-3 list-disc space-y-1 pl-5 last:mb-0">{lines.map((l, j) => <li key={j}><Inline text={l.replace(/^\s*([-*]|\d+[.)])\s+/, "")} /></li>)}</ul>;
+    }
+    return <p key={i} className="mb-3 last:mb-0"><Inline text={b.replace(/^[-*]\s+/gm, "")} /></p>;
+  })}</>;
 }
 
 export function Journey({ hash }: { hash: string }) {
@@ -58,11 +70,18 @@ export function Journey({ hash }: { hash: string }) {
   }
 
   if (!task) return <Page><AssistantBanner /><p role="status" className="text-ink-2">{error ?? "Carregando sua explicação."}</p></Page>;
-  if (!ready) return (
-    <Page><AssistantBanner />
-      <Card><h1 className="mb-2 text-[1.5rem]">Estamos preparando a explicação do seu documento</h1><p>Isso leva alguns minutos. Esta página atualiza sozinha. Você pode fechar e abrir o mesmo link depois.</p></Card>
-    </Page>
-  );
+  if (!ready) {
+    const last = task.eventos && task.eventos.length ? task.eventos[task.eventos.length - 1] : null;
+    return (
+      <Page><AssistantBanner />
+        <Card>
+          <h1 className="mb-2 text-[1.5rem]">Estamos preparando a explicação do seu documento</h1>
+          <p>Isso leva alguns minutos. Esta página atualiza sozinha. Você pode fechar e abrir o mesmo link depois.</p>
+          {last && <p className="mt-2 text-[0.95rem] text-ink-2" role="status">Etapa atual: {String(last.tipo ?? "").replace(/_/g, " ")}{last.step ? ` (${String(last.step)})` : ""}</p>}
+        </Card>
+      </Page>
+    );
+  }
 
   /* floating "doubt" button only where the action bar has no such button */
   const fab = (step.kind === "question" || (step.kind === "result" && result?.aprovado)) && (

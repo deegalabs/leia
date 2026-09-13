@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Painel · AI Forensics</title>
+<link rel="icon" href="/static/img/beeroot_ico.png" type="image/png">
+<script src="https://cdn.tailwindcss.com"></script>
+
+{# Auto-refresh se houver tarefas em andamento #}
+{% if contagem.get('processando', 0) > 0 or contagem.get('criada', 0) > 0 %}
+<meta http-equiv="refresh" content="5">
+{% endif %}
+
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=JetBrains+Mono:wght@300;400;500&display=swap');
+
+  :root{
+    --bg:#0b0d14;--bg1:#10131c;--bg2:#161a26;--bg3:#1c2133;--bg4:#252840;
+    --gold:#c9a84c;--gold-lt:#e8cf82;--gold-dim:#7a6030;
+    --gold-glow:rgba(201,168,76,.11);--gold-bd:rgba(201,168,76,.2);
+    --tx:#dde1ed;--tx2:#8890aa;--tx3:#424660;
+    --bd:rgba(255,255,255,.06);--bd2:rgba(255,255,255,.1);
+    --sans:'DM Sans',system-ui,sans-serif;
+    --serif:'Cormorant Garamond',Georgia,serif;
+    --mono:'JetBrains Mono',monospace;
+    --ok:#6ee89f;--ok-bg:rgba(51,181,104,.14);--ok-bd:rgba(51,181,104,.35);
+    --err:#f27272;--err-bg:rgba(217,58,58,.14);--err-bd:rgba(217,58,58,.4);
+    --warn:#f0c060;--warn-bg:rgba(240,192,96,.14);--warn-bd:rgba(240,192,96,.35);
+    --info:#98a8d8;--info-bg:rgba(120,140,200,.14);--info-bd:rgba(120,140,200,.3);
+  }
+  *{box-sizing:border-box}
+  html{-webkit-font-smoothing:antialiased}
+  body{
+    margin:0;min-height:100vh;
+    background:
+      radial-gradient(120% 55% at 50% -8%, rgba(201,168,76,.07) 0%, transparent 60%),
+      radial-gradient(90% 40% at 8% 100%, rgba(77,142,240,.035) 0%, transparent 55%),
+      var(--bg);
+    color:var(--tx);font-family:var(--sans);
+    padding:20px 16px 40px;
+  }
+  .wrap{max-width:1180px;margin:0 auto}
+
+  /* Header */
+  header{
+    display:flex;justify-content:space-between;align-items:center;gap:14px;
+    flex-wrap:wrap;border-bottom:1px solid var(--bd);
+    padding-bottom:18px;margin-bottom:22px;
+  }
+  .brand h1{
+    font-family:var(--serif);font-weight:500;color:var(--gold-lt);
+    font-size:1.5rem;margin:0 0 4px;letter-spacing:.01em;
+  }
+  .brand .sub{
+    font-size:.72rem;color:var(--tx3);font-family:var(--mono);
+    letter-spacing:.05em;
+  }
+  .brand .sub b{color:var(--gold-lt);font-weight:500}
+  .brand .sub .role{
+    display:inline-block;padding:1px 8px;border-radius:999px;
+    background:var(--gold-glow);border:1px solid var(--gold-bd);
+    color:var(--gold-lt);font-size:.66rem;margin-left:4px;
+    text-transform:uppercase;letter-spacing:.06em;
+  }
+
+  .actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .btn{
+    display:inline-flex;align-items:center;gap:6px;
+    padding:9px 15px;border-radius:10px;font-size:.78rem;font-weight:600;
+    cursor:pointer;text-decoration:none;font-family:var(--sans);
+    border:1px solid var(--bd2);background:var(--bg2);color:var(--tx);
+    white-space:nowrap;transition:all .18s;
+  }
+  .btn:hover{border-color:var(--gold-bd);color:var(--gold-lt)}
+  .btn-gold{
+    background:var(--gold-glow);border-color:var(--gold-bd);color:var(--gold-lt);
+  }
+  .btn-gold:hover{background:rgba(201,168,76,.22)}
+  .btn-icon{padding:9px 11px;font-size:.9rem}
+
+  /* Stats */
+  .stats{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(120px,1fr));
+    gap:10px;margin-bottom:20px;
+  }
+  .stat{
+    background:linear-gradient(165deg,var(--bg2),var(--bg1));
+    border:1px solid var(--bd2);border-radius:12px;
+    padding:14px 10px;text-align:center;
+    box-shadow:0 4px 14px rgba(0,0,0,.25);
+    text-decoration:none;color:inherit;cursor:pointer;
+    transition:all .18s;
+  }
+  .stat:hover{border-color:var(--gold-bd);transform:translateY(-1px)}
+  .stat.is-active{
+    border-color:var(--gold);background:linear-gradient(165deg,rgba(201,168,76,.10),var(--bg1));
+    box-shadow:0 6px 22px rgba(201,168,76,.14);
+  }
+  .stat .num{
+    font-family:var(--mono);font-weight:600;font-size:1.35rem;
+    color:var(--gold-lt);line-height:1.1;
+  }
+  .stat .lbl{
+    font-size:.66rem;color:var(--tx3);margin-top:5px;
+    text-transform:uppercase;letter-spacing:.06em;font-family:var(--mono);
+  }
+  .stat.s-criada    .num{color:var(--info)}
+  .stat.s-processando .num{color:var(--warn)}
+  .stat.s-pronta    .num{color:var(--ok)}
+  .stat.s-assinada  .num{color:var(--ok)}
+  .stat.s-falhou    .num{color:var(--err)}
+
+  /* Filtros */
+  .filters{
+    display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center;
+  }
+  .filters .chip{
+    display:inline-flex;align-items:center;gap:6px;
+    padding:6px 12px;border-radius:999px;font-size:.72rem;
+    background:var(--bg2);border:1px solid var(--bd2);color:var(--tx2);
+    text-decoration:none;font-family:var(--mono);letter-spacing:.03em;
+    transition:all .16s;
+  }
+  .filters .chip:hover{border-color:var(--gold-bd);color:var(--gold-lt)}
+  .filters .chip.active{
+    background:var(--gold-glow);border-color:var(--gold-bd);color:var(--gold-lt);
+  }
+
+  /* Tabela */
+  .card{
+    background:linear-gradient(165deg,var(--bg2),var(--bg1));
+    border:1px solid var(--bd2);border-radius:14px;padding:6px 4px;
+    box-shadow:0 6px 18px rgba(0,0,0,.3);
+    overflow:hidden;
+  }
+  table{width:100%;border-collapse:collapse;font-size:.82rem}
+  th,td{text-align:left;padding:12px 14px;border-bottom:1px solid var(--bd);vertical-align:middle}
+  th{
+    font-size:.64rem;text-transform:uppercase;letter-spacing:.06em;
+    color:var(--tx3);font-family:var(--mono);font-weight:500;
+  }
+  tbody tr:last-child td{border-bottom:none}
+  tbody tr:hover td{background:rgba(255,255,255,.018)}
+  a.row-link{color:var(--gold-lt);text-decoration:none;font-weight:600}
+  a.row-link:hover{text-decoration:underline}
+  .col-id{color:var(--tx3);font-family:var(--mono);font-size:.72rem;width:44px}
+  .col-title{min-width:200px;max-width:340px}
+  .col-title .titulo{color:var(--tx);word-break:break-word;line-height:1.35}
+  .col-title .pdf-nome{
+    font-size:.68rem;color:var(--tx3);font-family:var(--mono);
+    margin-top:3px;word-break:break-all;line-height:1.35;
+  }
+  .col-hash{font-family:var(--mono);font-size:.7rem;color:var(--tx3);white-space:nowrap}
+  .col-hash .hash-full{display:none}
+  .col-data{font-family:var(--mono);font-size:.7rem;color:var(--tx3);white-space:nowrap}
+  .col-acoes{width:1%;white-space:nowrap}
+  .acoes{display:flex;gap:6px;justify-content:flex-end;align-items:center}
+
+  /* Badges */
+  .badge{
+    display:inline-flex;align-items:center;gap:5px;
+    padding:3px 10px;border-radius:999px;
+    font-family:var(--mono);font-size:.64rem;font-weight:600;
+    letter-spacing:.03em;text-transform:lowercase;white-space:nowrap;
+  }
+  .badge .dot{
+    width:6px;height:6px;border-radius:50%;background:currentColor;
+    flex-shrink:0;
+  }
+  .b-criada      {background:var(--info-bg);border:1px solid var(--info-bd);color:var(--info)}
+  .b-processando {background:var(--warn-bg);border:1px solid var(--warn-bd);color:var(--warn)}
+  .b-pronta      {background:var(--ok-bg);border:1px solid var(--ok-bd);color:var(--ok)}
+  .b-enviada     {background:var(--ok-bg);border:1px solid var(--ok-bd);color:var(--ok)}
+  .b-assinada    {background:var(--ok-bg);border:1px solid var(--ok-bd);color:var(--ok)}
+  .b-falhou      {background:var(--err-bg);border:1px solid var(--err-bd);color:var(--err)}
+  .badge.b-processando .dot{animation:blink 1s infinite}
+  @keyframes blink{50%{opacity:.25}}
+
+  /* Empty */
+  .empty{
+    text-align:center;color:var(--tx3);padding:46px 16px;font-size:.85rem;
+  }
+  .empty .emoji{font-size:2rem;display:block;margin-bottom:12px;opacity:.5}
+
+  /* Tabela → cards em mobile */
+  @media (max-width:720px){
+    .col-hash, .col-data{display:none}
+    th.col-hash, th.col-data{display:none}
+    .col-title{max-width:none}
+    th,td{padding:10px 10px}
+    .btn{padding:8px 12px;font-size:.74rem}
+    .stat{padding:12px 8px}
+    .stat .num{font-size:1.15rem}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand">
+      <h1>Painel de Tarefas</h1>
+      <div class="sub">
+        <b>{{ usuario.nome }}</b> · {{ usuario.email }}
+        <span class="role">{{ usuario.papel }}</span>
+      </div>
+    </div>
+    <div class="actions">
+      <a href="/" class="btn" title="Chat investigador">💬 Chat</a>
+      <a href="/tarefas/nova" class="btn btn-gold">＋ Nova tarefa</a>
+      <form method="post" action="/logout" style="margin:0">
+        <button class="btn" type="submit">Sair</button>
+      </form>
+    </div>
+  </header>
+
+  {# ───── Stat cards ───── #}
+  {% set filtro = request.query_params.get('status') if request else None %}
+  <div class="stats">
+    <a href="/dashboard" class="stat {% if not filtro %}is-active{% endif %}">
+      <div class="num">{{ contagem.total }}</div>
+      <div class="lbl">Total</div>
+    </a>
+    {% for st, lbl in [
+        ('criada',      'Criadas'),
+        ('processando', 'Processando'),
+        ('pronta',      'Prontas'),
+        ('assinada',    'Assinadas'),
+        ('falhou',      'Falhas'),
+    ] %}
+    <a href="/dashboard?status={{ st }}"
+       class="stat s-{{ st }} {% if filtro == st %}is-active{% endif %}">
+      <div class="num">{{ contagem.get(st, 0) }}</div>
+      <div class="lbl">{{ lbl }}</div>
+    </a>
+    {% endfor %}
+  </div>
+
+  {# ───── Filtros rápidos ───── #}
+  <div class="filters">
+    <span style="font-size:.68rem;color:var(--tx3);font-family:var(--mono);
+                 text-transform:uppercase;letter-spacing:.06em;margin-right:4px">
+      Filtrar:
+    </span>
+    <a href="/dashboard" class="chip {% if not filtro %}active{% endif %}">todas</a>
+    {% for st in ['criada','processando','pronta','assinada','falhou'] %}
+      <a href="/dashboard?status={{ st }}"
+         class="chip {% if filtro == st %}active{% endif %}">{{ st }}</a>
+    {% endfor %}
+  </div>
+
+  {# ───── Tabela ───── #}
+  {% set lista = tarefas if not filtro else tarefas|selectattr('status', 'equalto', filtro)|list %}
+
+  <div class="card">
+    {% if lista %}
+    <table>
+      <thead>
+        <tr>
+          <th class="col-id">#</th>
+          <th class="col-title">Tarefa</th>
+          <th class="col-hash">Hash</th>
+          <th class="col-data">Status</th>
+          <th class="col-data">Criada em</th>
+          <th class="col-acoes"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in lista %}
+        <tr>
+          <td class="col-id">{{ t.id }}</td>
+          <td class="col-title">
+            <div class="titulo">
+              <a class="row-link" href="/tarefas/{{ t.id }}">{{ t.titulo }}</a>
+            </div>
+            {% if t.pdf_nome %}
+              <div class="pdf-nome">📄 {{ t.pdf_nome }}</div>
+            {% endif %}
+          </td>
+          <td class="col-hash" title="{{ t.hash }}">{{ t.hash[:12] }}…</td>
+          <td>
+            <span class="badge b-{{ t.status }}">
+              <span class="dot"></span>{{ t.status }}
+            </span>
+          </td>
+          <td class="col-data">{{ t.criada_em.strftime('%d/%m %H:%M') }}</td>
+          <td class="col-acoes">
+            <div class="acoes">
+              {% if t.status == 'falhou' %}
+              <form method="post" action="/tarefas/{{ t.id }}/reprocessar"
+                    style="margin:0" title="Reprocessar pipeline">
+                <button type="submit" class="btn btn-icon">🔄</button>
+              </form>
+              {% endif %}
+              <a class="btn" href="/tarefas/{{ t.id }}">Abrir →</a>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty">
+      <span class="emoji">📭</span>
+      {% if filtro %}
+        Nenhuma tarefa com status <b style="color:var(--gold-lt)">{{ filtro }}</b>.
+        <br><br>
+        <a class="btn" href="/dashboard">Limpar filtro</a>
+      {% else %}
+        Nenhuma tarefa criada ainda.
+        <br><br>
+        <a class="btn btn-gold" href="/tarefas/nova">Criar a primeira tarefa</a>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+
+  <div style="text-align:center;margin-top:20px;
+              font-family:var(--mono);font-size:.66rem;color:var(--tx3);
+              letter-spacing:.05em">
+    Para.AI · AI Forensics v44 · {{ contagem.total }} tarefa{{ 's' if contagem.total != 1 else '' }}
+  </div>
+
+</div>
+</body>
+</html>

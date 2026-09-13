@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Seu processo · Para.AI</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=JetBrains+Mono:wght@300;400;500&display=swap');
+:root{
+  --bg:#0b0d14;--bg1:#10131c;--bg2:#161a26;--bg3:#1c2133;--bg4:#252840;
+  --gold:#c9a84c;--gold-lt:#e8cf82;--gold-bd:rgba(201,168,76,.2);
+  --gold-glow:rgba(201,168,76,.11);
+  --tx:#dde1ed;--tx2:#8890aa;--tx3:#424660;
+  --bd:rgba(255,255,255,.06);--bd2:rgba(255,255,255,.1);
+  --sans:'DM Sans',system-ui,sans-serif;
+  --serif:'Cormorant Garamond',Georgia,serif;
+  --mono:'JetBrains Mono',monospace;
+  --ok:#6ee89f;--ok-bg:rgba(51,181,104,.14);--ok-bd:rgba(51,181,104,.35);
+  --err:#f27272;--err-bg:rgba(217,58,58,.14);--err-bd:rgba(217,58,58,.4);
+  --warn:#f0c060;--warn-bg:rgba(240,192,96,.14);--warn-bd:rgba(240,192,96,.35);
+}
+*{box-sizing:border-box}
+html{-webkit-font-smoothing:antialiased}
+html,body{margin:0;min-height:100%;overscroll-behavior:none}
+body{
+  background:
+    radial-gradient(120% 55% at 50% -8%, rgba(201,168,76,.07) 0%, transparent 60%),
+    radial-gradient(90% 40% at 8% 100%, rgba(77,142,240,.035) 0%, transparent 55%),
+    var(--bg);
+  color:var(--tx);font-family:var(--sans);padding:20px 16px 60px;
+}
+.wrap{max-width:780px;margin:0 auto}
+
+.cli-header{text-align:center;padding:16px 0 24px;border-bottom:1px solid var(--bd);margin-bottom:24px}
+.cli-brand{font-family:var(--serif);font-weight:500;color:var(--gold-lt);font-size:1.6rem;margin:0 0 8px}
+.cli-brand b{color:var(--gold);font-weight:500}
+.cli-sub{font-size:.72rem;color:var(--tx3);font-family:var(--mono);letter-spacing:.06em;text-transform:uppercase}
+.cli-title{font-size:.9rem;color:var(--tx2);margin-top:14px;word-break:break-word}
+
+.card{
+  background:linear-gradient(165deg,var(--bg2) 0%,var(--bg1) 100%);
+  border:1px solid var(--bd2);border-radius:16px;padding:22px;margin-bottom:18px;
+  box-shadow:0 6px 18px rgba(0,0,0,.3);overflow-wrap:anywhere;
+}
+.card-gold{border-color:var(--gold-bd);
+  box-shadow:0 10px 34px rgba(0,0,0,.38),0 0 0 1px rgba(201,168,76,.05) inset}
+.card h2{
+  font-family:var(--serif);font-weight:500;color:var(--gold-lt);
+  font-size:1.15rem;margin:0 0 14px;display:flex;align-items:center;gap:8px;
+}
+
+.resumo{font-size:.92rem;line-height:1.7;color:var(--tx);word-wrap:break-word}
+.resumo h1,.resumo h2,.resumo h3{
+  font-family:var(--serif);font-weight:500;color:var(--gold-lt);
+  margin:1.3em 0 .5em;line-height:1.3;
+}
+.resumo h1{font-size:1.3rem}.resumo h2{font-size:1.15rem}
+.resumo h3{font-size:1rem;color:var(--tx)}
+.resumo p{margin:0 0 .9em}
+.resumo ul,.resumo ol{padding-left:1.4em;margin:.5em 0 .9em}
+.resumo li{margin:.3em 0}
+.resumo strong{color:var(--gold-lt);font-weight:600}
+.resumo blockquote{border-left:3px solid var(--gold-bd);padding-left:12px;
+  margin:.8em 0;color:var(--tx2);font-style:italic}
+.resumo code{background:var(--bg3);padding:2px 6px;border-radius:4px;
+  font-family:var(--mono);font-size:.82em;color:var(--gold-lt)}
+
+/* Quiz */
+.q-list{display:flex;flex-direction:column;gap:16px;margin-top:8px}
+.q-item{padding:14px 16px;border-radius:12px;background:var(--bg3);
+  border:1px solid var(--bd2);transition:border-color .18s}
+.q-item:hover{border-color:var(--bd)}
+.q-head{display:flex;align-items:flex-start;gap:10px;margin-bottom:10px}
+.q-num{font-family:var(--mono);font-size:.72rem;font-weight:600;
+  color:var(--gold-lt);background:var(--gold-glow);
+  border:1px solid var(--gold-bd);border-radius:6px;
+  padding:2px 8px;flex-shrink:0;line-height:1.5}
+.q-enunciado{font-size:.88rem;color:var(--tx);line-height:1.5;font-weight:500;flex:1;min-width:0}
+.q-meta{font-family:var(--mono);font-size:.6rem;color:var(--tx3);
+  letter-spacing:.05em;text-transform:uppercase;margin-top:2px}
+.q-alt{display:flex;align-items:flex-start;gap:9px;
+  padding:8px 12px;border-radius:8px;margin-bottom:6px;
+  background:var(--bg);border:1px solid transparent;
+  font-size:.82rem;color:var(--tx2);line-height:1.45;
+  cursor:pointer;transition:all .15s}
+.q-alt:hover{border-color:var(--bd2);color:var(--tx)}
+.q-alt .letra{font-family:var(--mono);font-size:.7rem;font-weight:600;
+  color:var(--tx3);flex-shrink:0;width:14px}
+.q-alt input{display:none}
+.q-alt.selecionada{background:var(--gold-glow);border-color:var(--gold-bd);color:var(--gold-lt)}
+.q-alt.selecionada .letra{color:var(--gold)}
+.q-item.revelado .q-alt.correta{background:var(--ok-bg);border-color:var(--ok-bd);color:var(--ok)}
+.q-item.revelado .q-alt.correta .letra{color:var(--ok)}
+.q-item.revelado .q-alt.errada{background:var(--err-bg);border-color:var(--err-bd);color:var(--err)}
+.q-just{font-size:.74rem;color:var(--tx3);font-style:italic;
+  margin-top:10px;padding-top:10px;border-top:1px solid var(--bd);display:none}
+.q-item.revelado .q-just{display:block}
+
+.q-actions{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:6px;
+  padding:11px 18px;border-radius:10px;font-size:.82rem;font-weight:600;
+  cursor:pointer;text-decoration:none;font-family:var(--sans);
+  border:1px solid var(--bd2);background:var(--bg2);color:var(--tx);
+  white-space:nowrap;transition:all .18s}
+.btn:hover{border-color:var(--gold-bd);color:var(--gold-lt)}
+.btn:disabled{opacity:.35;cursor:not-allowed}
+.btn-gold{background:var(--gold-glow);border-color:var(--gold-bd);color:var(--gold-lt)}
+.btn-gold:hover{background:rgba(201,168,76,.22)}
+.btn-ok{background:var(--ok-bg);border-color:var(--ok-bd);color:var(--ok)}
+.btn-err{background:var(--err-bg);border-color:var(--err-bd);color:var(--err)}
+
+.soon{text-align:center;padding:26px 16px;font-size:.82rem;color:var(--tx3);
+  font-style:italic;border:1px dashed var(--bd2);border-radius:12px;background:var(--bg3)}
+.soon .ico{font-size:1.6rem;display:block;margin-bottom:8px;opacity:.55}
+
+/* Popup */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.65);
+  backdrop-filter:blur(3px);z-index:900;opacity:0;pointer-events:none;
+  transition:opacity .25s}
+.overlay.on{opacity:1;pointer-events:auto}
+.modal{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(.94);
+  width:calc(100% - 32px);max-width:480px;max-height:86vh;
+  background:linear-gradient(165deg,var(--bg2),var(--bg1));
+  border:1px solid var(--gold-bd);border-radius:20px;
+  padding:26px 22px;z-index:910;opacity:0;pointer-events:none;
+  overflow-y:auto;
+  box-shadow:0 30px 80px rgba(0,0,0,.7),0 0 0 1px rgba(201,168,76,.08) inset;
+  transition:opacity .25s,transform .25s}
+.modal.on{opacity:1;pointer-events:auto;transform:translate(-50%,-50%) scale(1)}
+.modal .ico{font-size:3.2rem;text-align:center;line-height:1;margin-bottom:10px}
+.modal h3{font-family:var(--serif);font-weight:500;font-size:1.5rem;
+  text-align:center;margin:0 0 6px;letter-spacing:.01em}
+.modal.ok h3{color:var(--ok)}
+.modal.err h3{color:var(--err)}
+.modal .lead{text-align:center;color:var(--tx2);font-size:.85rem;line-height:1.55;margin:0 0 18px}
+.modal .score{display:flex;justify-content:center;gap:22px;margin:16px 0 22px}
+.modal .score .box{text-align:center}
+.modal .score .num{font-family:var(--mono);font-size:2rem;font-weight:600;line-height:1}
+.modal .score .lbl{font-size:.66rem;color:var(--tx3);text-transform:uppercase;
+  letter-spacing:.08em;margin-top:4px;font-family:var(--mono)}
+.modal .hash-block{background:var(--bg3);border:1px solid var(--bd2);
+  border-radius:10px;padding:12px;margin:12px 0;
+  font-family:var(--mono);font-size:.7rem;color:var(--gold-lt);
+  word-break:break-all;line-height:1.6;text-align:center}
+.modal .hash-block .lbl{color:var(--tx3);font-size:.62rem;
+  letter-spacing:.06em;text-transform:uppercase;display:block;margin-bottom:6px}
+.modal .erros{margin-top:14px;padding-top:14px;border-top:1px solid var(--bd)}
+.modal .erros h4{font-size:.82rem;color:var(--err);margin:0 0 10px;
+  font-family:var(--sans);font-weight:600;letter-spacing:.02em}
+.modal .erro-item{font-size:.78rem;color:var(--tx2);padding:8px 0;
+  border-bottom:1px solid var(--bd)}
+.modal .erro-item:last-child{border-bottom:none}
+.modal .erro-item b{color:var(--gold-lt)}
+.modal .erro-item .escolha{color:var(--err);font-weight:600}
+.modal .actions{display:flex;flex-direction:column;gap:8px;margin-top:20px}
+
+/* Chat drawer */
+.chat-drawer{
+  position:fixed;right:0;top:0;bottom:0;width:100%;max-width:440px;
+  background:var(--bg1);border-left:1px solid var(--bd2);
+  z-index:920;display:flex;flex-direction:column;
+  transform:translateX(105%);transition:transform .3s cubic-bezier(.16,1,.3,1);
+  box-shadow:-20px 0 50px rgba(0,0,0,.5)}
+.chat-drawer.on{transform:translateX(0)}
+.chat-head{display:flex;align-items:center;justify-content:space-between;
+  padding:14px 18px;border-bottom:1px solid var(--bd);flex-shrink:0}
+.chat-head h4{font-family:var(--serif);font-weight:500;color:var(--gold-lt);
+  font-size:1.1rem;margin:0}
+.chat-head .sub{font-size:.68rem;color:var(--tx3);font-family:var(--mono);
+  margin-top:2px;letter-spacing:.04em}
+.chat-close{width:34px;height:34px;border-radius:9px;background:var(--bg2);
+  border:1px solid var(--bd2);color:var(--tx2);cursor:pointer;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;font-size:1rem}
+.chat-close:hover{color:var(--gold-lt);border-color:var(--gold-bd)}
+.chat-body{flex:1;overflow-y:auto;padding:16px 18px;display:flex;flex-direction:column;gap:12px}
+.chat-msg{max-width:88%;padding:10px 14px;border-radius:12px;font-size:.84rem;
+  line-height:1.55;white-space:pre-wrap;word-break:break-word}
+.chat-msg.user{align-self:flex-end;background:var(--gold-glow);
+  border:1px solid var(--gold-bd);color:var(--gold-lt)}
+.chat-msg.bot{align-self:flex-start;background:var(--bg3);
+  border:1px solid var(--bd2);color:var(--tx)}
+.chat-msg.bot.streaming{border-color:var(--gold-bd)}
+.chat-msg .cursor{display:inline-block;width:6px;height:12px;background:var(--gold);
+  margin-left:2px;vertical-align:text-bottom;animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.chat-foot{flex-shrink:0;border-top:1px solid var(--bd);padding:12px 14px;
+  display:flex;gap:8px;align-items:flex-end;background:var(--bg1)}
+.chat-foot textarea{flex:1;min-width:0;background:var(--bg2);
+  border:1px solid var(--bd2);border-radius:10px;color:var(--tx);
+  padding:10px 12px;font-size:.85rem;font-family:var(--sans);
+  resize:none;min-height:44px;max-height:120px;outline:none}
+.chat-foot textarea:focus{border-color:var(--gold-bd)}
+.chat-send{padding:11px 16px;border-radius:10px;background:var(--gold-glow);
+  border:1px solid var(--gold-bd);color:var(--gold-lt);cursor:pointer;
+  font-weight:600;font-size:.8rem;flex-shrink:0}
+.chat-send:disabled{opacity:.35;cursor:not-allowed}
+
+/* Botão flutuante do chat */
+.chat-fab{position:fixed;bottom:22px;right:22px;z-index:850;
+  width:54px;height:54px;border-radius:50%;
+  background:var(--gold-glow);border:1px solid var(--gold-bd);
+  color:var(--gold-lt);font-size:1.4rem;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 10px 28px rgba(0,0,0,.45);transition:all .2s}
+.chat-fab:hover{background:rgba(201,168,76,.22);transform:translateY(-2px)}
+
+.cli-footer{text-align:center;padding:26px 0 0;border-top:1px solid var(--bd);
+  margin-top:32px;font-family:var(--mono);font-size:.64rem;
+  color:var(--tx3);letter-spacing:.05em;line-height:1.7}
+.cli-footer b{color:var(--gold-lt);font-weight:500}
+
+@media (max-width:520px){
+  body{padding:14px 12px 90px}
+  .card{padding:16px;border-radius:14px}
+  .card h2{font-size:1.05rem}
+  .resumo{font-size:.86rem}
+  .chat-drawer{max-width:none}
+  .chat-fab{bottom:16px;right:16px;width:48px;height:48px;font-size:1.2rem}
+}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header class="cli-header">
+    <h1 class="cli-brand"><b>Para</b>.AI</h1>
+    <div class="cli-sub">Análise do seu processo</div>
+    <div class="cli-title">{{ tarefa.titulo }}</div>
+  </header>
+
+  {# ── 1. Resumo humanizado ── #}
+  <section class="card card-gold">
+    <h2>📖 Entenda o que está acontecendo</h2>
+    <div id="resumo-md" class="resumo"></div>
+  </section>
+
+  {# ── 2. Quiz ── #}
+  {% if questoes and questoes.questoes %}
+  <section class="card" id="card-quiz">
+    <h2>❓ Confira se você entendeu</h2>
+    <p style="font-size:.78rem;color:var(--tx3);margin:0 0 16px;line-height:1.55">
+      Responda as <b style="color:var(--gold-lt)">{{ questoes.questoes|length }} questões</b>
+      abaixo. Elas confirmam que você leu e compreendeu o resumo.
+      Este é o registro que documenta sua ciência do processo.
+      Você precisa acertar pelo menos <b style="color:var(--gold-lt)">10 de 12</b>.
+    </p>
+
+    <div class="q-list" id="q-list" data-hash="{{ tarefa.hash }}">
+      {% for q in questoes.questoes %}
+      <div class="q-item" data-id="{{ q.id }}" data-correta="{{ q.correta }}">
+        <div class="q-head">
+          <span class="q-num">{{ q.id }}</span>
+          <div style="flex:1;min-width:0">
+            <div class="q-enunciado">{{ q.enunciado }}</div>
+            <div class="q-meta">{{ q.area }} · {{ q.dificuldade }}</div>
+          </div>
+        </div>
+        {% for alt in q.alternativas %}
+        <label class="q-alt" data-idx="{{ loop.index0 }}">
+          <input type="radio" name="q{{ q.id }}" value="{{ loop.index0 }}">
+          <span class="letra">{{ 'ABCD'[loop.index0] }}</span>
+          <span>{{ alt }}</span>
+        </label>
+        {% endfor %}
+        <div class="q-just">💡 {{ q.justificativa }}</div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="q-actions">
+      <button class="btn btn-gold" id="btn-enviar" onclick="enviarQuiz()">
+        ✓ Enviar respostas
+      </button>
+      <button class="btn" onclick="limparSelecao()">↺ Limpar</button>
+      <button class="btn" onclick="abrirChat()">💬 Tirar dúvida antes</button>
+    </div>
+    <div id="quiz-status" style="font-size:.72rem;color:var(--tx3);margin-top:12px"></div>
+  </section>
+  {% else %}
+  <section class="card">
+    <h2>❓ Questões de verificação</h2>
+    <div class="soon"><span class="ico">⏳</span>As questões ainda não foram geradas para este documento.</div>
+  </section>
+  {% endif %}
+
+  {# ── 3. Assinatura digital ── #}
+  <section class="card" id="card-assinatura">
+    <h2>✍️ Assinatura digital</h2>
+    <div id="assinatura-bloco">
+      {% if ultima_tentativa and ultima_tentativa.aprovado %}
+        <div class="hash-block">
+          <span class="lbl">Hash imutável da assinatura (SHA-256)</span>
+          {{ ultima_tentativa.hash_imutavel }}
+        </div>
+        <div style="font-size:.75rem;color:var(--tx3);line-height:1.6;text-align:center">
+          Assinado em {{ ultima_tentativa.criada_em.strftime('%d/%m/%Y às %H:%M') }} UTC<br>
+          Rodada {{ ultima_tentativa.numero }} · {{ ultima_tentativa.acertos }}/{{ ultima_tentativa.total }} acertos
+        </div>
+        <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">
+          <a class="btn btn-ok" href="/t/{{ tarefa.hash }}/pdf-assinado">
+            ⬇️ Baixar PDF assinado
+          </a>
+        </div>
+      {% else %}
+        <div class="soon">
+          <span class="ico">🔐</span>
+          A assinatura é liberada após o quiz ser aprovado (≥ 10/12).
+        </div>
+      {% endif %}
+    </div>
+  </section>
+
+  <footer class="cli-footer">
+    <div><b>Para.AI</b> · análise assistida por inteligência artificial</div>
+  </footer>
+
+</div>
+
+<!-- Botão flutuante chat -->
+<button class="chat-fab" onclick="abrirChat()" title="Conversar com o assistente">💬</button>
+
+<!-- Drawer chat -->
+<div id="chat-drawer" class="chat-drawer">
+  <div class="chat-head">
+    <div>
+      <h4>Assistente do processo</h4>
+      <div class="sub">responde com base neste documento</div>
+    </div>
+    <button class="chat-close" onclick="fecharChat()">✕</button>
+  </div>
+  <div class="chat-body" id="chat-body">
+    <div class="chat-msg bot">
+      Olá! Sou o assistente deste processo.
+      Pode me perguntar em linguagem simples — vou responder com base no documento. 👋
+    </div>
+  </div>
+  <div class="chat-foot">
+    <textarea id="chat-input" placeholder="Digite sua pergunta…"
+      onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();enviarChat()}"></textarea>
+    <button class="chat-send" id="chat-send" onclick="enviarChat()">Enviar</button>
+  </div>
+</div>
+
+<!-- Overlay + Modal -->
+<div id="overlay" class="overlay" onclick="fecharModal()"></div>
+<div id="modal" class="modal" role="dialog" aria-modal="true">
+  <div id="modal-content"></div>
+</div>
+
+<script>
+  const HASH = "{{ tarefa.hash }}";
+
+  // ── Renderiza o resumo markdown ──
+  (function(){
+    const el = document.getElementById('resumo-md');
+    if (!el) return;
+    const raw = {{ (resumo_md or "")|tojson }};
+    if (!raw) { el.innerHTML = '<p style="color:var(--tx3);font-style:italic">Resumo indisponível.</p>'; return; }
+    if (typeof marked !== 'undefined') {
+      marked.setOptions({ breaks: true, gfm: true });
+      el.innerHTML = marked.parse(raw);
+    } else {
+      el.textContent = raw;
+    }
+  })();
+
+  // ── Seleção de alternativas ──
+  document.querySelectorAll('.q-item').forEach(item => {
+    item.querySelectorAll('.q-alt').forEach(alt => {
+      alt.addEventListener('click', () => {
+        if (item.classList.contains('revelado')) return;
+        item.querySelectorAll('.q-alt').forEach(a => {
+          a.classList.remove('selecionada');
+          const inp = a.querySelector('input'); if (inp) inp.checked = false;
+        });
+        alt.classList.add('selecionada');
+        alt.querySelector('input').checked = true;
+      });
+    });
+  });
+
+  function limparSelecao(){
+    document.querySelectorAll('.q-item').forEach(item => {
+      item.classList.remove('revelado');
+      item.querySelectorAll('.q-alt').forEach(a => {
+        a.classList.remove('selecionada','correta','errada');
+        const inp = a.querySelector('input'); if (inp) inp.checked = false;
+      });
+    });
+    document.getElementById('quiz-status').textContent = '';
+  }
+
+  async function enviarQuiz(){
+    const btn = document.getElementById('btn-enviar');
+    const status = document.getElementById('quiz-status');
+    const respostas = {};
+    let faltando = 0;
+
+    document.querySelectorAll('.q-item').forEach(item => {
+      const id = item.dataset.id;
+      const sel = item.querySelector('.q-alt.selecionada');
+      if (!sel) { faltando++; return; }
+      respostas[id] = parseInt(sel.dataset.idx, 10);
+    });
+
+    if (faltando > 0) {
+      status.style.color = 'var(--err)';
+      status.textContent = `⚠️ Faltam ${faltando} questão(ões) por responder.`;
+      return;
+    }
+
+    btn.disabled = true;
+    status.style.color = 'var(--tx3)';
+    status.textContent = 'Enviando…';
+
+    try{
+      const r = await fetch(`/api/t/${HASH}/quiz`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ respostas })
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const data = await r.json();
+      revelarQuiz(data);
+      mostrarModalResultado(data);
+    } catch(e){
+      status.style.color = 'var(--err)';
+      status.textContent = `❌ Erro: ${e.message}`;
+      btn.disabled = false;
+    }
+  }
+
+  function revelarQuiz(data){
+    const erradas = new Set((data.erros || []).map(e => String(e.id)));
+    document.querySelectorAll('.q-item').forEach(item => {
+      const id = String(item.dataset.id);
+      const correta = parseInt(item.dataset.correta, 10);
+      const sel = item.querySelector('.q-alt.selecionada');
+      item.querySelectorAll('.q-alt').forEach((alt, i) => {
+        if (i === correta) alt.classList.add('correta');
+        else if (sel && alt === sel) alt.classList.add('errada');
+      });
+      item.classList.add('revelado');
+    });
+    document.getElementById('btn-enviar').disabled = true;
+  }
+
+  // ── Modal resultado ──
+  function mostrarModalResultado(d){
+    const modal = document.getElementById('modal');
+    const content = document.getElementById('modal-content');
+    modal.classList.remove('ok', 'err');
+    modal.classList.add(d.aprovado ? 'ok' : 'err');
+
+    if (d.aprovado) {
+      content.innerHTML = `
+        <div class="ico">✅</div>
+        <h3>Assinatura registrada</h3>
+        <p class="lead">Você compreendeu o resumo e sua assinatura digital foi registrada.</p>
+        <div class="score">
+          <div class="box"><div class="num" style="color:var(--ok)">${d.acertos}</div><div class="lbl">acertos</div></div>
+          <div class="box"><div class="num" style="color:var(--tx3)">${d.total}</div><div class="lbl">total</div></div>
+          <div class="box"><div class="num" style="color:var(--gold-lt)">${d.numero}</div><div class="lbl">rodada</div></div>
+        </div>
+        <div class="hash-block">
+          <span class="lbl">Hash imutável da sua assinatura</span>
+          ${d.hash_imutavel}
+        </div>
+        <p style="font-size:.72rem;color:var(--tx3);text-align:center;line-height:1.55;margin:14px 0 0">
+          Este hash é a impressão digital da sua assinatura. Guarde-o.<br>
+          Você pode baixar o PDF assinado a qualquer momento.
+        </p>
+        <div class="actions">
+          <a class="btn btn-ok" style="justify-content:center"
+             href="/t/${HASH}/pdf-assinado">⬇️ Baixar PDF assinado</a>
+          <button class="btn" style="justify-content:center" onclick="fecharModal();abrirChat()">
+            💬 Conversar com o assistente
+          </button>
+          <button class="btn" style="justify-content:center" onclick="fecharModal()">
+            Fechar
+          </button>
+        </div>`;
+    } else {
+      const erros = (d.erros || []).map(e => `
+        <div class="erro-item">
+          <b>Q${e.id} · ${e.area}</b><br>
+          ${e.enunciado || ''}<br>
+          <span class="escolha">Você marcou: ${e.escolhida !== null && e.escolhida !== undefined ? 'ABCD'[e.escolhida] : '—'}</span>
+        </div>`).join('');
+      content.innerHTML = `
+        <div class="ico">❗</div>
+        <h3>Ainda não foi desta vez</h3>
+        <p class="lead">
+          Você precisa acertar pelo menos <b style="color:var(--gold-lt)">10 de 12</b>.
+          <br>Uma nova tentativa será gerada pelo administrador do sistema.
+        </p>
+        <div class="score">
+          <div class="box"><div class="num" style="color:var(--err)">${d.acertos}</div><div class="lbl">acertos</div></div>
+          <div class="box"><div class="num" style="color:var(--tx3)">${d.total}</div><div class="lbl">total</div></div>
+          <div class="box"><div class="num" style="color:var(--gold-lt)">${d.numero}</div><div class="lbl">rodada</div></div>
+        </div>
+        ${erros ? `<div class="erros"><h4>Questões para revisar</h4>${erros}</div>` : ''}
+        <div class="actions">
+          <button class="btn btn-err" style="justify-content:center" onclick="fecharModal();abrirChat()">
+            💬 Conversar com o assistente
+          </button>
+          <button class="btn" style="justify-content:center" onclick="fecharModal()">
+            Fechar
+          </button>
+        </div>`;
+    }
+
+    document.getElementById('overlay').classList.add('on');
+    modal.classList.add('on');
+  }
+
+  function fecharModal(){
+    document.getElementById('overlay').classList.remove('on');
+    document.getElementById('modal').classList.remove('on');
+  }
+
+  // ── Chat ──
+  function abrirChat(){
+    document.getElementById('chat-drawer').classList.add('on');
+    setTimeout(() => document.getElementById('chat-input').focus(), 250);
+  }
+  function fecharChat(){
+    document.getElementById('chat-drawer').classList.remove('on');
+  }
+
+  let chatRodando = false;
+  async function enviarChat(){
+    if (chatRodando) return;
+    const input = document.getElementById('chat-input');
+    const btn = document.getElementById('chat-send');
+    const body = document.getElementById('chat-body');
+    const txt = (input.value || '').trim();
+    if (!txt) return;
+
+    const u = document.createElement('div');
+    u.className = 'chat-msg user'; u.textContent = txt;
+    body.appendChild(u);
+    input.value = '';
+    body.scrollTop = body.scrollHeight;
+
+    const bot = document.createElement('div');
+    bot.className = 'chat-msg bot streaming';
+    bot.innerHTML = '<span class="cursor"></span>';
+    body.appendChild(bot);
+
+    chatRodando = true; btn.disabled = true;
+    let acc = '';
+
+    try{
+      const r = await fetch(`/api/t/${HASH}/chat`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ mensagem: txt })
+      });
+      const reader = r.body.getReader();
+      const dec = new TextDecoder();
+      let buf = '';
+      while(true){
+        const {done, value} = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, {stream: true});
+        let i;
+        while((i = buf.indexOf('\n\n')) >= 0){
+          const chunk = buf.slice(0, i).trim();
+          buf = buf.slice(i+2);
+          if (!chunk.startsWith('data:')) continue;
+          try {
+            const ev = JSON.parse(chunk.slice(5).trim());
+            if (ev.t) { acc += ev.t; bot.textContent = acc; body.scrollTop = body.scrollHeight; }
+            if (ev.error) { bot.textContent = '❌ ' + ev.error; }
+          } catch(e){}
+        }
+      }
+    } catch(e){
+      bot.textContent = '❌ Erro: ' + e.message;
+    } finally {
+      bot.classList.remove('streaming');
+      const cursor = bot.querySelector('.cursor');
+      if (cursor) cursor.remove();
+      chatRodando = false; btn.disabled = false;
+    }
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { fecharModal(); fecharChat(); }
+  });
+</script>
+</body>
+</html>

@@ -12,6 +12,7 @@ export type Task = {
   topicos: Topic[] | null;
   questoes: Question[];
   ultima_tentativa: Attempt | null;
+  eventos?: { tipo?: string; step?: string; ts?: string; [k: string]: unknown }[];
 };
 export type QuizResult = Attempt & { comprovante_token?: string; erros: { id: number; area?: string; enunciado?: string; escolhida?: number | null }[] };
 export type VerifyResult = {

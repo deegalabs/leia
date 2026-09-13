@@ -16,6 +16,7 @@ const trust = [
 
 export default function Landing() {
   const panel = panelUrl();
+  const demoHash = process.env.NEXT_PUBLIC_DEMO_HASH || "demo";
   return (
     <main className="flex-1">
       <section className="dark bg-navy px-4 pb-12 pt-10 text-paper">
@@ -25,7 +26,7 @@ export default function Landing() {
           <h1 className="mb-3 text-[2rem] leading-tight md:text-[2.6rem]">Leia antes de assinar.</h1>
           <p className="mb-8 max-w-[520px] text-[1.15rem] text-paper/85">Você entende cada parte do seu documento, em linguagem simples e por voz. Depois fica registrado que você entendeu.</p>
           <div className="grid gap-3 sm:max-w-[420px]">
-            <LinkButton href="/t/demo" className="!bg-teal !text-navy hover:!bg-[#4FBDBD]">Ver um exemplo</LinkButton>
+            <LinkButton href={`/t/${demoHash}`} className="!bg-teal !text-navy hover:!bg-[#4FBDBD]">Ver um exemplo</LinkButton>
             {panel && <LinkButton href={panel} external variant="secondary" className="!border-paper !text-paper hover:!bg-white/10">Sou advogado: começar</LinkButton>}
           </div>
         </div>

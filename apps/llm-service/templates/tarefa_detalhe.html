@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{{ tarefa.titulo }} · Painel</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=JetBrains+Mono:wght@300;400;500&display=swap');
+
+
+
+
+  :root{
+    --bg:#0b0d14;--bg1:#10131c;--bg2:#161a26;--bg3:#1c2133;--bg4:#252840;
+    --gold:#c9a84c;--gold-lt:#e8cf82;--gold-bd:rgba(201,168,76,.2);
+    --gold-glow:rgba(201,168,76,.11);
+    --tx:#dde1ed;--tx2:#8890aa;--tx3:#424660;
+    --bd:rgba(255,255,255,.06);--bd2:rgba(255,255,255,.1);
+    --sans:'DM Sans',system-ui,sans-serif;
+    --serif:'Cormorant Garamond',Georgia,serif;
+    --mono:'JetBrains Mono',monospace;
+    --ok:#6ee89f;--ok-bg:rgba(51,181,104,.14);--ok-bd:rgba(51,181,104,.35);
+    --err:#f27272;--err-bg:rgba(217,58,58,.14);--err-bd:rgba(217,58,58,.4);
+    --warn:#f0c060;--warn-bg:rgba(240,192,96,.14);--warn-bd:rgba(240,192,96,.35);
+    --info:#98a8d8;--info-bg:rgba(120,140,200,.14);--info-bd:rgba(120,140,200,.3);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;
+    background:radial-gradient(120% 55% at 50% -8%,rgba(201,168,76,.07) 0,transparent 60%),var(--bg);
+    color:var(--tx);font-family:var(--sans);padding:20px 16px 60px}
+  .wrap{max-width:1000px;margin:0 auto}
+  header{display:flex;align-items:center;gap:14px;border-bottom:1px solid var(--bd);
+    padding-bottom:16px;margin-bottom:22px;flex-wrap:wrap}
+  h1{font-family:var(--serif);font-weight:500;color:var(--gold-lt);
+    font-size:1.35rem;margin:0;flex:1;min-width:0;overflow-wrap:anywhere}
+  a.back{color:var(--tx2);text-decoration:none;font-size:.82rem;flex-shrink:0}
+  a.back:hover{color:var(--gold-lt)}
+  .badge{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;
+    border-radius:999px;font-family:var(--mono);font-size:.66rem;font-weight:600}
+  .badge .dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+  .b-criada{background:var(--info-bg);border:1px solid var(--info-bd);color:var(--info)}
+  .b-processando{background:var(--warn-bg);border:1px solid var(--warn-bd);color:var(--warn)}
+  .b-pronta,.b-assinada{background:var(--ok-bg);border:1px solid var(--ok-bd);color:var(--ok)}
+  .b-falhou{background:var(--err-bg);border:1px solid var(--err-bd);color:var(--err)}
+  .card{background:linear-gradient(165deg,var(--bg2),var(--bg1));
+    border:1px solid var(--bd2);border-radius:14px;padding:18px;margin-bottom:16px;
+    box-shadow:0 6px 18px rgba(0,0,0,.3);overflow-wrap:anywhere}
+  .card-gold{border-color:var(--gold-bd);
+    box-shadow:0 10px 34px rgba(0,0,0,.38),0 0 0 1px rgba(201,168,76,.05) inset}
+  .card-err{background:linear-gradient(165deg,var(--err-bg),var(--bg1));
+    border-color:var(--err-bd)}
+  .row{display:grid;grid-template-columns:140px 1fr;gap:10px;padding:7px 0;
+    border-bottom:1px solid var(--bd);font-size:.82rem;align-items:baseline}
+  .row:last-child{border-bottom:none}
+  .row .k{font-family:var(--mono);font-size:.68rem;color:var(--tx3);
+    text-transform:uppercase;letter-spacing:.05em}
+  .row .v{color:var(--tx);overflow-wrap:anywhere}
+  .hash{font-family:var(--mono);font-size:.75rem;color:var(--gold-lt);
+    background:var(--gold-glow);border:1px solid var(--gold-bd);
+    padding:4px 10px;border-radius:7px;display:inline-block;word-break:break-all;max-width:100%}
+  h2{font-family:var(--serif);font-weight:500;font-size:1.15rem;
+    color:var(--gold-lt);margin:0 0 14px;display:flex;align-items:center;gap:8px}
+  h2 .badge{margin-left:auto;font-size:.6rem}
+  .log-line{display:grid;grid-template-columns:78px 1fr;gap:10px;padding:7px 0;
+    border-bottom:1px solid var(--bd);font-family:var(--mono);
+    font-size:.72rem;color:var(--tx2)}
+  .log-line:last-child{border-bottom:none}
+  .log-ts{color:var(--tx3)}
+  .log-tipo{color:var(--gold-lt);font-weight:600}
+  .link-box{background:var(--bg3);border:1px solid var(--bd2);border-radius:9px;
+    padding:10px 12px;font-family:var(--mono);font-size:.72rem;color:var(--gold-lt);
+    word-break:break-all;display:block;margin-top:8px}
+  .btn{display:inline-flex;align-items:center;gap:6px;padding:9px 15px;
+    border-radius:10px;font-size:.78rem;font-weight:600;cursor:pointer;
+    text-decoration:none;font-family:var(--sans);
+    border:1px solid var(--bd2);background:var(--bg2);color:var(--tx);
+    white-space:nowrap;transition:all .18s}
+  .btn:hover{border-color:var(--gold-bd);color:var(--gold-lt)}
+  .btn-gold{background:var(--gold-glow);border-color:var(--gold-bd);color:var(--gold-lt)}
+  .btn-gold:hover{background:rgba(201,168,76,.22)}
+  .btn-ok{background:var(--ok-bg);border-color:var(--ok-bd);color:var(--ok)}
+  .btn-err{background:var(--err-bg);border-color:var(--err-bd);color:var(--err)}
+  .pending{text-align:center;color:var(--tx3);font-size:.78rem;
+    padding:22px 10px;font-style:italic}
+
+  /* Tentativas */
+  .tent-list{display:flex;flex-direction:column;gap:10px}
+  .tent{background:var(--bg3);border:1px solid var(--bd2);border-radius:12px;
+    padding:14px;display:flex;flex-direction:column;gap:8px}
+  .tent-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .tent-num{font-family:var(--serif);font-weight:500;color:var(--gold-lt);
+    font-size:1.1rem}
+  .tent-score{font-family:var(--mono);font-size:.8rem;font-weight:600}
+  .tent.tent-ok .tent-score{color:var(--ok)}
+  .tent.tent-fail .tent-score{color:var(--err)}
+  .tent-meta{font-family:var(--mono);font-size:.65rem;color:var(--tx3);
+    letter-spacing:.03em;line-height:1.6}
+  .tent-hash{background:var(--bg);border:1px solid var(--bd2);border-radius:8px;
+    padding:8px 10px;font-family:var(--mono);font-size:.66rem;
+    color:var(--gold-lt);word-break:break-all;line-height:1.5}
+  .erros-box{margin-top:8px;border-top:1px solid var(--bd);padding-top:10px}
+  .erro-item{font-size:.75rem;color:var(--tx2);padding:8px 0;
+    border-bottom:1px solid var(--bd)}
+  .erro-item:last-child{border-bottom:none}
+  .erro-item b{color:var(--gold-lt)}
+  .erro-item .wrong{color:var(--err)}
+  .erro-item .right{color:var(--ok)}
+  details.erros-details summary{
+    cursor:pointer;color:var(--warn);font-size:.75rem;font-family:var(--mono);
+    letter-spacing:.03em;padding:4px 0;list-style:none;user-select:none}
+  details.erros-details summary::-webkit-details-marker{display:none}
+  details.erros-details summary::before{content:'▸ ';transition:transform .2s}
+  details.erros-details[open] summary::before{content:'▾ '}
+
+  @media (max-width:720px){
+    .row{grid-template-columns:1fr}
+    .row .k{margin-bottom:2px}
+    header{gap:10px}
+    h1{font-size:1.15rem}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <a class="back" href="/dashboard">← Dashboard</a>
+    <h1>{{ tarefa.titulo }}</h1>
+    <span class="badge b-{{ tarefa.status }}">
+      <span class="dot"></span>{{ tarefa.status }}
+    </span>
+  </header>
+
+  {# ── Identificação ── #}
+  <div class="card card-gold">
+    <div class="row"><div class="k">ID</div><div class="v">#{{ tarefa.id }}</div></div>
+    <div class="row"><div class="k">Hash</div><div class="v"><span class="hash">{{ tarefa.hash }}</span></div></div>
+    <div class="row"><div class="k">Rodada</div><div class="v">{{ tarefa.rodada or 1 }}{% if tarefa.clone_de %} · clonada de #{{ tarefa.clone_de }}{% endif %}</div></div>
+    <div class="row"><div class="k">PDF</div><div class="v">{{ tarefa.pdf_nome or '—' }}</div></div>
+    <div class="row"><div class="k">Criada em</div><div class="v">{{ tarefa.criada_em.strftime('%Y-%m-%d %H:%M') }} UTC</div></div>
+    <div class="row">
+      <div class="k">Link cliente</div>
+      <div class="v">
+        <span class="link-box">{{ link_cliente }}</span>
+      </div>
+    </div>
+    <div class="row">
+      <div class="k">Ações</div>
+      <div class="v" style="display:flex;gap:8px;flex-wrap:wrap">
+        {% if tarefa.status == 'falhou' %}
+        <form method="post" action="/tarefas/{{ tarefa.id }}/reprocessar" style="margin:0">
+          <button class="btn btn-gold" type="submit">🔄 Reprocessar pipeline</button>
+        </form>
+        {% endif %}
+        {% if tarefa.status in ('pronta','assinada') %}
+        <form method="post" action="/tarefas/{{ tarefa.id }}/nova-rodada" style="margin:0"
+              onsubmit="return confirm('Gerar nova rodada com questões diferentes?')">
+          <button class="btn btn-gold" type="submit">🔁 Gerar nova rodada</button>
+        </form>
+        {% endif %}
+        {% if melhor_tent and melhor_tent.aprovado %}
+        <a class="btn btn-ok" href="/tarefas/{{ tarefa.id }}/pdf-assinado">
+          ⬇️ PDF assinado
+        </a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {# ── Tentativas do cliente ── #}
+  {% if historico %}
+  <div class="card">
+    <h2>📝 Tentativas do cliente <span class="badge b-{{ 'assinada' if melhor_tent and melhor_tent.aprovado else 'processando' }}">{{ historico|length }} tentativa{{ 's' if historico|length != 1 else '' }}</span></h2>
+
+    <div class="tent-list">
+      {% for t in historico %}
+      <div class="tent {% if t.aprovado %}tent-ok{% else %}tent-fail{% endif %}">
+        <div class="tent-head">
+          <span class="tent-num">Rodada {{ t.numero }}</span>
+          <span class="tent-score">{{ t.acertos }}/{{ t.total }}</span>
+          <span class="badge b-{{ 'assinada' if t.aprovado else 'falhou' }}">
+            <span class="dot"></span>{{ 'APROVADO' if t.aprovado else 'REPROVADO' }}
+          </span>
+        </div>
+        <div class="tent-meta">
+          {{ t.criada_em.strftime('%d/%m/%Y %H:%M') }} UTC · IP {{ t.ip or '—' }}
+        </div>
+        <div class="tent-hash">{{ t.hash_imutavel }}</div>
+
+        {% if not t.aprovado %}
+          {% set erros_t = tentativas_erros.get(t.id, []) %}
+          {% if erros_t %}
+          <details class="erros-details">
+            <summary>Ver as {{ erros_t|length }} questões erradas</summary>
+            <div class="erros-box">
+              {% for e in erros_t %}
+              <div class="erro-item">
+                <b>Q{{ e.id }} · {{ e.area }}</b><br>
+                {{ e.enunciado }}<br>
+                <span class="wrong">✗ Marcou: {{ 'ABCD'[e.escolhida] if e.escolhida is not none and e.escolhida < 4 else '—' }}) {{ e.alternativas[e.escolhida] if e.escolhida is not none and e.escolhida < 4 else '—' }}</span><br>
+                <span class="right">✓ Correta: {{ 'ABCD'[e.correta] }}) {{ e.alternativas[e.correta] }}</span>
+              </div>
+              {% endfor %}
+            </div>
+          </details>
+          <div style="margin-top:10px">
+            <form method="post" action="/tarefas/{{ tarefa.id }}/nova-rodada" style="margin:0"
+                  onsubmit="return confirm('Gerar nova rodada com novas questões?')">
+              <button class="btn btn-gold" type="submit">🔁 Gerar nova rodada de questões</button>
+            </form>
+          </div>
+          {% endif %}
+        {% else %}
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+            <a class="btn btn-ok" href="/tarefas/{{ tarefa.id }}/pdf-assinado">
+              ⬇️ Exportar PDF assinado
+            </a>
+          </div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% elif tarefa.status in ('pronta','assinada') %}
+  <div class="card">
+    <h2>📝 Tentativas do cliente</h2>
+    <div class="pending">Nenhuma tentativa registrada ainda.<br>O link do cliente é <b>{{ link_cliente }}</b></div>
+  </div>
+  {% endif %}
+
+  {# ── Status pipeline ── #}
+  {% if tarefa.status in ('processando', 'criada') %}
+  <div class="card">
+    <h2>⏳ Pipeline em execução</h2>
+    {% if eventos %}
+      {% for e in eventos[:8] %}
+        <div class="log-line">
+          <span class="log-ts">{{ e.ts[11:19] }}</span>
+          <span><span class="log-tipo">{{ e.tipo }}</span></span>
+        </div>
+      {% endfor %}
+    {% else %}
+      <div class="pending">Aguardando primeiros eventos…</div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {# ── Artefatos ── #}
+  {% if resumo_md or questoes %}
+  <div class="card card-gold">
+    <h2>📖 Resumo humanizado</h2>
+    <div id="resumo-admin" style="font-size:.85rem;line-height:1.65"></div>
+  </div>
+
+  {% if questoes and questoes.questoes %}
+  <div class="card">
+    <h2>❓ Questões (rodada atual · {{ num_questoes }})</h2>
+    {% for q in questoes.questoes %}
+      <div style="padding:12px 0;border-bottom:1px solid var(--bd)">
+        <div style="font-size:.83rem;color:var(--tx);margin-bottom:6px">
+          <b style="color:var(--gold-lt)">{{ q.id }}.</b>
+          <span style="font-size:.66rem;color:var(--tx3);font-family:var(--mono);text-transform:uppercase">
+            {{ q.area }} · {{ q.dificuldade }}
+          </span><br>{{ q.enunciado }}
+        </div>
+        {% for alt in q.alternativas %}
+          <div style="font-size:.78rem;color:var(--tx2);padding:3px 0 3px 18px;{% if loop.index0 == q.correta %}color:var(--ok);font-weight:600{% endif %}">
+            {% if loop.index0 == q.correta %}✓{% else %}○{% endif %}
+            {{ 'ABCD'[loop.index0] }}) {{ alt }}
+          </div>
+        {% endfor %}
+      </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% endif %}
+
+  {# ── Log completo ── #}
+  <div class="card">
+    <h2>📡 Log de eventos</h2>
+    {% if eventos %}
+      {% for e in eventos %}
+        <div class="log-line">
+          <span class="log-ts">{{ e.ts[11:19] }}</span>
+          <span><span class="log-tipo">{{ e.tipo }}</span>
+            {% for k, v in e.items() if k not in ('ts','tipo') %}
+              · <span style="color:var(--tx3)">{{ k }}</span>={{ v }}
+            {% endfor %}
+          </span>
+        </div>
+      {% endfor %}
+    {% else %}
+      <div class="pending">Nenhum evento registrado.</div>
+    {% endif %}
+  </div>
+</div>
+
+{% if tarefa.status in ('processando', 'criada') %}
+<script>setTimeout(() => location.reload(), 3000);</script>
+{% endif %}
+
+<script>
+  (function(){
+    const el = document.getElementById('resumo-admin');
+    if (!el) return;
+    const raw = {{ (resumo_md or "")|tojson }};
+    if (!raw) return;
+    if (typeof marked !== 'undefined') {
+      marked.setOptions({ breaks: true, gfm: true });
+      el.innerHTML = marked.parse(raw);
+    } else {
+      el.textContent = raw;
+    }
+  })();
+</script>
+</body>
+</html>
