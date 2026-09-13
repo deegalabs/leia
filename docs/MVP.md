@@ -23,6 +23,7 @@ literal; pergunta fora do documento é recusada; resposta vaga recebe nova expli
 | Evidência | planilha, vídeos e links em `evidence/03-external-tests/` |
 
 ## Produto: domingo 10h30 (Entrega 4, 100 pontos) + auditoria (até 300)
+Plano detalhado e stack do dia em [INTEGRATION-PLAN.md](INTEGRATION-PLAN.md): interface dentro do FastAPI do Carlos com o kit de marca; Next.js fica para depois.
 | Frente | Escopo |
 |---|---|
 | Documentação | README com execução em 5 minutos (um comando), dados de exemplo, roteiro de auditoria de 10 minutos, relatório da bateria adversarial, `/prompts` versionados, logs de citações |
