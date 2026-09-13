@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { BadgeCheck, FileSearch, MessageCircleQuestion, ScrollText } from "lucide-react";
 import { LinkButton } from "@/components/ui";
 import { AuthNav } from "@/components/Session";
@@ -34,7 +35,7 @@ export default function Landing() {
             <LinkButton href="/enviar" variant="secondary" className="!border-paper !text-paper hover:!bg-white/10">Enviar meu documento</LinkButton>
             <LinkButton href="/entrar" variant="ghost" className="!text-paper hover:!bg-white/10">Sou advogado: entrar</LinkButton>
           </div>
-          <p className="mt-6 text-[0.95rem] text-paper/70">Funciona no celular e no computador. Pode ser instalado como aplicativo.</p>
+          <p className="mt-6 text-[0.95rem] text-paper/70">Funciona no celular e no computador. Pode ser instalado como aplicativo. <Link href="/docs" className="font-bold text-paper underline underline-offset-4">Documentação</Link></p>
         </div>
       </section>
       <section className="px-4 py-10">
@@ -70,7 +71,7 @@ export default function Landing() {
       </section>
       <footer className="border-t border-line px-4 py-8 text-[0.95rem] text-ink-2">
         <div className="mx-auto max-w-[680px] space-y-2">
-          <p>Feito no Hackathon da Cidadania OAB-PR 2026, equipe Token Economy. Código aberto, licença MIT. <VersionBadge /></p>
+          <p>Feito no Hackathon da Cidadania OAB-PR 2026, equipe Token Economy. Código aberto, licença MIT. <Link href="/docs" className="font-bold text-teal-deep underline underline-offset-4">Documentação</Link>. <VersionBadge /></p>
           <p>A assistente explica o que está escrito. Não dá conselho jurídico e não substitui o advogado. O comprovante não é assinatura de nada: ele registra que você leu a explicação e respondeu às perguntas.</p>
         </div>
       </footer>
