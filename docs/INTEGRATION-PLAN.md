@@ -1,8 +1,11 @@
 # Stack e plano de desenvolvimento: integração com o serviço do Carlos (13/09, dia 2)
 
-Decisão (ADR-0008 na pasta de trabalho): **a interface do hackathon vive dentro do FastAPI do Carlos** (Jinja +
-JavaScript simples), com o kit de marca aplicado. O app Next.js separado fica para depois do evento. Motivo: às 10h30 o
-auditor precisa testar no laptop; um único processo, sem CORS nem segundo deploy, é o caminho que cabe em 2 horas.
+Decisão (ADR-0008 na pasta de trabalho): **a interface do hackathon é hospedada dentro do FastAPI do Carlos**, na mesma
+origem, sem CORS nem segundo deploy. Motivo: às 10h30 o auditor precisa testar no laptop. Isso define onde a interface
+roda, não quem a faz: **a interface do produto (cidadã, comprovante, verificação) é do Daniel e consome só a API do
+serviço**; os templates do Carlos são as telas internas do serviço (painel, detalhe, bastidores, login) e recebem apenas
+tema e textos. O mesmo código roda separado (`window.LEIA_API_BASE`) quando o serviço expuser a tarefa em JSON e CORS;
+o app Next.js (`apps/web`) fica para depois do evento.
 
 ## Stack (o que roda hoje)
 | Camada | Tecnologia | Dono | Estado |
@@ -39,8 +42,8 @@ O código do serviço ainda não chegou às 9h, então a interface foi construí
 | Hora | Atividade | Quem |
 |---|---|---|
 | 08h30–09h00 | Código do Carlos em `apps/llm-service`; rodar local; conferir as rotas; copiar o kit para `static/`; linkar `leia-theme.css` em cada template e `body.leia-citizen` na página do cliente | Daniel + Carlos |
-| 09h00–09h45 | Página do cliente: gabarito e justificativa fora do HTML (servidor avalia); `DOMPurify` no resumo; textos pela tabela (`APROVADO/REPROVADO`, `≥ 10/12`, "assinatura" → "comprovante", apresentação da assistente); recusa `NAO_ESTA_NO_DOCUMENTO` vira texto fixo; IP fora da tela do advogado | Carlos (rotas) + Daniel (templates) |
-| 09h45–10h15 | Comprovante e verificação: OTS no servidor ao aprovar a tentativa (tarefa em segundo plano), rota `/t/{hash}/comprovante` com QR, rota pública `/verify/{hash}`; `scripts/verify-cli.py` | Daniel |
+| 09h00–09h45 | Página da cidadã: **feita** (`templates/leia/cliente.html`, testada no mock); Carlos aponta a rota `/t/{hash}` para ela quando o código chegar. Textos dos templates internos pela tabela (`apply_copy.py`); IP fora do painel | Daniel (página) + Carlos (rota) |
+| 09h45–10h15 | Comprovante e verificação: **feitos** (`leia/registry.py`, OTS testado, `scripts/verify_cli.py`); Carlos inclui o router e grava `ots` e `salt` na tentativa aprovada. Daniel testa a jornada no celular contra o mock e ajusta textos | Daniel + Carlos |
 | 09h00–10h15 (paralelo) | `examples/contrato-honorarios.pdf` anonimizado; textos em pt-BR revisados; roteiro de auditoria jurídica (o que dizer sobre "não aconselha", CED art. 9º e 48, LGPD); teste com 2 leigos na tela nova | Camila, Caliane |
 | 10h15–10h30 | README (instalar, rodar, testar em 5 min), `.env.example`, `MANIFEST.md`, push na pasta oficial, `scripts/tag-delivery.sh token-economy/v0.4.0 "Entrega 4: Produto"` | Vida + Daniel |
 | 10h30–14h30 | Auditoria com roteiro de 10 min (D1: trecho literal e recusa; D2: cliente no celular sem instrução; D3: workflow, prompts, memória persistente nos bastidores). Em paralelo, **sem tocar no que o auditor testa**: tópico por tela na página do cliente usando as seções `##` do resumo (se o Carlos expuser o lastro) | todos |
