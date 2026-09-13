@@ -2,6 +2,10 @@
 
 Visibility (docs/API-V3-CONTRACT.md): ``fornecedor`` sees every task, ``advogado`` the ones they sent,
 ``cidadao`` the ones they sent plus the ones linked to them (``tarefa.cidadao_id``).
+
+Lawyer review (contract section "Revisão do advogado antes de liberar"): GET /api/tarefas/{id}/revisao returns what
+the workflow extracted and concluded, including the answer key; POST /api/tarefas/{id}/aprovar moves the task from
+``pronta`` to ``enviada`` and releases the public link to the citizen.
 """
 from __future__ import annotations
 
@@ -17,10 +21,10 @@ from sqlmodel import Session, func, select
 
 import core.tentativas as tn
 import core.workspace as ws
-from app_gestao import _ler_artefato, _permite_ver, create_pdf_task
+from app_gestao import _ler_artefato, _ler_json, _permite_ver, create_pdf_task
 from core.auth import usuario_api
-from leia.api_cliente import public_events  # LeIA: no ip/ua in the JSON
-from core.db import Duvida, Tarefa, Tentativa, Usuario, get_session
+from leia.api_cliente import inferences_of, public_events  # LeIA: no ip/ua in the JSON
+from core.db import Duvida, LogEvento, Tarefa, Tentativa, Usuario, get_session
 
 READY_STATUSES = ("pronta", "enviada", "assinada")
 router = APIRouter()
@@ -152,3 +156,44 @@ def answer_doubt(tarefa_id: int, duvida_id: int, body: RespostaIn, u: Usuario = 
     session.add(d); session.commit()
     ws.registrar_evento(t.hash, "duvida_respondida", duvida_id=d.id, por=u.id)
     return {"ok": True}
+
+
+# ── lawyer review before releasing the link to the citizen ────────────────
+
+def review_questions(doc: Any) -> list[dict[str, Any]]:
+    """Every question with its answer key. Lawyer-only: never reuse this in a public route."""
+    items = doc.get("questoes", []) if isinstance(doc, dict) else []
+    return [{"id": q.get("id"), "area": q.get("area"), "dificuldade": q.get("dificuldade"), "enunciado": q.get("enunciado"),
+             "alternativas": q.get("alternativas", []), "correta": q.get("correta"), "justificativa": q.get("justificativa")}
+            for q in items if isinstance(q, dict)]
+
+
+@router.get("/api/tarefas/{tarefa_id}/revisao")
+def review_task(tarefa_id: int, request: Request, u: Usuario = Depends(usuario_api),
+                session: Session = Depends(get_session)):
+    t = _load_visible(session, u, tarefa_id)
+    if not can_manage(u, t):
+        raise HTTPException(403, "Só quem enviou o documento pode revisar")
+    if t.status in ("criada", "processando"):
+        raise HTTPException(409, "A explicação ainda está sendo preparada")
+    return {"tarefa": {"id": t.id, "hash": t.hash, "titulo": t.titulo, "status": t.status, "origem": t.origem or "advogado"},
+            "inferencias": {"tarefa": {"hash": t.hash, "titulo": t.titulo}, **inferences_of(t)},
+            "resumo_md": _ler_artefato(t.hash, "resumo_humanizado.md") or "",
+            "questoes": review_questions(_ler_json(t.hash, "questoes.json") or {}),
+            "link_cliente": client_link(request, t)}
+
+
+@router.post("/api/tarefas/{tarefa_id}/aprovar")
+def approve_task(tarefa_id: int, u: Usuario = Depends(usuario_api), session: Session = Depends(get_session)):
+    t = _load_visible(session, u, tarefa_id)
+    if not can_manage(u, t):
+        raise HTTPException(403, "Só quem enviou o documento pode aprovar")
+    if t.status != "pronta":
+        raise HTTPException(409, "O documento não está pronto para aprovação")
+    t.status = "enviada"
+    t.atualizada_em = datetime.utcnow()
+    session.add(t)
+    session.add(LogEvento(tarefa_id=t.id, tipo="aprovada", payload=json.dumps({"usuario_id": u.id})))
+    session.commit()
+    ws.registrar_evento(t.hash, "aprovada", usuario_id=u.id)
+    return {"ok": True, "status": "enviada"}

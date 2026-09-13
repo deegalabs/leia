@@ -1,11 +1,11 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ChevronRight, FilePlus2, MessageSquare, ListChecks } from "lucide-react";
+import { ChevronRight, ClipboardCheck, FilePlus2, MessageSquare, ListChecks } from "lucide-react";
 import { clientLinkUrl, formatDateTime, listTasks, type TaskSummary } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { fmt, m } from "@/lib/i18n";
-import { isSettled, statusInfo } from "@/lib/status";
+import { isSettled, needsReview, statusInfo } from "@/lib/status";
 import { AppHeader, Card, CopyButton, LinkButton, Page, StatusChip } from "./ui";
 import { AuthNav, RequireAuth } from "./Session";
 
@@ -54,7 +54,7 @@ function PanelBody() {
 }
 
 function LawyerCard({ t }: { t: TaskSummary }) {
-  const s = statusInfo(t.status, false);
+  const s = statusInfo(t.status, false, t.origem);
   const a = t.ultima_tentativa;
   const answers = a ? fmt(m.panel.detail.attemptLine, { n: a.numero ?? 1, acertos: a.acertos, total: a.total }) : m.panel.detail.noAttempts;
   return (
@@ -69,6 +69,8 @@ function LawyerCard({ t }: { t: TaskSummary }) {
         <li className="inline-flex items-center gap-1.5"><MessageSquare size={18} aria-hidden className="text-teal-deep" /> {t.duvidas_abertas === 1 ? m.panel.openDoubtsOne : t.duvidas_abertas > 0 ? fmt(m.panel.openDoubts, { n: t.duvidas_abertas }) : m.panel.noDoubts}</li>
       </ul>
       <div className="mt-3 flex flex-wrap items-center gap-2">
+        {/* LeIA: review flow. "Revisar" while the lawyer still has to release the link. */}
+        {needsReview(t.status, t.origem) && <Link href={`/painel/${t.id}/revisao`} className="inline-flex min-h-[48px] items-center gap-1.5 rounded-button bg-teal-deep px-3.5 font-bold text-white hover:bg-[#195C5C]"><ClipboardCheck size={18} aria-hidden /> {m.panel.reviewShort}</Link>}
         <CopyButton text={clientLinkUrl(t.link_cliente || t.hash)} label={m.panel.copyClientLink} />
         <Link href={`/painel/${t.id}`} className="inline-flex min-h-[48px] items-center gap-1 rounded-button px-2 font-bold text-teal-deep underline underline-offset-4 hover:bg-teal-soft">{m.panel.details} <ChevronRight size={18} aria-hidden /></Link>
       </div>

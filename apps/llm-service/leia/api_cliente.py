@@ -1,6 +1,7 @@
 """Public JSON for the citizen app and the registry adapter. Included from main.py.
 
 GET /api/t/{hash}: the same data the service renders in /t/{hash}, as JSON and without the answer key.
+is_gated(): lawyer review gate; while a lawyer's task is ``pronta`` the public routes hide the explanation.
 POST /api/t/{hash}/duvida: a doubt for the lawyer who sent the document (409 when nobody did).
 POST /api/t/{hash}/vincular: links the signed-in citizen to the task (Bearer, papel cidadao).
 stamp_attempt(): OpenTimestamps proof of an approved attempt, stored in the task workspace.
@@ -27,14 +28,23 @@ from leia.ratelimit import rate_limit
 from leia.registry import build_payload, ots_stamp, payload_hash
 
 READY_STATUSES = ("pronta", "enviada", "assinada")
+GATE_MESSAGE = "Em revisão pelo advogado"
 PUBLIC_EVENT_TYPES = {"criada", "pdf_salvo", "pipeline_start", "texto_extraido", "task_start", "task_done", "task_error",
-                      "erro_extracao", "pipeline_done", "tentativa", "carimbo_publico", "duvida_enviada", "reprocessar"}
+                      "erro_extracao", "pipeline_done", "tentativa", "carimbo_publico", "duvida_enviada", "reprocessar",
+                      "aprovada"}
 
 
 def public_events(events: list[dict[str, Any]], limit: int = 8) -> list[dict[str, Any]]:
     """Pipeline events only, without the visitor's IP or user agent."""
-    out = [{k: v for k, v in e.items() if k not in ("ip", "ua", "user_agent", "advogado_id")} for e in events if e.get("tipo") in PUBLIC_EVENT_TYPES]
+    out = [{k: v for k, v in e.items() if k not in ("ip", "ua", "user_agent", "advogado_id", "usuario_id")} for e in events if e.get("tipo") in PUBLIC_EVENT_TYPES]
     return out[-limit:]
+
+
+def is_gated(t: Tarefa) -> bool:
+    """Lawyer review gate (docs/API-V3-CONTRACT.md): a task sent by a lawyer or admin stays hidden from the citizen
+    while ``pronta`` (ready for review) until the lawyer approves it (``enviada``). Tasks sent by a citizen are
+    never gated: ``pronta`` already releases them."""
+    return t.status == "pronta" and (t.origem or "advogado") != "cidadao"
 router = APIRouter()
 
 
@@ -117,6 +127,9 @@ async def api_cliente_json(hash_: str, session: Session = Depends(get_session)):
     base = {"tarefa": {"hash": t.hash, "titulo": t.titulo, "status": t.status}, "eventos": public_events(ws.ler_eventos(t.hash), 8),
             "advogado": {"nome": lawyer.nome} if lawyer else None, "tem_advogado": lawyer is not None,
             "cidadao_vinculado": t.cidadao_id is not None, "duvidas_enviadas": int(doubts or 0)}
+    if is_gated(t):
+        base["tarefa"]["status"] = "revisao"
+        return {**base, "resumo_md": None, "topicos": None, "questoes": [], "ultima_tentativa": None}
     if t.status not in READY_STATUSES:
         return {**base, "resumo_md": None, "topicos": None, "questoes": [], "ultima_tentativa": None}
     resumo_md = _ler_artefato(t.hash, "resumo_humanizado.md") or ""
@@ -277,9 +290,15 @@ async def api_cliente_inferencias(hash_: str, session: Session = Depends(get_ses
     t = session.exec(select(Tarefa).where(Tarefa.hash == hash_)).first()
     if not t:
         raise HTTPException(404, "Link inválido ou expirado")
+    if is_gated(t):
+        raise HTTPException(409, GATE_MESSAGE)
     if t.status not in READY_STATUSES:
         raise HTTPException(409, "A explicação ainda está sendo preparada")
+    return {"tarefa": {"hash": t.hash, "titulo": t.titulo}, **inferences_of(t)}
+
+
+def inferences_of(t: Tarefa) -> dict[str, Any]:
+    """Inference body of a task from its workspace artifacts (shared with the lawyer review route)."""
     texto = _ler_artefato(t.hash, "texto_extraido.txt") or ""
     sinteses_raw = [(cls, _ler_json(t.hash, name)) for name, cls in SYNTHESIS_FILES]
-    return {"tarefa": {"hash": t.hash, "titulo": t.titulo},
-            **build_inferences(texto, _ler_json(t.hash, "memoria_persistente.json"), _ler_json(t.hash, "texto_tagueado.json"), sinteses_raw)}
+    return build_inferences(texto, _ler_json(t.hash, "memoria_persistente.json"), _ler_json(t.hash, "texto_tagueado.json"), sinteses_raw)

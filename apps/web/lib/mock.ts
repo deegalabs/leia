@@ -2,6 +2,7 @@
    NEXT_PUBLIC_API_BASE is empty, e.g. on the hosted demo. Stateless: receipts travel as tokens. */
 import fixture from "@/data/fixture-honorarios.json";
 import { attemptHash, buildPayload, canonical, encodeToken, newSalt, nowIso, sha256, type AttemptRecord } from "./registry";
+import { findSpan, type Inferences } from "./inferences"; /* LeIA: review flow shares the inferences with the public route */
 
 type FixtureQuestion = { id: number; area: string; dificuldade: string; enunciado: string; alternativas: string[]; correta: number; justificativa: string };
 type Fixture = typeof fixture;
@@ -66,13 +67,14 @@ export type MockDoubt = { id: number; texto: string; contexto: { role: "user" | 
 export type MockAttempt = { numero: number; acertos: number; total: number; aprovado: boolean; criada_em: string; hash_imutavel: string; comprovante_token: string };
 export type MockEvent = { tipo: string; ts: string; id?: string; idx?: number; total?: number };
 export type MockTask = {
-  id: number; hash: string; titulo: string; status: "criada" | "processando" | "pronta" | "assinada" | "falhou";
+  id: number; hash: string; titulo: string; status: "criada" | "processando" | "pronta" | "enviada" | "assinada" | "falhou"; /* LeIA: enviada = released by the lawyer */
   criada_em: string; atualizada_em: string; origem: "advogado" | "cidadao"; dono_id: number; cidadao_id: number | null;
   ready_at: number; eventos: MockEvent[]; tentativas: MockAttempt[]; duvidas: MockDoubt[];
 };
 type Store = { users: Map<number, MockUser>; tasks: Map<string, MockTask>; seq: { user: number; task: number; doubt: number } };
 
 const PIPELINE_MS = 8000;
+const REVIEW_DEMO_HASH = "revisao-exemplo"; /* LeIA: seeded lawyer task waiting for review */
 const SEED_PASSWORD = "leia1234";
 const hashPassword = (senha: string) => sha256(`leia-mock:${senha}`);
 
@@ -82,12 +84,18 @@ function seed(): Store {
   users.set(2, { id: 2, nome: "Cidadã Exemplo", email: "cidada@exemplo.leia", papel: "cidadao", oab: null, senha_hash: hashPassword(SEED_PASSWORD), token: null });
   const ts = nowIso();
   const tasks = new Map<string, MockTask>();
+  /* LeIA: review flow. The demo task is already released ("enviada") so the landing example keeps working;
+     a second task of the same lawyer waits in "pronta" to show the review screen. */
   tasks.set(F.tarefa.hash, {
-    id: F.tarefa.id, hash: F.tarefa.hash, titulo: F.tarefa.titulo, status: "pronta", criada_em: ts, atualizada_em: ts, origem: "advogado", dono_id: 1, cidadao_id: null, ready_at: 0,
-    eventos: [{ tipo: "criada", ts }, { tipo: "pipeline_concluido", ts }], tentativas: [],
+    id: F.tarefa.id, hash: F.tarefa.hash, titulo: F.tarefa.titulo, status: "enviada", criada_em: ts, atualizada_em: ts, origem: "advogado", dono_id: 1, cidadao_id: null, ready_at: 0,
+    eventos: [{ tipo: "criada", ts }, { tipo: "pipeline_concluido", ts }, { tipo: "aprovada", ts }], tentativas: [],
     duvidas: [{ id: 1, texto: "Se eu perder a ação, ainda pago os 20%?", contexto: [{ role: "user", text: "Se eu perder a ação, ainda pago os 20%?" }, { role: "bot", text: "O documento diz que os 20% incidem sobre o valor efetivamente recebido na ação." }], criada_em: ts, respondida: false, resposta: null, respondida_em: null }],
   });
-  return { users, tasks, seq: { user: 2, task: 1, doubt: 1 } };
+  tasks.set(REVIEW_DEMO_HASH, {
+    id: 2, hash: REVIEW_DEMO_HASH, titulo: "Contrato de honorários: ação de cobrança", status: "pronta", criada_em: ts, atualizada_em: ts, origem: "advogado", dono_id: 1, cidadao_id: null, ready_at: 0,
+    eventos: [{ tipo: "criada", ts }, { tipo: "pipeline_concluido", ts }], tentativas: [], duvidas: [],
+  });
+  return { users, tasks, seq: { user: 2, task: 2, doubt: 1 } };
 }
 const g = globalThis as unknown as { __leiaMockStore?: Store };
 const store = (): Store => (g.__leiaMockStore ??= seed());
@@ -167,7 +175,7 @@ export function taskDetail(u: MockUser, id: number) {
   if (!canSee(u, t)) throw fail(403, "sem acesso");
   return {
     tarefa: { id: t.id, hash: t.hash, titulo: t.titulo, status: t.status, criada_em: t.criada_em, atualizada_em: t.atualizada_em, origem: t.origem },
-    link_cliente: clientLink(t), resumo_md: t.status === "pronta" || t.status === "assinada" ? F.resumo_md : null, eventos: t.eventos.slice(-20),
+    link_cliente: clientLink(t), resumo_md: hasContent(t) ? F.resumo_md : null, eventos: t.eventos.slice(-20),
     tentativas: t.tentativas.map(({ numero, acertos, total, aprovado, criada_em, hash_imutavel, comprovante_token }) => ({ numero, acertos, total, aprovado, criada_em, hash_imutavel, comprovante_token })),
     duvidas: t.duvidas, cidadao: nameOf(t.cidadao_id), advogado: lawyerOf(t),
   };
@@ -183,6 +191,55 @@ export function answerDoubt(u: MockUser, id: number, duvidaId: number, resposta:
   return { ok: true };
 }
 
+/* LeIA: review flow (docs/API-V3-CONTRACT.md, "Revisão do advogado antes de liberar") */
+const hasContent = (t: MockTask) => t.status === "pronta" || t.status === "enviada" || t.status === "assinada";
+/* the citizen may open the explanation: released, signed, or a citizen-owned task that is ready */
+export const isReleased = (t: MockTask) => t.status === "enviada" || t.status === "assinada" || (t.status === "pronta" && t.origem === "cidadao");
+export const inReview = (t: MockTask) => t.status === "pronta" && t.origem === "advogado";
+/* 409 body shared by the public routes while the lawyer reviews or the pipeline runs */
+export function publicGate(hash: string): Response | null {
+  const t = storeTask(hash);
+  if (!t) return Response.json({ detail: "não encontrado" }, { status: 404 });
+  if (inReview(t)) return Response.json({ detail: "Em revisão pelo advogado" }, { status: 409 });
+  if (!isReleased(t)) return Response.json({ detail: "ainda não está pronta" }, { status: 409 });
+  return null;
+}
+/* the fixture's clauses become tagged items over the extracted text (same body as GET /api/t/{hash}/inferencias) */
+export function buildInferences(t: MockTask): Inferences {
+  const texto = F.documento_texto.map((c) => c.texto).join("\n\n");
+  const itens = F.topicos.map((tp, n) => {
+    const pos = findSpan(texto, tp.trecho);
+    return { ref: `clausulas[${n}]`, campo: `cláusula ${tp.clausula}`, valor: tp.titulo, trecho: tp.trecho, pos, conferido: !!pos, cor: "#E3F1F1" };
+  });
+  return {
+    tarefa: { hash: t.hash, titulo: t.titulo },
+    texto,
+    classes: [{ classe: "clausulas", rotulo: "Cláusulas explicadas", cor: "#E3F1F1", itens }],
+    sinteses: F.topicos.map((tp, n) => ({ classe: "clausulas", rotulo: tp.titulo, texto: tp.explicacao, lastro: [`clausulas[${n}]`] })),
+    total: itens.length, conferidos: itens.filter((i) => i.conferido).length,
+  };
+}
+export function review(u: MockUser, id: number) {
+  const t = storeTaskById(id);
+  if (!t) throw fail(404, "não encontrado");
+  if (!canManage(u, t)) throw fail(403, "sem acesso");
+  if (!hasContent(t)) throw fail(409, t.status === "falhou" ? "a explicação não pôde ser preparada" : "ainda não está pronta");
+  return {
+    tarefa: { id: t.id, hash: t.hash, titulo: t.titulo, status: t.status, origem: t.origem },
+    inferencias: buildInferences(t), resumo_md: F.resumo_md,
+    questoes: (F.questoes.questoes as FixtureQuestion[]).map((q) => ({ id: q.id, area: q.area, dificuldade: q.dificuldade, enunciado: q.enunciado, alternativas: q.alternativas, correta: q.correta, justificativa: q.justificativa })),
+    link_cliente: clientLink(t),
+  };
+}
+export function approve(u: MockUser, id: number) {
+  const t = storeTaskById(id);
+  if (!t) throw fail(404, "não encontrado");
+  if (!canManage(u, t)) throw fail(403, "sem acesso");
+  if (t.status !== "pronta") throw fail(409, `só é possível aprovar em "pronta" (estado atual: ${t.status})`);
+  t.status = "enviada"; t.atualizada_em = nowIso(); t.eventos.push({ tipo: "aprovada", ts: t.atualizada_em });
+  return { ok: true, status: t.status };
+}
+
 /* citizen side (public by hash) */
 export function publicTaskMeta(t: MockTask) {
   return { advogado: lawyerOf(t), tem_advogado: t.origem === "advogado", cidadao_vinculado: t.cidadao_id !== null, duvidas_enviadas: t.duvidas.length, ultima_tentativa: lastAttempt(t) };
@@ -192,7 +249,9 @@ export function publicTaskFor(hash: string) {
   const t = storeTask(hash); const f = findTask(hash);
   if (!t || !f) return null;
   const base = publicTask(f);
-  const ready = t.status === "pronta" || t.status === "assinada";
+  /* LeIA: review gate. A lawyer-owned task in "pronta" answers "revisao" with no content until the lawyer approves. */
+  if (inReview(t)) return { ...base, tarefa: { ...base.tarefa, status: "revisao" }, resumo_md: null, topicos: null, questoes: [], eventos: t.eventos, ...publicTaskMeta(t) };
+  const ready = isReleased(t);
   return { ...base, resumo_md: ready ? base.resumo_md : "", topicos: ready ? base.topicos : null, questoes: ready ? base.questoes : [], eventos: t.eventos, ...publicTaskMeta(t) };
 }
 export function recordAttempt(hash: string, r: ReturnType<typeof evaluateQuiz>) {

@@ -1,4 +1,4 @@
-"""Tests for the v3 API (accounts, documents of the signed-in user, doubts, linking, rate limit).
+"""Tests for the v3 API (accounts, documents of the signed-in user, doubts, linking, rate limit, lawyer review gate).
 
 Run from apps/llm-service: python -m pytest -q tests_leia.py tests_v3.py
 SQLite in a temporary DATA_DIR, no OpenTimestamps, no Groq key: the workflow fails fast and the task ends
@@ -38,7 +38,7 @@ from sqlmodel import Session, select  # noqa: E402
 
 import main  # noqa: E402
 from core import workspace as ws  # noqa: E402
-from core.db import Tarefa, engine  # noqa: E402
+from core.db import LogEvento, Tarefa, engine  # noqa: E402
 from leia.ratelimit import limiter  # noqa: E402
 
 
@@ -267,23 +267,137 @@ def test_link_citizen(lawyer, lawyer_task, citizen):
     assert client.post(f"/api/t/{h}/vincular", headers=bearer(citizen["token"])).status_code == 200
 
 
-def test_public_json_never_leaks_the_answer_key(lawyer_task):
-    h = lawyer_task["hash"]
+FAKE_TEXT = "CLÁUSULA 2. O CONTRATANTE pagará honorários de vinte por cento ao final, só se ganhar a ação."
+
+
+def fake_artifacts(h: str) -> None:
+    """Workspace artifacts of a finished workflow, without the model."""
     folder = ws.pasta(h)
     (folder / "resumo_humanizado.md").write_text("# Resumo em uma linha\nVocê paga só se ganhar.\n\n## O que aconteceu\nUm contrato.", encoding="utf-8")
     (folder / "questoes.json").write_text(json.dumps({"questoes": [
         {"id": 1, "area": "pedidos", "enunciado": "Quando você paga?", "alternativas": ["Sempre", "Só se ganhar", "Nunca", "Antes"],
          "correta": 1, "justificativa": "Está na cláusula 2.", "dificuldade": "facil"}]}), encoding="utf-8")
+    (folder / "texto_extraido.txt").write_text(FAKE_TEXT, encoding="utf-8")
+    (folder / "memoria_persistente.json").write_text(json.dumps({"memoria_persistente": {"datas_valores": [
+        {"campo": "honorarios", "valor": "20%", "trecho_verbatim": "honorários de vinte por cento ao final"}]}}), encoding="utf-8")
+    (folder / "T9_SINTESE_PEDIDOS.json").write_text(json.dumps({"sintese_pedidos": {"valor": "Paga 20% se ganhar.", "lastro": ["datas_valores[0]"]}}), encoding="utf-8")
+
+
+def set_status(h: str, status: str) -> None:
     with Session(engine) as s:
         t = s.exec(select(Tarefa).where(Tarefa.hash == h)).one()
-        t.status = "pronta"
+        t.status = status
         s.add(t); s.commit()
+
+
+def test_public_json_never_leaks_the_answer_key(lawyer, lawyer_task):
+    h = lawyer_task["hash"]
+    fake_artifacts(h)
+    set_status(h, "pronta")
+    # a lawyer's task in "pronta" is still under review: nothing of the explanation leaves the service
+    r = client.get(f"/api/t/{h}")
+    assert r.status_code == 200 and r.json()["tarefa"]["status"] == "revisao"
+    assert r.json()["questoes"] == [] and r.json()["resumo_md"] is None and r.json()["topicos"] is None
+    assert client.post(f"/api/tarefas/{lawyer_task['id']}/aprovar", headers=bearer(lawyer["token"])).json() == {"ok": True, "status": "enviada"}
     r = client.get(f"/api/t/{h}")
     assert r.status_code == 200
     assert "correta" not in r.text and "justificativa" not in r.text
     data = r.json()
+    assert data["tarefa"]["status"] == "enviada"
     assert data["questoes"][0]["enunciado"] == "Quando você paga?" and data["resumo_md"].startswith("# Resumo")
     assert data["tem_advogado"] is True
+
+
+# ── lawyer review before releasing the link ───────────────────────────────
+
+def test_review_requires_owner_and_finished_workflow(lawyer, citizen):
+    task = create_task(lawyer["token"], "Para revisar")
+    h, tid = task["hash"], task["id"]
+    fake_artifacts(h)
+    set_status(h, "processando")
+    assert client.get(f"/api/tarefas/{tid}/revisao", headers=bearer(lawyer["token"])).status_code == 409
+    assert client.post(f"/api/tarefas/{tid}/aprovar", headers=bearer(lawyer["token"])).status_code == 409
+
+    set_status(h, "pronta")
+    other = signup("revisor@teste.local", "advogado", "Dr. Revisor")
+    assert client.get(f"/api/tarefas/{tid}/revisao", headers=bearer(other["token"])).status_code == 403
+    assert client.post(f"/api/tarefas/{tid}/aprovar", headers=bearer(other["token"])).status_code == 403
+    assert client.get(f"/api/tarefas/{tid}/revisao", headers=bearer(citizen["token"])).status_code == 403
+    assert client.get("/api/tarefas/999999/revisao", headers=bearer(lawyer["token"])).status_code == 404
+    assert client.get(f"/api/tarefas/{tid}/revisao").status_code == 401
+
+    r = client.get(f"/api/tarefas/{tid}/revisao", headers=bearer(lawyer["token"]))
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert data["tarefa"] == {"id": tid, "hash": h, "titulo": "Para revisar", "status": "pronta", "origem": "advogado"}
+    assert data["link_cliente"] == f"http://app.test/t/{h}"
+    assert data["resumo_md"].startswith("# Resumo")
+    q = data["questoes"][0]
+    assert q["correta"] == 1 and q["justificativa"] == "Está na cláusula 2." and q["dificuldade"] == "facil"
+    inf = data["inferencias"]
+    assert inf["tarefa"]["hash"] == h and inf["texto"] == FAKE_TEXT and inf["total"] == 1 and inf["conferidos"] == 1
+    assert inf["classes"][0]["itens"][0]["pos"] and inf["sinteses"][0]["lastro"] == ["datas_valores[0]"]
+    # the same body the public route returns once released
+    set_status(h, "enviada")
+    assert client.get(f"/api/t/{h}/inferencias").json() == inf
+    set_status(h, "pronta")
+
+    # the admin reviews and approves too; review keeps working after approval (status enviada)
+    admin = client.post("/api/auth/login", json={"email": "admin@test.local", "senha": "admin-secret-1"}).json()
+    assert client.get(f"/api/tarefas/{tid}/revisao", headers=bearer(admin["token"])).status_code == 200
+    assert client.post(f"/api/tarefas/{tid}/aprovar", headers=bearer(admin["token"])).json() == {"ok": True, "status": "enviada"}
+    assert client.post(f"/api/tarefas/{tid}/aprovar", headers=bearer(admin["token"])).status_code == 409
+    assert client.get(f"/api/tarefas/{tid}/revisao", headers=bearer(lawyer["token"])).json()["tarefa"]["status"] == "enviada"
+
+
+def test_gate_holds_lawyer_task_until_approval(lawyer):
+    task = create_task(lawyer["token"], "Com gate")
+    h, tid = task["hash"], task["id"]
+    fake_artifacts(h)
+    set_status(h, "pronta")
+
+    pub = client.get(f"/api/t/{h}").json()
+    assert pub["tarefa"]["status"] == "revisao" and pub["tem_advogado"] is True and pub["advogado"] == {"nome": "Dra. Ana"}
+    assert pub["resumo_md"] is None and pub["topicos"] is None and pub["questoes"] == [] and pub["ultima_tentativa"] is None
+    for r in (client.get(f"/api/t/{h}/inferencias"),
+              client.post(f"/api/t/{h}/quiz", json={"respostas": {"1": 1}}),
+              client.post(f"/api/t/{h}/chat", json={"mensagem": "Quanto pago?"})):
+        assert r.status_code == 409 and r.json()["detail"] == "Em revisão pelo advogado"
+    # the panel still sees the summary while the citizen waits
+    detail = client.get(f"/api/tarefas/{tid}", headers=bearer(lawyer["token"])).json()
+    assert detail["tarefa"]["status"] == "pronta" and detail["resumo_md"].startswith("# Resumo")
+
+    r = client.post(f"/api/tarefas/{tid}/aprovar", headers=bearer(lawyer["token"]))
+    assert r.status_code == 200 and r.json() == {"ok": True, "status": "enviada"}
+    assert client.post(f"/api/tarefas/{tid}/aprovar", headers=bearer(lawyer["token"])).status_code == 409
+    assert any(e["tipo"] == "aprovada" and e.get("usuario_id") == lawyer["usuario"]["id"] for e in ws.ler_eventos(h))
+    with Session(engine) as s:
+        assert s.get(Tarefa, tid).status == "enviada"
+        assert s.exec(select(LogEvento).where(LogEvento.tarefa_id == tid, LogEvento.tipo == "aprovada")).first()
+
+    pub = client.get(f"/api/t/{h}").json()
+    assert pub["tarefa"]["status"] == "enviada" and pub["resumo_md"].startswith("# Resumo") and pub["questoes"][0]["id"] == 1
+    assert "correta" not in json.dumps(pub)
+    assert any(e["tipo"] == "aprovada" and "usuario_id" not in e for e in pub["eventos"])
+    assert client.get(f"/api/t/{h}/inferencias").status_code == 200
+    quiz = client.post(f"/api/t/{h}/quiz", json={"respostas": {"1": 1}})
+    assert quiz.status_code == 200 and quiz.json()["aprovado"] is True
+    assert client.get(f"/api/t/{h}").json()["tarefa"]["status"] == "assinada"  # signed tasks stay released
+
+
+def test_citizen_task_is_released_without_approval(citizen):
+    task = create_task(citizen["token"], "Sozinha")
+    h = task["hash"]
+    fake_artifacts(h)
+    set_status(h, "pronta")
+    pub = client.get(f"/api/t/{h}").json()
+    assert pub["tarefa"]["status"] == "pronta" and pub["tem_advogado"] is False
+    assert pub["resumo_md"].startswith("# Resumo") and pub["questoes"][0]["enunciado"] == "Quando você paga?"
+    assert client.get(f"/api/t/{h}/inferencias").status_code == 200
+    quiz = client.post(f"/api/t/{h}/quiz", json={"respostas": {"1": 0}})
+    assert quiz.status_code == 200 and quiz.json()["aprovado"] is False
+    r = client.get(f"/api/tarefas/{task['id']}/revisao", headers=bearer(citizen["token"]))
+    assert r.status_code == 200 and r.json()["tarefa"]["origem"] == "cidadao"
 
 
 # ── scale and isolation ───────────────────────────────────────────────────

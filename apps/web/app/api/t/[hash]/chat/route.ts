@@ -1,7 +1,9 @@
-import { answer, findTask } from "@/lib/mock";
+import { answer, findTask, publicGate } from "@/lib/mock";
 
 export async function POST(req: Request, { params }: RouteContext<"/api/t/[hash]/chat">) {
   const { hash } = await params;
+  const gate = publicGate(hash); /* LeIA: 409 while the lawyer reviews */
+  if (gate) return gate;
   const f = findTask(hash);
   if (!f) return Response.json({ detail: "não encontrado" }, { status: 404 });
   const body = await req.json().catch(() => ({}));

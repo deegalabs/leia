@@ -103,7 +103,9 @@ export function formatDateTime(iso: string): string {
 
 /* ------------------------------------------------------------------------------------------------
    LeIA: v3 accounts and panels (docs/API-V3-CONTRACT.md). Every call sends the Bearer token when there is one. */
-export type TaskStatus = "criada" | "processando" | "pronta" | "assinada" | "falhou" | string;
+/* LeIA: review flow (docs/API-V3-CONTRACT.md, "Revisão do advogado"): pronta = waiting for the lawyer, enviada = released to
+   the citizen; the public route answers "revisao" while a lawyer-owned task waits. */
+export type TaskStatus = "criada" | "processando" | "pronta" | "enviada" | "assinada" | "falhou" | "revisao" | string;
 export type TaskSummary = {
   id: number; hash: string; titulo: string; status: TaskStatus; criada_em: string; atualizada_em: string; link_cliente: string;
   origem: "advogado" | "cidadao"; ultima_tentativa: (Attempt & { comprovante_token?: string }) | null; duvidas_abertas: number;
@@ -160,5 +162,20 @@ export function clientLinkUrl(linkOrHash: string): string {
 import type { Inferences } from "./inferences";
 export async function getInferences(hash: string): Promise<Inferences> {
   const r = await check(await fetch(`${API_BASE}/api/t/${hash}/inferencias`, { cache: "no-store" }));
+  return r.json();
+}
+
+/* LeIA: lawyer review before release (docs/API-V3-CONTRACT.md, "Revisão do advogado antes de liberar"). */
+export type ReviewQuestion = Question & { dificuldade?: string; correta: number; justificativa: string };
+export type Review = {
+  tarefa: { id: number; hash: string; titulo: string; status: TaskStatus; origem: "advogado" | "cidadao" };
+  inferencias: Inferences; resumo_md: string; questoes: ReviewQuestion[]; link_cliente: string;
+};
+export async function getReview(id: string | number): Promise<Review> {
+  const r = await check(await fetch(`${API_BASE}/api/tarefas/${id}/revisao`, { headers: { Accept: "application/json", ...authHeaders() }, cache: "no-store" }));
+  return r.json();
+}
+export async function approveTask(id: string | number): Promise<{ ok: boolean; status: TaskStatus }> {
+  const r = await check(await fetch(`${API_BASE}/api/tarefas/${id}/aprovar`, { method: "POST", headers: jsonHeaders(), body: "{}" }));
   return r.json();
 }

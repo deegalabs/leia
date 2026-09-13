@@ -1,11 +1,11 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ExternalLink, Send } from "lucide-react";
+import { ArrowLeft, ClipboardCheck, ExternalLink, Send } from "lucide-react";
 import { answerDoubt, clientLinkUrl, formatDateTime, getTaskDetail, type Doubt, type TaskDetail } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { fmt, m } from "@/lib/i18n";
-import { isSettled, statusInfo } from "@/lib/status";
+import { hasReview, isSettled, needsReview, statusInfo } from "@/lib/status";
 import { AppHeader, Button, Card, CopyButton, LinkButton, Page, StatusChip } from "./ui";
 import { AuthNav, RequireAuth } from "./Session";
 import { Inline } from "./Inline";
@@ -41,8 +41,10 @@ function Body({ id }: { id: string }) {
   }, [data]);
 
   if (!data) return <p role="status" className="text-ink-2">{error ?? m.common.loading}</p>;
-  const s = statusInfo(data.tarefa.status, isCitizen);
+  const s = statusInfo(data.tarefa.status, isCitizen, data.tarefa.origem);
   const link = clientLinkUrl(data.link_cliente || data.tarefa.hash);
+  /* LeIA: review flow. The lawyer approves in /painel/{id}/revisao before the link opens the explanation. */
+  const reviewPending = needsReview(data.tarefa.status, data.tarefa.origem);
   const last = data.eventos.length ? data.eventos[data.eventos.length - 1] : null;
   const approved = [...data.tentativas].reverse().find((a) => a.aprovado) ?? null;
 
@@ -60,10 +62,21 @@ function Body({ id }: { id: string }) {
       {error && <p role="alert" className="mb-3 text-danger">{error}</p>}
 
       <div className="grid gap-3">
+        {!isCitizen && hasReview(data.tarefa.status) && (
+          <Card tone={reviewPending ? "pending" : "soft"}>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h2 className="text-[1.15rem]">{m.panel.review.title}</h2>
+                <p className="text-[0.95rem] text-ink-2">{reviewPending ? m.panel.detail.clientLinkPending : m.panel.review.intro}</p>
+              </div>
+              <LinkButton href={`/painel/${id}/revisao`} variant={reviewPending ? "primary" : "secondary"} className="sm:!w-auto"><ClipboardCheck size={20} aria-hidden /> {reviewPending ? m.panel.reviewAndRelease : m.panel.viewReview}</LinkButton>
+            </div>
+          </Card>
+        )}
         {!isCitizen && (
           <Card>
             <h2 className="mb-1 text-[1.15rem]">{m.panel.detail.clientLink}</h2>
-            <p className="mb-2 text-[0.95rem] text-ink-2">{m.panel.detail.clientLinkHint}</p>
+            <p className="mb-2 text-[0.95rem] text-ink-2">{reviewPending ? m.panel.detail.clientLinkPending : m.panel.detail.clientLinkHint}</p>
             <code className="block break-all font-mono text-[0.95rem]">{link}</code>
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <CopyButton text={link} label={m.panel.copyClientLink} />

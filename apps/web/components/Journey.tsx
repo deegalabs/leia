@@ -6,20 +6,10 @@ import { isReady } from "@/lib/status";
 import { useAuth } from "@/lib/auth"; /* LeIA: v3 accounts */
 import { AssistantBanner, BottomActionBar, Button, Card, LinkButton, Page, ProgressSteps, SpeakButton, StatusChip } from "./ui";
 import { ChatSheet } from "./ChatSheet";
-import { Inline, cleanTitle } from "./Inline";
+import { Paragraphs, cleanTitle } from "./Inline"; /* LeIA: Paragraphs moved to Inline.tsx, shared with the lawyer review */
+import { m } from "@/lib/i18n";
 
 type Step = { kind: "welcome" } | { kind: "topic"; n: number } | { kind: "question"; k: number } | { kind: "result" };
-
-function Paragraphs({ text }: { text: string }) {
-  const blocks = text.split(/\n\s*\n/).map((b) => b.trim()).filter(Boolean);
-  return <>{blocks.map((b, i) => {
-    const lines = b.split("\n");
-    if (lines.length > 1 && lines.every((l) => /^\s*([-*]|\d+[.)])\s+/.test(l))) {
-      return <ul key={i} className="mb-3 list-disc space-y-1 pl-5 last:mb-0">{lines.map((l, j) => <li key={j}><Inline text={l.replace(/^\s*([-*]|\d+[.)])\s+/, "")} /></li>)}</ul>;
-    }
-    return <p key={i} className="mb-3 last:mb-0"><Inline text={b.replace(/^[-*]\s+/gm, "")} /></p>;
-  })}</>;
-}
 
 export function Journey({ hash }: { hash: string }) {
   const [task, setTask] = useState<Task | null>(null);
@@ -82,6 +72,16 @@ export function Journey({ hash }: { hash: string }) {
   if (task.tarefa.status === "falhou") return (
     <Page><AssistantBanner />
       <Card><h1 className="mb-2 text-[1.5rem]">Não deu certo desta vez</h1><p>A explicação deste documento não pôde ser preparada. Fale com quem enviou o documento para tentar de novo.</p></Card>
+    </Page>
+  );
+  /* LeIA: review flow. The lawyer still has to release the explanation; keep polling until the status changes. */
+  if (!ready && task.tarefa.status === "revisao") return (
+    <Page><AssistantBanner />
+      <Card>
+        <h1 className="mb-2 text-[1.5rem]">{m.journey.reviewWaitTitle}</h1>
+        <p>{m.journey.reviewWaitText}</p>
+        {task.advogado?.nome && <p className="mt-2 text-[0.95rem] text-ink-2" role="status">{m.panel.detail.lawyer}: {task.advogado.nome}</p>}
+      </Card>
     </Page>
   );
   if (!ready) {

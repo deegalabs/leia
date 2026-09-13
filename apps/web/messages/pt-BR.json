@@ -247,10 +247,13 @@
     "backToList": "Voltar para a lista",
     "status": {
       "preparing": "Preparando",
-      "readyLawyer": "Pronto para a cliente",
+      "readyLawyer": "Pronto para revisão",
       "readyCitizen": "Pronto para você",
       "understood": "Entendimento registrado",
-      "failed": "Não deu certo"
+      "failed": "Não deu certo",
+      "readyCitizenOwned": "Pronto para a cliente",
+      "released": "Liberado para a cliente",
+      "inReview": "Em revisão pelo advogado"
     },
     "detail": {
       "clientLink": "Link da cliente",
@@ -282,10 +285,57 @@
         "cidadao_vinculado": "Cidadã abriu o link",
         "tentativa_registrada": "Respostas registradas",
         "entendimento_registrado": "Entendimento registrado",
-        "falhou": "Não deu certo"
-      }
+        "falhou": "Não deu certo",
+        "aprovada": "Liberado para a cliente"
+      },
+      "clientLinkPending": "O link só abre a explicação depois que você revisar e liberar."
     },
-    "openDoubtsOne": "1 dúvida aberta"
+    "openDoubtsOne": "1 dúvida aberta",
+    "reviewAndRelease": "Revisar e liberar",
+    "viewReview": "Ver revisão",
+    "reviewShort": "Revisar",
+    "review": {
+      "title": "Revisão antes de liberar",
+      "intro": "Confira o que a assistente encontrou no documento, a explicação que a cliente vai ler e as perguntas. Depois, libere o link.",
+      "backToDocument": "Voltar para o documento",
+      "loading": "Carregando a revisão.",
+      "notReady": "A explicação ainda está sendo preparada. Esta página atualiza sozinha.",
+      "notFound": "Documento não encontrado.",
+      "tabsLabel": "Partes da revisão",
+      "tabs": {
+        "marks": "Marcações",
+        "text": "Texto",
+        "conclusions": "Conclusões",
+        "explanation": "Explicação",
+        "questions": "Perguntas"
+      },
+      "marksIntro": "Cada marcação mostra de onde veio uma informação usada na explicação.",
+      "checkedCount": "{n} conferidas no texto",
+      "notFoundCount": "{n} não localizadas",
+      "checked": "Conferido no texto",
+      "notLocated": "Não localizado",
+      "viewInText": "Ver no texto",
+      "textTitle": "Texto do documento com as marcações",
+      "conclusionsTitle": "O que a assistente concluiu",
+      "basedOn": "Baseado em {n} marcações:",
+      "basedOnOne": "Baseado em 1 marcação:",
+      "noConclusions": "Nenhuma conclusão registrada.",
+      "explanationTitle": "O que a cliente vai ler",
+      "explanationIntro": "A cliente lê estes pontos um de cada vez, com o trecho original de cada um.",
+      "questionsTitle": "Perguntas para a cliente",
+      "questionsIntro": "Só você vê a resposta certa e a justificativa. A cliente vê apenas a pergunta e as alternativas.",
+      "correctAnswer": "Resposta certa",
+      "why": "Por que",
+      "approve": "Aprovar e liberar para a cliente",
+      "approving": "Liberando para a cliente",
+      "approveHint": "Ao liberar, o link da cliente passa a abrir a explicação.",
+      "released": "Liberado para a cliente",
+      "releasedAt": "Liberado para a cliente em {date}",
+      "releasedNoDate": "Liberado para a cliente.",
+      "citizenOwned": "Documento enviado pela própria cidadã: a explicação já está aberta para ela, sem revisão.",
+      "approveFailed": "Não foi possível liberar agora. Tente de novo em instantes.",
+      "alreadyReleased": "Este documento já foi liberado."
+    }
   },
   "upload": {
     "title": "Enviar um documento",
@@ -302,7 +352,7 @@
     "needFile": "Escolha um arquivo PDF para continuar.",
     "notPdf": "Este arquivo não é um PDF. Escolha um arquivo .pdf.",
     "doneTitle": "Documento enviado",
-    "doneLawyer": "A explicação está sendo preparada. Envie o link abaixo para a sua cliente.",
+    "doneLawyer": "A explicação está sendo preparada. Quando ficar pronta, revise e libere o link para a sua cliente.",
     "openInPanel": "Ver no painel",
     "sendAnother": "Enviar outro documento"
   },
@@ -312,5 +362,9 @@
     "sent": "Enviada. Quando o advogado responder, a resposta aparece em Meus documentos.",
     "sendFailed": "Não foi possível enviar agora. Tente de novo em instantes.",
     "askFirst": "Escreva sua dúvida acima para poder enviá-la ao advogado."
+  },
+  "journey": {
+    "reviewWaitTitle": "O advogado está revisando a explicação",
+    "reviewWaitText": "Você recebe o link liberado em breve. Pode fechar e abrir esta página depois."
   }
 }

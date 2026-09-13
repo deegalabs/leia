@@ -921,6 +921,10 @@ async def api_quiz(
     if not t:
         raise HTTPException(404, "Link inválido")
 
+    from leia.api_cliente import GATE_MESSAGE, is_gated   # LeIA: local import (leia.api_cliente imports this module)
+    if is_gated(t):   # LeIA: lawyer review gate, the citizen only answers after the lawyer approves
+        raise HTTPException(409, GATE_MESSAGE)
+
     questoes_doc = _ler_json(t.hash, "questoes.json") or {}
     questoes = questoes_doc.get("questoes", [])
     if not questoes:
@@ -975,6 +979,10 @@ async def api_cliente_chat(
     t = session.exec(select(Tarefa).where(Tarefa.hash == hash_)).first()
     if not t:
         raise HTTPException(404, "Link inválido")
+
+    from leia.api_cliente import GATE_MESSAGE, is_gated   # LeIA: local import (leia.api_cliente imports this module)
+    if is_gated(t):   # LeIA: lawyer review gate, no chat before the lawyer approves
+        raise HTTPException(409, GATE_MESSAGE)
 
     pergunta = (payload.get("mensagem") or "").strip()
     if not pergunta:
