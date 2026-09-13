@@ -40,10 +40,18 @@ mark { background: var(--color-teal-soft); color: inherit; text-decoration: unde
 .docs-prose hr { border: 0; border-top: 1px solid var(--border); margin: 24px 0; }
 .docs-prose img { max-width: 100%; height: auto; border-radius: 10px; }
 /* tables: a real grid on wide screens (scrolling inside its own box if it must), one card per row on phones */
-.docs-prose .table-wrap { max-width: 100%; overflow-x: auto; margin: 0 0 16px; -webkit-overflow-scrolling: touch; }
+.docs-prose .table-wrap { max-width: 100%; overflow-x: auto; margin: 0 0 16px; -webkit-overflow-scrolling: touch;
+  /* scroll shadows: a soft edge appears only on the side that still has hidden columns */
+  background:
+    linear-gradient(90deg, var(--background) 40%, transparent) left / 36px 100% no-repeat,
+    linear-gradient(270deg, var(--background) 40%, transparent) right / 36px 100% no-repeat,
+    radial-gradient(farthest-side at 0 50%, rgba(8, 24, 32, 0.22), transparent) left / 14px 100% no-repeat,
+    radial-gradient(farthest-side at 100% 50%, rgba(8, 24, 32, 0.22), transparent) right / 14px 100% no-repeat;
+  background-attachment: local, local, scroll, scroll; }
+.docs-prose .table-wrap th { background-clip: padding-box; }
 .docs-prose table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
 .docs-prose th, .docs-prose td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; vertical-align: top; overflow-wrap: normal; } /* whole words in the grid; code breaks after slashes (see lib/markdown.ts) and the wrapper scrolls if it must */
-.docs-prose th { background: var(--muted); font-weight: 700; }
+.docs-prose th { background: color-mix(in srgb, var(--muted) 85%, transparent); font-weight: 700; }
 @media (max-width: 639px) {
   .docs-prose table, .docs-prose tbody, .docs-prose tr, .docs-prose td { display: block; }
   .docs-prose thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

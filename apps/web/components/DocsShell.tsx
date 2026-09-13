@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BookOpen, ChevronDown, ChevronLeft, ChevronRight, ExternalLink, List } from "lucide-react";
+import { ArrowUp, BookOpen, ChevronDown, ChevronLeft, ChevronRight, ExternalLink, List } from "lucide-react";
 import { DOCS, REPO_URL, type DocEntry } from "@/lib/docs";
 import type { TocItem } from "@/lib/markdown";
 
@@ -56,6 +56,7 @@ export function DocsShell({ current, html, toc }: { current: DocEntry; html: str
           <p className="mt-6 text-[0.9rem] text-ink-2">
             Fonte: <a className="break-all text-teal-deep underline underline-offset-2" href={`${REPO_URL}/blob/main/${current.source}`} target="_blank" rel="noreferrer"><ExternalLink size={14} aria-hidden className="mr-1 inline" />{current.source}</a> (abre no GitHub)
           </p>
+          <p className="mt-4"><a href="#conteudo" className="inline-flex min-h-[44px] items-center gap-1 font-bold text-teal-deep underline underline-offset-4"><ArrowUp size={16} aria-hidden /> Voltar ao topo</a></p>
           <nav aria-label="Página anterior e próxima" className="mt-6 grid gap-3 sm:grid-cols-2">
             {prev ? (
               <Link href={`/docs/${prev.slug}`} className="inline-flex min-h-[52px] items-center gap-2 rounded-card border border-line bg-surface px-4 py-3 font-bold text-teal-deep">
