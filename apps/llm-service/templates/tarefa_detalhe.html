@@ -229,6 +229,35 @@
   </div>
   {% endif %}
 
+  {# ── LeIA: dúvidas enviadas pela cliente ── #}
+  {% if duvidas %}
+  <div class="card">
+    <h2>Dúvidas da cliente <span class="badge b-{{ 'assinada' if duvidas|selectattr('respondida')|list|length == duvidas|length else 'processando' }}">{{ duvidas|length }} dúvida{{ 's' if duvidas|length != 1 else '' }}</span></h2>
+    <div class="tent-list">
+      {% for d in duvidas %}
+      <div class="tent {% if d.respondida %}tent-ok{% else %}tent-fail{% endif %}">
+        <div class="tent-head">
+          <span class="tent-num">Dúvida {{ d.id }}</span>
+          <span class="badge b-{{ 'assinada' if d.respondida else 'processando' }}">
+            <span class="dot"></span>{{ 'respondida' if d.respondida else 'aguardando resposta' }}
+          </span>
+        </div>
+        <div class="tent-meta">{{ d.criada_em.strftime('%d/%m/%Y %H:%M') }} UTC</div>
+        <div style="font-size:.85rem;color:var(--tx);line-height:1.55;white-space:pre-wrap">{{ d.texto }}</div>
+        {% if d.resposta %}
+        <div class="erros-box">
+          <div class="erro-item"><b>Resposta</b>{% if d.respondida_em %} <span style="color:var(--tx3)">· {{ d.respondida_em.strftime('%d/%m/%Y %H:%M') }} UTC</span>{% endif %}<br>
+            <span style="white-space:pre-wrap">{{ d.resposta }}</span></div>
+        </div>
+        {% else %}
+        <div class="tent-meta">Responda pelo painel do app (LeIA).</div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
   {# ── Status pipeline ── #}
   {% if tarefa.status in ('processando', 'criada') %}
   <div class="card">

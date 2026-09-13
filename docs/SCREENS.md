@@ -50,6 +50,19 @@ com botão) fica no roadmap.
 
 A página `apps/llm-service/templates/leia/cliente.html` (mesma jornada, servida pelo FastAPI) é reserva da Entrega 4.
 
+### Telas v3 (13/09 à tarde, pedido do Daniel): contas, painéis, envio pela cidadã, dúvida ao advogado
+| Tela | Rota no app | O que faz | Dados |
+|---|---|---|---|
+| A0/C0 Entrar ou criar conta | `/entrar` | e-mail e senha; papel cidadã ou advogado; token Bearer guardado no aparelho | `POST /api/auth/cadastro`, `/login`, `GET /api/auth/me` |
+| A4 Painel do advogado | `/painel` | documentos enviados com estado, link da cliente, respostas e dúvidas abertas; "Enviar um documento" | `GET /api/tarefas` |
+| CH Meus documentos (cidadã) | `/painel` | documentos que ela enviou ou abriu; "Continuar", "Ver comprovante"; "Enviar meu documento" | `GET /api/tarefas` |
+| A3 Detalhe | `/painel/{id}` | etapa atual, tentativas, dúvidas da cliente com campo de resposta | `GET /api/tarefas/{id}`, `POST .../duvidas/{id}/responder` |
+| A1 Enviar documento | `/enviar` | PDF + título; advogado recebe o link da cliente; cidadã vai direto para a jornada | `POST /api/tarefas` |
+| C3 Dúvida | gaveta em `/t/{hash}` | além do chat, "Enviar esta dúvida para o advogado" quando a tarefa tem advogado; cai no painel dele | `POST /api/t/{hash}/duvida` |
+| Documento e marcações | `/t/{hash}/documento` | texto original com cada trecho marcado por classe (quem é quem, datas e valores, fatos, fundamentos, pedidos), lista das marcações com "Ver no texto", "O que a assistente concluiu" (sínteses com lastro), contagem de conferidas palavra por palavra; ligado da jornada e do detalhe do painel | `GET /api/t/{hash}/inferencias` |
+Regra do produto: todo documento passa pela estruturação (workflow) antes do chat; a cidadã pode usar a plataforma
+sozinha (sem advogado) ou pelo link do advogado. Contrato: `docs/API-V3-CONTRACT.md`.
+
 ## Plataforma e acesso
 - **Um web app responsivo** (desktop e celular). Instalar como aplicativo (PWA) é extra, não requisito.
 - **Cidadã no celular.** Aplicação web, opcionalmente instalável (manifesto, ícone, tela cheia),

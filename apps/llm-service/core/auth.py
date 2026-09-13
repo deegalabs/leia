@@ -2,7 +2,7 @@ from __future__ import annotations
 import hashlib, hmac, secrets
 from typing import Optional
 
-from fastapi import Cookie, Depends, HTTPException, status
+from fastapi import Cookie, Depends, Header, HTTPException, status
 from sqlmodel import Session, select
 
 from .db import Usuario, get_session
@@ -41,16 +41,52 @@ def encerrar_sessao(session: Session, u: Usuario) -> None:
     session.add(u); session.commit()
 
 
-def usuario_atual(
-    sessao: Optional[str] = Cookie(default=None, alias="sessao"),
-    session: Session = Depends(get_session),
-) -> Usuario:
+# LeIA: "Authorization: Bearer <token>" is accepted next to the cookie (the app runs on another origin).
+def _bearer_token(authorization: Optional[str]) -> Optional[str]:
+    if not authorization:
+        return None
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer":
+        return None
+    return token.strip() or ""
+
+
+def _resolver_usuario(session: Session, sessao: Optional[str], authorization: Optional[str],
+                      sem_credencial_redireciona: bool) -> Usuario:
+    bearer = _bearer_token(authorization)
+    if bearer is not None:
+        u = session.exec(select(Usuario).where(Usuario.session_token == bearer)).first() if bearer else None
+        if not u:
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Sessão inválida ou expirada. Entre de novo.")
+        return u
     if not sessao:
-        raise HTTPException(status.HTTP_303_SEE_OTHER, headers={"Location": "/login"})
+        if sem_credencial_redireciona:
+            raise HTTPException(status.HTTP_303_SEE_OTHER, headers={"Location": "/login"})
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Entre na sua conta para continuar.")
     u = session.exec(select(Usuario).where(Usuario.session_token == sessao)).first()
     if not u:
-        raise HTTPException(status.HTTP_303_SEE_OTHER, headers={"Location": "/login"})
+        if sem_credencial_redireciona:
+            raise HTTPException(status.HTTP_303_SEE_OTHER, headers={"Location": "/login"})
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Sessão inválida ou expirada. Entre de novo.")
     return u
+
+
+def usuario_atual(
+    sessao: Optional[str] = Cookie(default=None, alias="sessao"),
+    authorization: Optional[str] = Header(default=None),
+    session: Session = Depends(get_session),
+) -> Usuario:
+    """Cookie or Bearer. Without any credential: 303 to /login (templates). Invalid Bearer: 401 JSON."""
+    return _resolver_usuario(session, sessao, authorization, sem_credencial_redireciona=True)
+
+
+# LeIA: same resolution for the JSON API, but 401 instead of a redirect when nothing is sent
+def usuario_api(
+    sessao: Optional[str] = Cookie(default=None, alias="sessao"),
+    authorization: Optional[str] = Header(default=None),
+    session: Session = Depends(get_session),
+) -> Usuario:
+    return _resolver_usuario(session, sessao, authorization, sem_credencial_redireciona=False)
 
 
 def criar_usuario_inicial(session: Session, email: str, senha: str, nome: str, papel: str):

@@ -1,0 +1,17 @@
+--- temp/oab-v2/app_gestao.py	2026-09-13 10:40:44.234521457 -0300
++++ oabv5 (3)/oab/app_gestao.py	2026-09-13 12:21:02.907834348 -0300
+@@ -189,10 +189,13 @@
+                           payload=f'{{"hash":"{h}"}}'))
+     session.commit()
+ 
+-    token = request.cookies.get("sessao")
++    token = u.session_token
+     from main import groq_client
+     from core.pipeline_pdf import executar_pipeline_pdf
+     bg.add_task(executar_pipeline_pdf, t.id, groq_client, "", token)
++    if not token:
++        log.warning("⚠️  [chat] session_token ausente para usuário %s — "
++                   "destilação NÃO será registrada na memória de sessão", u.id)
+ 
+     log.info("📁 [chat] Tarefa criada + destilação agendada | id=%s hash=%s", t.id, h)
+     return {"tarefa_id": t.id, "hash": h}

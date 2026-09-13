@@ -15,6 +15,8 @@ from fastapi.templating import Jinja2Templates
 from groq import AsyncGroq
 from sqlmodel import Session
 
+from core.workspace import pasta as _workspace_pasta
+
 # ─── LOGGING ─────────────────────────────────────────────────────────────
 logging.basicConfig(
     level=getattr(logging, os.getenv("LOG_LEVEL", "INFO").upper(), logging.INFO),
@@ -80,9 +82,13 @@ app.include_router(gestao_router)
 # LeIA: JSON for the citizen app, receipt, public verification and timestamp (apps/web consumes these)
 from leia.api_cliente import router as cliente_router, get_attempt   # noqa: E402
 from leia.registry import build_router as build_registry_router       # noqa: E402
+from leia.api_auth import router as auth_router                       # noqa: E402  accounts (Bearer)
+from leia.api_tarefas import router as tarefas_router                 # noqa: E402  documents of the signed-in user
 
 app.include_router(cliente_router)
 app.include_router(build_registry_router(get_attempt, templates))
+app.include_router(auth_router)
+app.include_router(tarefas_router)
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -218,13 +224,39 @@ def limpar_contexto_persistente() -> str:
 
 
 def limitar_timeline(timeline, max_chars: int = 12000, max_msgs: int = 12):
-    acum, sel = 0, []
-    for msg in reversed(timeline):
+    """
+    Seleciona as mensagens mais recentes até o orçamento de chars/msgs.
+
+    Bug corrigido: a versão anterior fazia `acum += len(t)` e só DEPOIS
+    verificava o limite — então quando a ÚLTIMA mensagem (a pergunta atual,
+    já com o objetivo/T6_FUSAO_MEMORIA embutido) sozinha já passava de
+    max_chars, ela era descartada inteira e o modelo recebia só o system
+    prompt + a instrução final, sem pergunta nem contexto nenhum (é
+    exatamente o que aconteceu: "0 msgs · 23121 chars" no log — a mensagem
+    de 23k chars foi contada e depois jogada fora).
+
+    Agora a última mensagem da timeline (o input atual do usuário) NUNCA é
+    descartada por estourar o orçamento — só o histórico anterior a ela é
+    cortado para caber no que sobrar do orçamento.
+    """
+    if not timeline:
+        return [], 0, 0
+
+    *historico, atual = timeline
+    atual_content = str(atual.get("content", ""))
+    acum = len(atual_content)
+    if acum > max_chars:
+        log.warning("⚠️  mensagem atual (%d chars) já excede max_chars (%d) "
+                    "sozinha — mantida integralmente mesmo assim", acum, max_chars)
+    sel = [atual]
+
+    for msg in reversed(historico):
         t = str(msg.get("content", ""))
         acum += len(t)
         if acum > max_chars or len(sel) >= max_msgs:
             break
         sel.append(msg)
+
     sel.reverse()
     return sel, acum, estimar_tokens(acum)
 
@@ -237,6 +269,33 @@ def ler_anexo_bytes(nome: str, conteudo: bytes) -> str:
     except Exception as e:
         log.error("❌ anexo %s | %s", nome, e)
         return ""
+
+
+# ══════════════════════════════════════════════════════════════════════════
+#  DEBUG — payload real enviado/recebido do LLM no Chat Bot, gravado em
+#  workspace/{hash}/chat_llm_debug.jsonl (mesma pasta do T6_FUSAO_MEMORIA.json
+#  daquela sessão de destilação). Existe para depurar por que o chat às vezes
+#  não usa o processo destilado para responder: com isso dá pra conferir,
+#  linha a linha, exatamente o que foi montado e mandado pro modelo (incluindo
+#  se o T6 realmente foi injetado no prompt) e o que ele devolveu.
+# ══════════════════════════════════════════════════════════════════════════
+def _debug_log_llm(hash_sessao: str | None, tipo: str, **dados) -> None:
+    if not hash_sessao:
+        log.info("🐞 debug LLM | sem hash de sessão (nenhum T6 destilado ainda) | tipo=%s", tipo)
+        return
+    try:
+        linha = {
+            "ts": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "tipo": tipo,
+            **dados,
+        }
+        p = _workspace_pasta(hash_sessao) / "chat_llm_debug.jsonl"
+        with p.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(linha, ensure_ascii=False, default=str) + "\n")
+        log.info("🐞 debug LLM salvo | hash=%s… | tipo=%s | %s",
+                  hash_sessao[:8], tipo, p)
+    except Exception as e:
+        log.error("❌ debug LLM falhou | hash=%s | %s", hash_sessao, e)
 
 
 def verificar_stop(texto) -> bool:
@@ -283,7 +342,8 @@ def _montar_messages(timeline, config) -> list:
 # ══════════════════════════════════════════════════════════════════════════
 #  ENGINE — `emitir_stream=False` para intermediários
 # ══════════════════════════════════════════════════════════════════════════
-async def _executar_agente(timeline, config, emitir_stream: bool = False):
+async def _executar_agente(timeline, config, emitir_stream: bool = False,
+                            debug_hash: str | None = None):
     nome   = config.get("nome", "?")
     modelo = config.get("modelo") or MODELO_PADRAO
     tipo   = config.get("tipo_saida", "texto").lower()
@@ -295,6 +355,9 @@ async def _executar_agente(timeline, config, emitir_stream: bool = False):
     messages = _montar_messages(timeline, config)
     total_chars = sum(len(m.get("content", "")) for m in messages)
     log.info("   → payload | %d msgs · ~%d chars", len(messages), total_chars)
+    _debug_log_llm(debug_hash, "chat_llm_payload_enviado",
+                    agente=nome, modelo=modelo, total_chars=total_chars,
+                    messages=messages)
     yield ("meta", {"messages": messages, "modelo": modelo})
 
     inicio = time.time()
@@ -337,6 +400,11 @@ async def _executar_agente(timeline, config, emitir_stream: bool = False):
             except Exception:
                 log.info("   ℹ️  fallback: texto")
 
+        _debug_log_llm(debug_hash, "chat_llm_payload_recebido",
+                        agente=nome, tempo=round(tempo, 3),
+                        think_chars=len(think_raw), resposta_bruta=out_raw,
+                        resposta=content)
+
         yield ("done", {
             "role": "assistant",
             "agent": nome,
@@ -349,6 +417,7 @@ async def _executar_agente(timeline, config, emitir_stream: bool = False):
         })
     except Exception as e:
         log.error("   💥 ERRO | %s", e)
+        _debug_log_llm(debug_hash, "chat_llm_erro", agente=nome, erro=str(e))
         yield ("error", str(e))
 
 
@@ -359,7 +428,8 @@ def _sse(evt: dict) -> str:
     return f"data: {json.dumps(evt, ensure_ascii=False)}\n\n"
 
 
-async def _stream_orquestrador(texto, anexos, protocolo_json, objetivo, isolar_pergunta=True):
+async def _stream_orquestrador(texto, anexos, protocolo_json, objetivo, isolar_pergunta=True,
+                                debug_hash: str | None = None):
     log.info("═" * 62)
     log.info("🎬 PIPELINE | %d chars · %d anexos", len(texto), len(anexos))
 
@@ -418,7 +488,7 @@ async def _stream_orquestrador(texto, anexos, protocolo_json, objetivo, isolar_p
         await asyncio.sleep(DELAY_ENTRE_AGENTES)
 
         async for kind, payload in _executar_agente(
-            timeline, cfg, emitir_stream=eh_ultimo
+            timeline, cfg, emitir_stream=eh_ultimo, debug_hash=debug_hash
         ):
             if kind == "meta":
                 yield _sse({"type": "agent_payload",
@@ -546,31 +616,42 @@ async def api_chat(
     except Exception:
         protocolo_efetivo = carregar_protocolo()
 
-    # Anexo compartilhado (server-side, autoritativo): JSON com as 3 partes
-    # já destiladas nesta sessão de login — jurisprudência, resumo
-    # estruturado e chat. Acompanha TODA pergunta do usuário. Nunca inclui
-    # nada do fluxo de PDF assinado (memória inteiramente separada).
+    # Anexo compartilhado (server-side, autoritativo): o processo
+    # estruturado (T6_FUSAO_MEMORIA) já destilado nesta sessão de login.
+    # Acompanha TODA pergunta do usuário. Nunca inclui PDF, texto bruto,
+    # nem nada do fluxo de PDF assinado (memória inteiramente separada).
     from core import sessao as sess
-    token = request.cookies.get("sessao")
+    token = u.session_token
     anexo = sess.anexo_compartilhado(token) if token else None
+    hash_sessao = anexo.get("hash") if anexo else None
     objetivo_efetivo = objetivo
     if anexo:
         objetivo_efetivo += (
-            "\n\nResponda em português do Brasil, de forma direta, à pergunta "
-            "específica do usuário abaixo, usando como única fonte de contexto "
-            "o documento/processo no anexo a seguir (campo \"resumo_estruturado\" "
-            "de cada parte). Não use nenhuma outra memória ou conversa anterior."
-            "\n\n<anexo_sessao_destilado>\n"
-            + json.dumps(anexo, ensure_ascii=False)
-            + "\n</anexo_sessao_destilado>"
+            "\n\nO processo abaixo (\"" + str(anexo.get("titulo") or "documento") + "\") "
+            "já foi destilado nesta sessão e está disponível para responder à "
+            "pergunta do usuário. Use SOMENTE estes dados — responda em "
+            "português do Brasil, direto, à pergunta específica feita.\n\n"
+            "PROCESSO:\n"
+            + json.dumps(anexo["processo"], ensure_ascii=False)
         )
+        # Grava o T6 exatamente como foi injetado no prompt — permite conferir
+        # se o conteúdo de T6_FUSAO_MEMORIA.json realmente chegou ao modelo
+        # (e em que formato), sem precisar reconstruir isso a partir do log
+        # geral de payload de cada agente.
+        _debug_log_llm(hash_sessao, "chat_contexto_t6_injetado",
+                        titulo=anexo.get("titulo"),
+                        pergunta_usuario=texto,
+                        t6_processo=anexo["processo"])
+    else:
+        log.warning("⚠️  chat sem T6 destilado nesta sessão — "
+                    "respondendo sem processo anexado | user=%s", u.email)
 
     anexos_bytes = []
     for up in anexos:
         if up and up.filename:
             anexos_bytes.append((up.filename, await up.read()))
     gen = _stream_orquestrador(texto, anexos_bytes, protocolo_efetivo, objetivo_efetivo,
-                                isolar_pergunta=True)
+                                isolar_pergunta=True, debug_hash=hash_sessao)
     return StreamingResponse(
         gen,
         media_type="text/event-stream",

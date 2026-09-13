@@ -81,7 +81,11 @@
     "scope": "Respondo só com o que está neste documento. O que não estiver nele, eu anoto para {lawyer} responder.",
     "notInDocument": "Isso não está escrito neste documento. Anotei para {lawyer} responder.",
     "adviceRequest": "Se vale a pena assinar é uma decisão sua com {lawyer}. Eu só explico o que está escrito.",
-    "examples": ["E se eu perder?", "Posso trocar de advogado?", "Quanto custa desistir?"]
+    "examples": [
+      "E se eu perder?",
+      "Posso trocar de advogado?",
+      "Quanto custa desistir?"
+    ]
   },
   "c4": {
     "checkingOf": "Conferindo {k} de {total}",
@@ -126,18 +130,40 @@
     "pendings": "Pendências para você",
     "thisWeek": "Esta semana",
     "empty": "Nenhuma sessão ainda. Envie um documento para gerar o link da sua cliente.",
-    "columns": { "person": "Pessoa", "document": "Documento", "status": "Estado", "time": "Tempo", "pendings": "Pendências", "action": "Ação" },
-    "actions": { "review": "Revisar", "copyLink": "Copiar link", "validate": "Validar", "viewReceipt": "Ver comprovante" },
+    "columns": {
+      "person": "Pessoa",
+      "document": "Documento",
+      "status": "Estado",
+      "time": "Tempo",
+      "pendings": "Pendências",
+      "action": "Ação"
+    },
+    "actions": {
+      "review": "Revisar",
+      "copyLink": "Copiar link",
+      "validate": "Validar",
+      "viewReceipt": "Ver comprovante"
+    },
     "pendingDoubt": "dúvida fora do documento",
     "pendingComprehension": "resposta insuficiente em 2 tentativas"
   },
   "a1": {
     "title": "Enviar documento",
     "type": "Tipo do documento",
-    "types": { "procuracao": "Procuração", "contrato_honorarios": "Contrato de honorários", "acordo": "Acordo" },
+    "types": {
+      "procuracao": "Procuração",
+      "contrato_honorarios": "Contrato de honorários",
+      "acordo": "Acordo"
+    },
     "upload": "Escolher PDF",
     "uploadHint": "PDF com texto selecionável, sem dados de terceiros que não fazem parte do documento.",
-    "stages": ["Lendo o PDF", "Separando cláusulas", "Escrevendo em linguagem simples", "Conferindo trechos", "Gerando áudio"],
+    "stages": [
+      "Lendo o PDF",
+      "Separando cláusulas",
+      "Escrevendo em linguagem simples",
+      "Conferindo trechos",
+      "Gerando áudio"
+    ],
     "failedScan": "Este PDF parece ser uma imagem. Envie um PDF com texto selecionável."
   },
   "a2": {
@@ -173,7 +199,117 @@
     "blockTime": "Data e hora do registro",
     "network": "Rede de testes (Polygon Amoy)",
     "howTo": "Como conferir",
-    "steps": ["Baixe o JSON canônico.", "Rode sha256sum no arquivo.", "Compare com o código acima.", "Abra a transação e confira o mesmo código."],
+    "steps": [
+      "Baixe o JSON canônico.",
+      "Rode sha256sum no arquivo.",
+      "Compare com o código acima.",
+      "Abra a transação e confira o mesmo código."
+    ],
     "noPersonalData": "Esta página não contém nome, documento nem respostas."
+  },
+  "auth": {
+    "signIn": "Entrar",
+    "signUp": "Criar conta",
+    "name": "Nome",
+    "email": "E-mail",
+    "password": "Senha",
+    "role": "Quem é você",
+    "roleCitizen": "Cidadã",
+    "roleLawyer": "Advogado",
+    "oabOptional": "Número da OAB (opcional)",
+    "submitSignIn": "Entrar no meu painel",
+    "submitSignUp": "Criar minha conta",
+    "signOut": "Sair",
+    "myPanel": "Meu painel",
+    "signInHint": "Entre para ver seus documentos e enviar novos.",
+    "signUpHint": "A conta serve para guardar seus documentos e voltar depois.",
+    "errors": {
+      "required": "Preencha todos os campos para continuar.",
+      "invalid": "E-mail ou senha não conferem. Confira e tente de novo.",
+      "exists": "Já existe uma conta com este e-mail. Entre com ela.",
+      "notAllowed": "Este tipo de conta não está aberto agora.",
+      "generic": "Deu um problema do nosso lado, não foi você. Tente de novo em instantes."
+    }
+  },
+  "panel": {
+    "lawyerTitle": "Documentos",
+    "citizenTitle": "Meus documentos",
+    "sendDocument": "Enviar um documento",
+    "sendMyDocument": "Enviar meu documento",
+    "emptyLawyer": "Nenhum documento ainda. Envie um PDF para gerar o link da sua cliente.",
+    "emptyCitizen": "Nenhum documento por enquanto. Envie o seu ou abra o link que você recebeu.",
+    "loading": "Carregando seus documentos.",
+    "copyClientLink": "Copiar link da cliente",
+    "openAsClient": "Abrir como a cliente",
+    "openDoubts": "{n} dúvidas abertas",
+    "noDoubts": "Sem dúvidas abertas",
+    "details": "Ver detalhes",
+    "backToList": "Voltar para a lista",
+    "status": {
+      "preparing": "Preparando",
+      "readyLawyer": "Pronto para a cliente",
+      "readyCitizen": "Pronto para você",
+      "understood": "Entendimento registrado",
+      "failed": "Não deu certo"
+    },
+    "detail": {
+      "clientLink": "Link da cliente",
+      "clientLinkHint": "Envie este link para a cliente. Ele abre a explicação no celular dela.",
+      "lastStep": "Última etapa",
+      "events": "Etapas",
+      "attempts": "Respostas da cliente",
+      "attemptsCitizen": "Suas respostas",
+      "noAttempts": "Ainda não há respostas.",
+      "attemptLine": "Rodada {n}: {acertos} de {total}",
+      "doubts": "Dúvidas para o advogado",
+      "doubtsCitizen": "Suas dúvidas para o advogado",
+      "noDoubts": "Nenhuma dúvida enviada.",
+      "chatContext": "Ver a conversa com a assistente",
+      "reply": "Responder",
+      "replyPlaceholder": "Escreva a resposta para a cliente",
+      "replied": "Respondida",
+      "awaitingReply": "Aguardando resposta",
+      "replySent": "Resposta enviada.",
+      "citizen": "Cidadã",
+      "lawyer": "Advogado",
+      "origin": "Enviado por",
+      "originLawyer": "advogado",
+      "originCitizen": "cidadã",
+      "eventNames": {
+        "criada": "Documento recebido",
+        "extracao_texto": "Lendo o PDF",
+        "pipeline_concluido": "Explicação pronta",
+        "cidadao_vinculado": "Cidadã abriu o link",
+        "tentativa_registrada": "Respostas registradas",
+        "entendimento_registrado": "Entendimento registrado",
+        "falhou": "Não deu certo"
+      }
+    }
+  },
+  "upload": {
+    "title": "Enviar um documento",
+    "titleCitizen": "Enviar meu documento",
+    "intro": "Escolha o PDF e dê um nome para ele. A explicação em linguagem simples fica pronta em alguns minutos.",
+    "docTitle": "Nome do documento",
+    "docTitlePlaceholder": "Ex.: Contrato de honorários",
+    "file": "Arquivo PDF",
+    "fileHint": "PDF com texto selecionável, sem dados de terceiros que não fazem parte do documento.",
+    "choose": "Escolher PDF",
+    "chosen": "Escolhido: {name}",
+    "submit": "Enviar documento",
+    "submitting": "Enviando o documento",
+    "needFile": "Escolha um arquivo PDF para continuar.",
+    "notPdf": "Este arquivo não é um PDF. Escolha um arquivo .pdf.",
+    "doneTitle": "Documento enviado",
+    "doneLawyer": "A explicação está sendo preparada. Envie o link abaixo para a sua cliente.",
+    "openInPanel": "Ver no painel",
+    "sendAnother": "Enviar outro documento"
+  },
+  "doubt": {
+    "sendToLawyer": "Enviar esta dúvida para o advogado",
+    "sending": "Enviando a dúvida",
+    "sent": "Enviada. O advogado responde pelo painel.",
+    "sendFailed": "Não foi possível enviar agora. Tente de novo em instantes.",
+    "askFirst": "Escreva sua dúvida acima para poder enviá-la ao advogado."
   }
 }

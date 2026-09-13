@@ -34,6 +34,7 @@ invalida o anterior).
 | `GET /api/t/{hash}` | | como hoje **mais** `advogado: { nome } \| null` (nulo quando o dono é `cidadao`), `tem_advogado: bool`, `cidadao_vinculado: bool`, `duvidas_enviadas: n` |
 | `POST /api/t/{hash}/duvida` | `{ texto, contexto?: [ { role: "user" \| "bot", text } ] }` | `{ id, criada_em }`; 409 se a tarefa não tem advogado; limitado por IP |
 | `POST /api/t/{hash}/vincular` | Bearer (`cidadao`) | `{ ok: true }`; define `tarefa.cidadao_id` se ainda vazio |
+| `GET /api/t/{hash}/inferencias` | | `{ tarefa, texto (texto extraído), classes: [ { classe, rotulo, cor, itens: [ { ref, campo, valor, trecho, pos: [inicio, fim] \| null, conferido, cor } ] } ], sinteses: [ { classe, rotulo, texto, lastro[] } ], total, conferidos }`. `pos` vem de busca do `trecho_verbatim` no texto (ignorando espaços), pois o workflow devolve posições `0:0`; 409 enquanto não está pronta |
 
 ## Banco e escala
 - `DATABASE_URL` (Postgres, `postgresql+psycopg://...`) quando definido; senão SQLite em `DB_PATH`. Tabelas via

@@ -44,8 +44,9 @@ export function ProgressSteps({ total, current, label }: { total: number; curren
   );
 }
 
-export function StatusChip({ tone, children }: { tone: "ok" | "pending" | "neutral"; children: ReactNode }) {
-  const tones = { ok: "bg-ok-soft text-ok", pending: "bg-pend-soft text-pend", neutral: "bg-muted text-ink-2" };
+export function StatusChip({ tone, children }: { tone: "ok" | "pending" | "neutral" | "danger"; children: ReactNode }) {
+  /* LeIA: "danger" only for a failed pipeline, never for the citizen's answers */
+  const tones = { ok: "bg-ok-soft text-ok", pending: "bg-pend-soft text-pend", neutral: "bg-muted text-ink-2", danger: "bg-danger-soft text-danger" };
   return <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[1rem] font-bold ${tones[tone]}`}>{children}</span>;
 }
 
@@ -95,6 +96,30 @@ export function SpeakButton({ text, label = "Ouvir" }: { text: string; label?: s
     </Button>
   );
 }
+
+/* LeIA: v3 accounts. Navy bar for the signed-in screens: logo, who is signed in, panel and sign-out links. */
+export function AppHeader({ right }: { right?: ReactNode }) {
+  return (
+    <header className="no-print -mx-4 mb-4 flex min-h-[56px] items-center justify-between gap-3 bg-navy px-4 py-2 text-paper">
+      <Link href="/" aria-label="LeIA, página inicial" className="inline-flex min-h-[44px] items-center">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo-horizontal-dark.svg" alt="LeIA" className="h-7" />
+      </Link>
+      {right}
+    </header>
+  );
+}
+
+export function Field({ id, label, hint, children }: { id: string; label: string; hint?: string; children: ReactNode }) {
+  return (
+    <div className="grid gap-1.5">
+      <label htmlFor={id} className="font-bold">{label}</label>
+      {children}
+      {hint && <p className="text-[0.95rem] text-ink-2">{hint}</p>}
+    </div>
+  );
+}
+export const inputClass = "min-h-[48px] w-full rounded-button border-2 border-line bg-surface px-3 text-[1.05rem] focus:border-teal-deep";
 
 export function Page({ children, wide = false }: { children: ReactNode; wide?: boolean }) {
   return <main className={`mx-auto w-full flex-1 px-4 pb-6 ${wide ? "max-w-[760px]" : "max-w-[560px] md:max-w-[680px]"}`}>{children}</main>;

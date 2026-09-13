@@ -7,9 +7,15 @@ Next.js 16 (App Router), Tailwind 4, Lucide, `qrcode`. Textos em `messages/pt-BR
 | Rota | Tela |
 |---|---|
 | `/` | landing |
-| `/t/{hash}` | jornada da cidadã: boas-vindas, um ponto por vez com trecho original, dúvida, perguntas, resultado |
+| `/t/{hash}` | jornada da cidadã: boas-vindas, um ponto por vez com trecho original, dúvida (com envio ao advogado quando há um), perguntas, resultado |
 | `/comprovante/{hash_imutavel}` | comprovante com QR e código do registro |
 | `/verify/{hash_imutavel}` | verificação pública: JSON canônico, hash, prova OpenTimestamps |
+| `/entrar` | entrar ou criar conta (cidadã ou advogado); sessão em `localStorage` (`leia:auth`) |
+| `/painel` | advogado: documentos, status, link da cliente, respostas e dúvidas abertas; cidadã: "Meus documentos" |
+| `/painel/{id}` | detalhe: link da cliente, etapas, respostas, dúvidas com campo de resposta (advogado) |
+| `/enviar` | enviar um PDF; advogado recebe o link da cliente, cidadã vai direto para `/t/{hash}` |
+
+Contas, painéis e dúvidas seguem [../../docs/API-V3-CONTRACT.md](../../docs/API-V3-CONTRACT.md) (`lib/auth.ts`, `lib/api.ts`).
 
 ## Rodar
 ```bash
@@ -27,6 +33,12 @@ Para apontar ao serviço cognitivo (ou ao mock Python com carimbo OpenTimestamps
 `data/fixture-honorarios.json` (cópia de `examples/`). Sem banco: o comprovante viaja como token na URL e o hash é
 recalculado (`lib/registry.ts`, mesmos campos e canonicalização do `leia/registry.py`). Sem carimbo OpenTimestamps
 nessa versão; o mock Python faz o carimbo de verdade.
+
+As rotas v3 (`app/api/auth/*`, `app/api/tarefas*`, `.../duvida`, `.../vincular`) guardam contas, documentos, respostas e
+dúvidas em memória do processo (`lib/mock.ts`): tudo some ao reiniciar e instâncias serverless não compartilham o estado.
+Qualquer cadastro funciona. Um documento enviado reaproveita o conteúdo do exemplo e fica "pronto" 8 segundos depois.
+Contas de demonstração (senha `leia1234`): `advogada@exemplo.leia` (advogado, dona do documento `demo`) e
+`cidada@exemplo.leia` (cidadã).
 
 ## Publicar na Vercel
 ```bash

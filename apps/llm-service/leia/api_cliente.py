@@ -1,23 +1,29 @@
 """Public JSON for the citizen app and the registry adapter. Included from main.py.
 
 GET /api/t/{hash}: the same data the service renders in /t/{hash}, as JSON and without the answer key.
+POST /api/t/{hash}/duvida: a doubt for the lawyer who sent the document (409 when nobody did).
+POST /api/t/{hash}/vincular: links the signed-in citizen to the task (Bearer, papel cidadao).
 stamp_attempt(): OpenTimestamps proof of an approved attempt, stored in the task workspace.
 get_attempt(): adapter used by leia.registry (receipt and public verification).
 """
 from __future__ import annotations
 
+import json
 import re
 import unicodedata
 from datetime import timezone
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlmodel import Session, select
+from pydantic import BaseModel, Field
+from sqlmodel import Session, func, select
 
 import core.tentativas as tn
 import core.workspace as ws
 from app_gestao import _ler_artefato, _ler_json
-from core.db import Tarefa, Tentativa, engine, get_session
+from core.auth import usuario_api
+from core.db import Duvida, Tarefa, Tentativa, Usuario, engine, get_session
+from leia.ratelimit import rate_limit
 from leia.registry import build_payload, ots_stamp, payload_hash
 
 READY_STATUSES = ("pronta", "enviada", "assinada")
@@ -77,12 +83,32 @@ def topics_from_summary(resumo_md: str, memoria: Any) -> Optional[list[dict[str,
     return topics
 
 
-@router.get("/api/t/{hash_}")
-async def api_cliente_json(hash_: str, session: Session = Depends(get_session)):
+def _task_or_404(session: Session, hash_: str) -> Tarefa:
     t = session.exec(select(Tarefa).where(Tarefa.hash == hash_)).first()
     if not t:
         raise HTTPException(404, "Link inválido ou expirado")
-    base = {"tarefa": {"hash": t.hash, "titulo": t.titulo, "status": t.status}, "eventos": ws.ler_eventos(t.hash)[-8:]}
+    return t
+
+
+def lawyer_of(session: Session, t: Tarefa) -> Optional[Usuario]:
+    """The owner, unless the owner is a citizen who sent the document alone."""
+    owner = session.get(Usuario, t.advogado_id)
+    return owner if owner and owner.papel != "cidadao" else None
+
+
+class DuvidaIn(BaseModel):
+    texto: str = Field(min_length=1, max_length=4000)
+    contexto: Optional[list[dict[str, Any]]] = None
+
+
+@router.get("/api/t/{hash_}")
+async def api_cliente_json(hash_: str, session: Session = Depends(get_session)):
+    t = _task_or_404(session, hash_)
+    lawyer = lawyer_of(session, t)
+    doubts = session.exec(select(func.count(Duvida.id)).where(Duvida.tarefa_id == t.id)).one()
+    base = {"tarefa": {"hash": t.hash, "titulo": t.titulo, "status": t.status}, "eventos": ws.ler_eventos(t.hash)[-8:],
+            "advogado": {"nome": lawyer.nome} if lawyer else None, "tem_advogado": lawyer is not None,
+            "cidadao_vinculado": t.cidadao_id is not None, "duvidas_enviadas": int(doubts or 0)}
     if t.status not in READY_STATUSES:
         return {**base, "resumo_md": None, "topicos": None, "questoes": [], "ultima_tentativa": None}
     resumo_md = _ler_artefato(t.hash, "resumo_humanizado.md") or ""
@@ -91,6 +117,39 @@ async def api_cliente_json(hash_: str, session: Session = Depends(get_session)):
     lista = tn.listar(t.id)
     return {**base, "resumo_md": resumo_md, "topicos": topics_from_summary(resumo_md, memoria),
             "questoes": _public_questions(questoes), "ultima_tentativa": _public_attempt(lista[-1] if lista else None)}
+
+
+@router.post("/api/t/{hash_}/duvida", dependencies=[Depends(rate_limit)])
+async def api_cliente_duvida(hash_: str, body: DuvidaIn, session: Session = Depends(get_session)):
+    t = _task_or_404(session, hash_)
+    if lawyer_of(session, t) is None:
+        raise HTTPException(409, "Este documento não tem um advogado para receber a dúvida.")
+    texto = body.texto.strip()
+    if not texto:
+        raise HTTPException(400, "Escreva a sua dúvida.")
+    contexto = None
+    if body.contexto:
+        keep = [{"role": "bot" if str(m.get("role")) == "bot" else "user", "text": str(m.get("text", ""))[:4000]}
+                for m in body.contexto[-20:] if isinstance(m, dict)]
+        contexto = json.dumps(keep, ensure_ascii=False)
+    d = Duvida(tarefa_id=t.id, texto=texto, contexto=contexto)
+    session.add(d); session.commit(); session.refresh(d)
+    ws.registrar_evento(t.hash, "duvida_enviada", duvida_id=d.id, chars=len(texto))
+    return {"id": d.id, "criada_em": d.criada_em.isoformat()}
+
+
+@router.post("/api/t/{hash_}/vincular")
+async def api_cliente_vincular(hash_: str, u: Usuario = Depends(usuario_api), session: Session = Depends(get_session)):
+    if u.papel != "cidadao":
+        raise HTTPException(403, "Só uma conta de cidadã pode se vincular a um documento.")
+    t = _task_or_404(session, hash_)
+    if t.cidadao_id is None:
+        t.cidadao_id = u.id
+        session.add(t); session.commit()
+        ws.registrar_evento(t.hash, "cidadao_vinculado", cidadao_id=u.id)
+    elif t.cidadao_id != u.id:
+        raise HTTPException(409, "Este documento já está vinculado a outra conta.")
+    return {"ok": True}
 
 
 def _ots_path(tarefa_hash: str, numero: int):
@@ -121,3 +180,98 @@ def stamp_attempt(tarefa_hash: str, numero: int, hash_imutavel: str) -> None:
     if proof:
         _ots_path(tarefa_hash, numero).write_bytes(proof)
         ws.registrar_evento(tarefa_hash, "carimbo_publico", numero=numero, payload_hash=digest)
+
+
+# ══════════════════════════════════════════════════════════════════════════
+#  LeIA: inferences over the original text (what the workflow tagged and concluded), verified by substring
+# ══════════════════════════════════════════════════════════════════════════
+CLASS_LABELS = {
+    "identificacao": ("Quem é quem", "#D2E3FC"),
+    "datas_valores": ("Datas e valores", "#C8E6C9"),
+    "fatos": ("Fatos", "#F9DEDC"),
+    "fundamentos": ("Fundamentos: leis e decisões citadas", "#EADDFF"),
+    "pedidos": ("Pedidos", "#FFDDBE"),
+}
+SYNTHESIS_FILES = [("T10_SINTESE_IDENTIFICACAO.json", "identificacao"), ("T7_SINTESE_FATOS.json", "fatos"),
+                   ("T8_SINTESE_FUNDAMENTOS.json", "fundamentos"), ("T9_SINTESE_PEDIDOS.json", "pedidos"),
+                   ("T11_SINTESE_CONTEXTO.json", "contexto")]
+
+
+def _norm_map(text: str) -> tuple[str, list[int]]:
+    """Whitespace-collapsed copy of the text plus a map from each collapsed char to its original offset."""
+    out: list[str] = []
+    idx: list[int] = []
+    prev_space = False
+    for i, ch in enumerate(text):
+        if ch.isspace():
+            if not prev_space:
+                out.append(" ")
+                idx.append(i)
+            prev_space = True
+        else:
+            out.append(ch)
+            idx.append(i)
+            prev_space = False
+    return "".join(out), idx
+
+
+def find_span(text_norm: str, idx: list[int], quote: str) -> Optional[list[int]]:
+    q = " ".join((quote or "").split())
+    if len(q) < 3:
+        return None
+    pos = text_norm.find(q)
+    if pos < 0:
+        pos = text_norm.lower().find(q.lower())
+        if pos < 0:
+            return None
+    return [idx[pos], idx[pos + len(q) - 1] + 1]
+
+
+def build_inferences(texto: str, memoria: Any, tagueado: Any, sinteses_raw: list[tuple[str, Any]]) -> dict[str, Any]:
+    text_norm, idx = _norm_map(texto or "")
+    colors: dict[str, str] = {}
+    for cls, items in ((tagueado or {}).get("_ui") or {}).items() if isinstance(tagueado, dict) else []:
+        for it in items or []:
+            if isinstance(it, dict) and it.get("categoria") and it.get("cor"):
+                colors[f"{cls}:{it['categoria']}"] = it["cor"]
+    mem = (memoria or {}).get("memoria_persistente", memoria) if isinstance(memoria, dict) else {}
+    classes, total, conferidos = [], 0, 0
+    for cls, (label, default_color) in CLASS_LABELS.items():
+        items = mem.get(cls) if isinstance(mem, dict) else None
+        if not isinstance(items, list):
+            continue
+        out = []
+        for n, it in enumerate(items):
+            if not isinstance(it, dict):
+                continue
+            quote = it.get("trecho_verbatim") or ""
+            span = find_span(text_norm, idx, quote)
+            total += 1
+            conferidos += 1 if span else 0
+            out.append({"ref": f"{cls}[{n}]", "campo": it.get("campo"), "valor": it.get("valor"), "trecho": quote,
+                        "pos": span, "conferido": bool(span),
+                        "cor": colors.get(f"{cls}:{it.get('campo')}", default_color)})
+        classes.append({"classe": cls, "rotulo": label, "cor": default_color, "itens": out})
+    sinteses = []
+    for cls, raw in sinteses_raw:
+        if not isinstance(raw, dict) or not raw:
+            continue
+        body = next(iter(raw.values())) if len(raw) == 1 and isinstance(next(iter(raw.values())), dict) else raw
+        if not isinstance(body, dict):
+            continue
+        sinteses.append({"classe": cls, "rotulo": CLASS_LABELS.get(cls, ("Contexto do processo", "#E3F1F1"))[0],
+                         "texto": body.get("valor") or "", "lastro": [str(x) for x in (body.get("lastro") or [])]})
+    return {"texto": texto or "", "classes": classes, "sinteses": sinteses, "total": total, "conferidos": conferidos}
+
+
+@router.get("/api/t/{hash_}/inferencias")
+async def api_cliente_inferencias(hash_: str, session: Session = Depends(get_session)):
+    t = session.exec(select(Tarefa).where(Tarefa.hash == hash_)).first()
+    if not t:
+        raise HTTPException(404, "Link inválido ou expirado")
+    if t.status not in READY_STATUSES:
+        raise HTTPException(409, "A explicação ainda está sendo preparada")
+    texto = _ler_artefato(t.hash, "texto_extraido.txt") or ""
+    sinteses_raw = [(cls, _ler_json(t.hash, name)) for name, cls in SYNTHESIS_FILES]
+    return {"tarefa": {"hash": t.hash, "titulo": t.titulo},
+            **build_inferences(texto, _ler_json(t.hash, "memoria_persistente.json"), _ler_json(t.hash, "texto_tagueado.json"), sinteses_raw)}

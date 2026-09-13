@@ -1,5 +1,6 @@
 /* Client for the cognitive service. Routes follow the service (see docs/LLM-API-CONTRACT.md).
    NEXT_PUBLIC_API_BASE empty = the in-app mock (app/api/*), used on the hosted demo. */
+import { authHeaders } from "./auth"; /* LeIA: v3 Bearer session (lib/auth.ts) */
 export const API_BASE = (process.env.NEXT_PUBLIC_API_BASE ?? "").replace(/\/$/, "");
 export const usingInternalMock = API_BASE === "";
 
@@ -11,8 +12,13 @@ export type Task = {
   resumo_md: string;
   topicos: Topic[] | null;
   questoes: Question[];
-  ultima_tentativa: Attempt | null;
+  ultima_tentativa: (Attempt & { comprovante_token?: string }) | null;
   eventos?: { tipo?: string; id?: string; idx?: number; total?: number; ts?: string; [k: string]: unknown }[];
+  /* LeIA: v3 (docs/API-V3-CONTRACT.md) */
+  advogado?: { nome: string } | null;
+  tem_advogado?: boolean;
+  cidadao_vinculado?: boolean;
+  duvidas_enviadas?: number;
 };
 export type QuizResult = Attempt & { comprovante_token?: string; erros: { id: number; area?: string; enunciado?: string; escolhida?: number | null }[] };
 export type VerifyResult = {
@@ -24,7 +30,7 @@ export type VerifyResult = {
 };
 
 async function check(r: Response) {
-  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  if (!r.ok) { const e: Error & { status?: number } = new Error(`HTTP ${r.status}`); e.status = r.status; throw e; }
   return r;
 }
 
@@ -92,4 +98,66 @@ export function formatDateTime(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" }).format(d);
+}
+
+/* ------------------------------------------------------------------------------------------------
+   LeIA: v3 accounts and panels (docs/API-V3-CONTRACT.md). Every call sends the Bearer token when there is one. */
+export type TaskStatus = "criada" | "processando" | "pronta" | "assinada" | "falhou" | string;
+export type TaskSummary = {
+  id: number; hash: string; titulo: string; status: TaskStatus; criada_em: string; atualizada_em: string; link_cliente: string;
+  origem: "advogado" | "cidadao"; ultima_tentativa: (Attempt & { comprovante_token?: string }) | null; duvidas_abertas: number;
+  cidadao: { nome: string } | null; advogado: { nome: string } | null;
+};
+export type ChatTurn = { role: "user" | "bot"; text: string };
+export type Doubt = { id: number; texto: string; contexto: ChatTurn[]; criada_em: string; respondida: boolean; resposta: string | null; respondida_em: string | null };
+export type TaskEvent = { tipo?: string; id?: string; idx?: number; total?: number; ts?: string; [k: string]: unknown };
+export type TaskDetail = {
+  tarefa: { id: number; hash: string; titulo: string; status: TaskStatus; criada_em: string; atualizada_em: string; origem: "advogado" | "cidadao" };
+  link_cliente: string; resumo_md: string | null; eventos: TaskEvent[];
+  tentativas: { numero: number; acertos: number; total: number; aprovado: boolean; criada_em: string; hash_imutavel: string; comprovante_token?: string }[];
+  duvidas: Doubt[]; cidadao: { nome: string } | null; advogado: { nome: string } | null;
+};
+
+const jsonHeaders = () => ({ "Content-Type": "application/json", Accept: "application/json", ...authHeaders() });
+
+export async function listTasks(): Promise<TaskSummary[]> {
+  const r = await check(await fetch(`${API_BASE}/api/tarefas`, { headers: { Accept: "application/json", ...authHeaders() }, cache: "no-store" }));
+  const { tarefas } = (await r.json()) as { tarefas: TaskSummary[] };
+  return tarefas;
+}
+export async function createTask(titulo: string, pdf: File): Promise<{ id: number; hash: string; status: TaskStatus }> {
+  const form = new FormData();
+  form.append("titulo", titulo);
+  form.append("pdf", pdf, pdf.name);
+  const r = await check(await fetch(`${API_BASE}/api/tarefas`, { method: "POST", headers: { Accept: "application/json", ...authHeaders() }, body: form }));
+  return r.json();
+}
+export async function getTaskDetail(id: string | number): Promise<TaskDetail> {
+  const r = await check(await fetch(`${API_BASE}/api/tarefas/${id}`, { headers: { Accept: "application/json", ...authHeaders() }, cache: "no-store" }));
+  return r.json();
+}
+export async function answerDoubt(id: string | number, duvidaId: number, resposta: string): Promise<{ ok: boolean }> {
+  const r = await check(await fetch(`${API_BASE}/api/tarefas/${id}/duvidas/${duvidaId}/responder`, { method: "POST", headers: jsonHeaders(), body: JSON.stringify({ resposta }) }));
+  return r.json();
+}
+export async function sendDoubt(hash: string, texto: string, contexto: ChatTurn[] = []): Promise<{ id: number; criada_em: string }> {
+  const r = await check(await fetch(`${API_BASE}/api/t/${hash}/duvida`, { method: "POST", headers: jsonHeaders(), body: JSON.stringify({ texto, contexto }) }));
+  return r.json();
+}
+export async function bindTask(hash: string): Promise<{ ok: boolean }> {
+  const r = await check(await fetch(`${API_BASE}/api/t/${hash}/vincular`, { method: "POST", headers: jsonHeaders(), body: "{}" }));
+  return r.json();
+}
+/* The citizen link is always a page of this app; the service may send it relative or absolute. */
+export function clientLinkUrl(linkOrHash: string): string {
+  const path = linkOrHash.startsWith("/") || linkOrHash.startsWith("http") ? linkOrHash : `/t/${linkOrHash}`;
+  if (path.startsWith("http")) return path;
+  return typeof window === "undefined" ? path : `${window.location.origin}${path}`;
+}
+
+/* LeIA: inferences (original text with the tagged quotes and what the workflow concluded) */
+import type { Inferences } from "./inferences";
+export async function getInferences(hash: string): Promise<Inferences> {
+  const r = await check(await fetch(`${API_BASE}/api/t/${hash}/inferencias`, { cache: "no-store" }));
+  return r.json();
 }

@@ -1,7 +1,9 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { MessageCircle } from "lucide-react";
-import { getTask, submitQuiz, topicsOf, type QuizResult, type Task } from "@/lib/api";
+import { bindTask, getTask, submitQuiz, topicsOf, type QuizResult, type Task } from "@/lib/api";
+import { isReady } from "@/lib/status";
+import { useAuth } from "@/lib/auth"; /* LeIA: v3 accounts */
 import { AssistantBanner, BottomActionBar, Button, Card, LinkButton, Page, ProgressSteps, SpeakButton, StatusChip } from "./ui";
 import { ChatSheet } from "./ChatSheet";
 import { Inline, cleanTitle } from "./Inline";
@@ -29,6 +31,14 @@ export function Journey({ hash }: { hash: string }) {
   const [chatOpen, setChatOpen] = useState(false);
   const [retry, setRetry] = useState(0);
   const storageKey = `leia:${hash}`;
+  /* LeIA: v3. A signed-in citizen is linked to the task once, so it shows up in her panel. */
+  const { usuario, ready: authReady } = useAuth();
+  const boundRef = useRef(false);
+  useEffect(() => {
+    if (!task || !authReady || usuario?.papel !== "cidadao" || task.cidadao_vinculado !== false || boundRef.current) return;
+    boundRef.current = true;
+    bindTask(hash).catch(() => { boundRef.current = false; });
+  }, [task, authReady, usuario, hash]);
 
   useEffect(() => {
     let alive = true;
@@ -54,7 +64,9 @@ export function Journey({ hash }: { hash: string }) {
 
   const topics = useMemo(() => (task ? topicsOf(task) : []), [task]);
   const questions = task?.questoes ?? [];
-  const ready = task && (task.tarefa.status === "concluida" || task.tarefa.status === "pronta" || questions.length > 0 || topics.length > 0);
+  /* LeIA: v3. topicsOf() always yields a fallback topic, so readiness comes from the status or real content, never from that fallback. */
+  const hasContent = Boolean(task && ((task.topicos && task.topicos.length > 0) || questions.length > 0 || (task.resumo_md && task.resumo_md.trim())));
+  const ready = task && (isReady(task.tarefa.status) || hasContent);
 
   useEffect(() => { if (task && !ready) { const id = setTimeout(() => setRetry((n) => n + 1), 8000); return () => clearTimeout(id); } }, [task, ready]);
 
@@ -153,6 +165,7 @@ export function Journey({ hash }: { hash: string }) {
               <Button onClick={() => (last ? (questions.length ? setStep({ kind: "question", k: 0 }) : setStep({ kind: "welcome" })) : setStep({ kind: "topic", n: step.n + 1 }))}>
                 {last ? (questions.length ? "Entendi, vamos conferir" : "Entendi") : "Entendi, próximo"}
               </Button>
+              <LinkButton href={`/t/${hash}/documento`} variant="ghost">Ver o documento com as marcações</LinkButton>
               <div className="grid grid-cols-2 gap-2">
                 <Button variant="secondary" onClick={() => (step.n === 0 ? setStep({ kind: "welcome" }) : setStep({ kind: "topic", n: step.n - 1 }))}>Voltar</Button>
                 <Button variant="secondary" onClick={() => setChatOpen(true)}>Tenho uma dúvida</Button>
@@ -229,7 +242,7 @@ export function Journey({ hash }: { hash: string }) {
       )}
 
       {fab}
-      <ChatSheet hash={hash} open={chatOpen} onClose={() => setChatOpen(false)} />
+      <ChatSheet hash={hash} open={chatOpen} onClose={() => setChatOpen(false)} temAdvogado={Boolean(task.tem_advogado)} />
     </Page>
   );
 }

@@ -342,20 +342,23 @@ async def executar_pipeline_pdf(
     _evento(tarefa_id, "pipeline_done", {"elapsed": tempo_total})
     registrar_evento(hash_, "pipeline_done", elapsed=tempo_total)
 
-    # Memória de sessão — só a parte "resumo estruturado" (memoria_persistente
-    # + resumo_humanizado), nunca o PDF nem o texto extraído.
+    # Memória de sessão — SÓ o T6_FUSAO_MEMORIA (processo estruturado),
+    # nunca o PDF, nunca o texto extraído, nunca o resumo humanizado.
     if session_token:
         with Session(engine) as s:
             t = s.get(Tarefa, tarefa_id)
             titulo = t.titulo if t else hash_
         from core import sessao as sess
-        sess.registrar_destilacao(
-            session_token, "chat",
-            hash_=hash_, titulo=titulo,
-            resumo_estruturado={
-                "memoria_persistente": outputs_anteriores.get("T6_FUSAO_MEMORIA"),
-                "resumo_humanizado": outputs_anteriores.get("T13_HUMANIZACAO"),
-            },
-        )
+        try:
+            sess.registrar_destilacao(
+                session_token, "chat",
+                hash_=hash_, titulo=titulo,
+                resumo_estruturado=outputs_anteriores.get("T6_FUSAO_MEMORIA"),
+            )
+        except Exception as e:
+            log.error("💥 falha ao registrar memória de sessão (chat) | %s", e)
+    else:
+        log.warning("⚠️  pipeline_pdf sem session_token — destilação (chat) "
+                   "não entrará no anexo compartilhado do chat")
 
     log.info("🏁 PIPELINE | %.2fs | tarefa=%s", tempo_total, tarefa_id)

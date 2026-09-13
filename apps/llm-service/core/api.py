@@ -239,12 +239,9 @@ async def executar_resumo_estruturado(
         tokens=res.get("tokens_total"), elapsed=res.get("elapsed"),
     )
 
-    # Memória de sessão — só a parte "resumo estruturado", nunca o PDF/texto
-    if session_token:
-        from core import sessao as sess
-        sess.registrar_destilacao(
-            session_token, "resumo_estruturado",
-            hash_=hash_, titulo=titulo, resumo_estruturado=dados_llm,
-        )
+    # Por ora, a memória de sessão do chat usa apenas o T6_FUSAO_MEMORIA do
+    # fluxo local de destilação (core/pipeline_pdf.py). O Resumo Estruturado
+    # (API externa) ainda não entra no anexo compartilhado do chat.
+    _ = session_token  # reservado para uso futuro
 
     log.info("🏁 RESUMO ESTRUTURADO concluído | tarefa=%s job=%s", tarefa_id, job_id)

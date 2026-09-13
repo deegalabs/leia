@@ -18,10 +18,12 @@
 # ║   session_token do usuário; aqui apagamos também o arquivo associado.    ║
 # ╚══════════════════════════════════════════════════════════════════════════╝
 from __future__ import annotations
-import json
+import json, logging
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal, Optional
+
+log = logging.getLogger("sessao")
 
 ABAS = ("jurisprudencia", "resumo_estruturado", "chat")
 Aba = Literal["jurisprudencia", "resumo_estruturado", "chat"]
@@ -87,6 +89,8 @@ def registrar_destilacao(
         "resumo_estruturado": resumo_estruturado,
     }
     _salvar(token, dados)
+    log.info("💾 memória de sessão atualizada | token=%s… | aba=%s | hash=%s",
+             (token or "")[:8], aba, hash_)
 
 
 def limpar(token: str, aba: Optional[Aba] = None) -> None:
@@ -107,20 +111,31 @@ def encerrar(token: str) -> None:
 
 
 # ══════════════════════════════════════════════════════════════════════════
-#  ANEXO COMPARTILHADO — JSON único com as 3 partes, para acompanhar toda
-#  pergunta do usuário no chat.
+#  ANEXO COMPARTILHADO — o processo estruturado (T6_FUSAO_MEMORIA) da aba
+#  que já tiver sido destilada, para acompanhar toda pergunta do usuário.
 # ══════════════════════════════════════════════════════════════════════════
 def anexo_compartilhado(token: str) -> Optional[dict]:
     """
-    Monta o JSON estruturado com as 3 partes (jurisprudencia,
-    resumo_estruturado, chat) que devem acompanhar TODA pergunta do
-    usuário nesta sessão. Cada parte só existe se aquela aba já tiver
-    concluído uma destilação. Retorna None se nada foi processado ainda.
+    Retorna o "processo" (T6_FUSAO_MEMORIA) da destilação mais recente
+    disponível nesta sessão — hoje, só a aba "chat" alimenta isso; as
+    demais abas ficam prontas para o mesmo tratamento quando entrarem.
+    Retorna None se nada foi destilado ainda nesta sessão.
+
+    Formato do retorno: {"titulo": ..., "processo": <T6_FUSAO_MEMORIA>, "hash": ...}
+    O "hash" é o hash do workspace/{hash}/ de onde veio a destilação — serve
+    para o chat gravar o log de depuração (payload enviado/recebido do LLM)
+    junto dos T*.json da mesma sessão de destilação.
     """
     dados = carregar(token)
-    if not any(dados.values()):
-        return None
-    return {aba: dados[aba] for aba in ABAS}
+    for aba in ABAS:
+        d = dados.get(aba)
+        if d and d.get("resumo_estruturado") is not None:
+            return {
+                "titulo": d.get("titulo"),
+                "processo": d["resumo_estruturado"],
+                "hash": d.get("hash"),
+            }
+    return None
 
 
 def resumo_abas_processadas(token: str) -> list[dict]:

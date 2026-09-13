@@ -1,6 +1,6 @@
 import { BadgeCheck, FileSearch, MessageCircleQuestion, ScrollText } from "lucide-react";
 import { LinkButton } from "@/components/ui";
-import { panelUrl } from "@/lib/api";
+import { AuthNav } from "@/components/Session";
 
 const steps = [
   { Icon: FileSearch, text: "O documento em PDF é lido e etiquetado. Cada informação guarda o trecho exato de onde veio." },
@@ -16,19 +16,22 @@ const trust = [
 ];
 
 export default function Landing() {
-  const panel = panelUrl();
   const demoHash = process.env.NEXT_PUBLIC_DEMO_HASH || "demo";
   return (
     <main className="flex-1">
       <section className="dark bg-navy px-4 pb-12 pt-10 text-paper">
         <div className="mx-auto max-w-[680px]">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo-horizontal-dark.svg" alt="LeIA" className="mb-8 h-10" />
+          <div className="mb-8 flex items-center justify-between gap-3">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo-horizontal-dark.svg" alt="LeIA" className="h-10" />
+            <AuthNav />
+          </div>
           <h1 className="mb-3 text-[2rem] leading-tight md:text-[2.6rem]">Entenda o seu documento jurídico em linguagem simples.</h1>
           <p className="mb-8 max-w-[560px] text-[1.15rem] text-paper/85">Um contrato, uma petição ou uma decisão vira uma explicação em partes, com o trecho original ao lado. Você pergunta, confere se entendeu e recebe um comprovante.</p>
           <div className="grid gap-3 sm:max-w-[420px]">
             <LinkButton href={`/t/${demoHash}`} className="!bg-teal !text-navy hover:!bg-[#4FBDBD]">Ver um exemplo</LinkButton>
-            {panel && <LinkButton href={panel} external variant="secondary" className="!border-paper !text-paper hover:!bg-white/10">Sou advogado: enviar um documento</LinkButton>}
+            <LinkButton href="/enviar" variant="secondary" className="!border-paper !text-paper hover:!bg-white/10">Enviar meu documento</LinkButton>
+            <LinkButton href="/entrar" variant="ghost" className="!text-paper hover:!bg-white/10">Sou advogado: entrar</LinkButton>
           </div>
           <p className="mt-6 text-[0.95rem] text-paper/70">Funciona no celular e no computador. Pode ser instalado como aplicativo.</p>
         </div>

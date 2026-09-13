@@ -1,17 +1,30 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { X } from "lucide-react";
-import { chat } from "@/lib/api";
+import { Send, X } from "lucide-react";
+import { chat, sendDoubt } from "@/lib/api";
+import { m } from "@/lib/i18n";
 import { Button } from "./ui";
 import { Inline } from "./Inline";
 
 type Msg = { role: "user" | "bot"; text: string };
 const EXAMPLES = ["Quanto eu pago se perder?", "Posso desistir depois?", "Quem paga as despesas?"];
 
-export function ChatSheet({ hash, open, onClose }: { hash: string; open: boolean; onClose: () => void }) {
+/* LeIA: v3. temAdvogado shows "send this doubt to the lawyer": the last question goes to the panel with the chat as context. */
+export function ChatSheet({ hash, open, onClose, temAdvogado = false }: { hash: string; open: boolean; onClose: () => void; temAdvogado?: boolean }) {
   const [msgs, setMsgs] = useState<Msg[]>([{ role: "bot", text: "Pode perguntar com suas palavras. Eu respondo só com o que está neste documento. Se não estiver escrito, eu aviso." }]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  const [forward, setForward] = useState<{ state: "idle" | "sending" | "sent" | "failed"; count: number }>({ state: "idle", count: 0 });
+  const lastQuestion = [...msgs].reverse().find((x) => x.role === "user") ?? null;
+  const userTurns = msgs.filter((x) => x.role === "user").length;
+  const alreadySent = forward.state === "sent" && forward.count === userTurns;
+
+  async function forwardToLawyer() {
+    if (!lastQuestion || forward.state === "sending" || alreadySent) return;
+    setForward({ state: "sending", count: userTurns });
+    try { await sendDoubt(hash, lastQuestion.text, msgs.slice(1).slice(-10)); setForward({ state: "sent", count: userTurns }); }
+    catch { setForward({ state: "failed", count: userTurns }); }
+  }
   const bodyRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -51,6 +64,16 @@ export function ChatSheet({ hash, open, onClose }: { hash: string; open: boolean
             </div>
           )}
         </div>
+        {temAdvogado && lastQuestion && !busy && (
+          <div className="border-t border-line px-4 py-2.5">
+            {alreadySent ? <p role="status" className="text-[0.95rem] text-ok">{m.doubt.sent}</p> : (
+              <Button variant="secondary" className="!min-h-[44px]" disabled={forward.state === "sending"} onClick={forwardToLawyer}>
+                <Send size={18} aria-hidden /> {forward.state === "sending" ? m.doubt.sending : m.doubt.sendToLawyer}
+              </Button>
+            )}
+            {forward.state === "failed" && forward.count === userTurns && <p role="alert" className="mt-1 text-[0.95rem] text-danger">{m.doubt.sendFailed}</p>}
+          </div>
+        )}
         <form className="flex gap-2 border-t border-line px-4 py-3" onSubmit={(e) => { e.preventDefault(); send(input); }}>
           <label htmlFor="chat-input" className="sr-only">Sua dúvida</label>
           <input id="chat-input" ref={inputRef} value={input} onChange={(e) => setInput(e.target.value)} autoComplete="off" placeholder="Fale ou escreva sua dúvida aqui"

@@ -206,12 +206,9 @@ async def executar_jurisprudencia(
         tokens=res.get("tokens_total"), elapsed=res.get("elapsed"),
     )
 
-    # ── 4. Memória de sessão — só a parte "resumo estruturado", nunca o PDF
-    if session_token:
-        from core import sessao as sess
-        sess.registrar_destilacao(
-            session_token, "jurisprudencia",
-            hash_=hash_, titulo=titulo, resumo_estruturado=dados_llm,
-        )
+    # Por ora, a memória de sessão do chat usa apenas o T6_FUSAO_MEMORIA do
+    # fluxo local de destilação (core/pipeline_pdf.py). A pesquisa de
+    # jurisprudência (API externa) ainda não entra no anexo compartilhado.
+    _ = session_token  # reservado para uso futuro
 
     log.info("🏁 JURISPRUDÊNCIA concluída | tarefa=%s job=%s", tarefa_id, job_id)

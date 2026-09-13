@@ -8,8 +8,25 @@ from sqlmodel import SQLModel, Field, Session, create_engine
 from sqlalchemy import text
 
 DB_PATH = Path(os.getenv("DB_PATH", str(Path(os.getenv("DATA_DIR", ".")) / "gestao.db")))
-DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-engine = create_engine(f"sqlite:///{DB_PATH}", echo=False)
+
+
+# LeIA: Postgres when DATABASE_URL is set (Railway), SQLite at DB_PATH otherwise
+def _database_url() -> str:
+    url = (os.getenv("DATABASE_URL") or "").strip()
+    if not url:
+        DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+        return f"sqlite:///{DB_PATH}"
+    if url.startswith("postgres://"):
+        url = "postgresql://" + url[len("postgres://"):]
+    if url.startswith("postgresql://"):
+        url = "postgresql+psycopg://" + url[len("postgresql://"):]
+    return url
+
+
+DATABASE_URL = _database_url()
+IS_SQLITE = DATABASE_URL.startswith("sqlite")
+engine = (create_engine(DATABASE_URL, echo=False) if IS_SQLITE
+          else create_engine(DATABASE_URL, echo=False, pool_pre_ping=True))
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -37,6 +54,9 @@ class Tarefa(SQLModel, table=True):
     rodada: int = 1
     criada_em: datetime = Field(default_factory=datetime.utcnow)
     atualizada_em: datetime = Field(default_factory=datetime.utcnow)
+    # LeIA: citizen account linked to the task (null when nobody linked it) and who sent the document
+    cidadao_id: Optional[int] = Field(default=None, foreign_key="usuario.id", index=True)
+    origem: str = "advogado"
 
 
 class LogEvento(SQLModel, table=True):
@@ -61,6 +81,18 @@ class Tentativa(SQLModel, table=True):
     criada_em: datetime = Field(default_factory=datetime.utcnow)
 
 
+# LeIA: doubt sent by the citizen to the lawyer who owns the task
+class Duvida(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    tarefa_id: int = Field(foreign_key="tarefa.id", index=True)
+    texto: str
+    contexto: Optional[str] = None  # JSON text: [{"role": "user"|"bot", "text": "..."}]
+    criada_em: datetime = Field(default_factory=datetime.utcnow)
+    respondida: bool = False
+    resposta: Optional[str] = None
+    respondida_em: Optional[datetime] = None
+
+
 # ══════════════════════════════════════════════════════════════════════════
 #  MIGRAÇÕES IDEMPOTENTES
 # ══════════════════════════════════════════════════════════════════════════
@@ -75,6 +107,8 @@ def _aplicar_migracoes() -> None:
     Adiciona colunas que faltam sem quebrar o banco existente.
     Cada ALTER TABLE é verificado — só roda se a coluna não existir.
     """
+    if not IS_SQLITE:  # LeIA: PRAGMA is SQLite only; on Postgres create_all builds the full schema
+        return
     with engine.begin() as conn:
         # ── Tabela tarefa ────────────────────────────────────────────────
         try:
@@ -93,6 +127,22 @@ def _aplicar_migracoes() -> None:
                 "ALTER TABLE tarefa ADD COLUMN rodada INTEGER DEFAULT 1"
             ))
             print("🔧 migração: tarefa.rodada adicionada")
+
+        # LeIA: v3 columns (citizen link and origin of the document)
+        if "cidadao_id" not in cols:
+            conn.execute(text(
+                "ALTER TABLE tarefa ADD COLUMN cidadao_id INTEGER REFERENCES usuario(id)"
+            ))
+            conn.execute(text(
+                "CREATE INDEX IF NOT EXISTS ix_tarefa_cidadao_id ON tarefa (cidadao_id)"
+            ))
+            print("🔧 migração: tarefa.cidadao_id adicionada")
+
+        if "origem" not in cols:
+            conn.execute(text(
+                "ALTER TABLE tarefa ADD COLUMN origem VARCHAR NOT NULL DEFAULT 'advogado'"
+            ))
+            print("🔧 migração: tarefa.origem adicionada")
 
         # ── Tabela tentativa (nova — pode não existir) ───────────────────
         # init_db() cria se não existir; aqui só garantimos que está lá.

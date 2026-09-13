@@ -18,6 +18,9 @@ from sqlmodel import Session, select
 
 from core.db import (Usuario, Tarefa, LogEvento, Tentativa,
                      get_session, init_db, engine)
+from core.db import Duvida                       # LeIA: doubts sent by the citizen
+from leia.pipeline import run_pipeline           # LeIA: semaphore around the workflow
+from leia.ratelimit import rate_limit            # LeIA: per-IP limit on public write routes
 from core.auth import (autenticar, encerrar_sessao, usuario_atual,
                        criar_usuario_inicial, hash_senha)
 from core import workspace as ws
@@ -59,7 +62,71 @@ def _ler_json(hash_: str, nome: str):
 
 
 def _permite_ver(u: Usuario, t: Tarefa) -> bool:
-    return u.papel != "advogado" or t.advogado_id == u.id
+    # LeIA: fornecedor sees everything; anyone else sees what they sent or, as a citizen, what is linked to them
+    if u.papel == "fornecedor":
+        return True
+    return t.advogado_id == u.id or (t.cidadao_id is not None and t.cidadao_id == u.id)
+
+
+# LeIA: shared by POST /tarefas/nova (panel) and POST /api/tarefas (app): workspace, original.pdf, meta.json,
+# events, LogEvento and the background workflow. ``origem`` and ``cidadao_id`` are the v3 columns.
+async def create_pdf_task(
+    session: Session,
+    u: Usuario,
+    titulo: str,
+    pdf: UploadFile,
+    bg: BackgroundTasks,
+    *,
+    origem: str = "advogado",
+    cidadao_id: Optional[int] = None,
+    session_token: Optional[str] = None,
+) -> Tarefa:
+    if not _ok_pdf(pdf):
+        raise HTTPException(400, "Envie um PDF.")
+
+    h = ws.novo_hash()
+    pasta = ws.pasta(h)
+
+    conteudo = await pdf.read()
+    if not conteudo:
+        raise HTTPException(400, "O arquivo está vazio.")
+    (pasta / "original.pdf").write_bytes(conteudo)
+
+    titulo_final = (titulo or "").strip()[:200] or (pdf.filename or "documento")[:200]
+    t = Tarefa(
+        hash=h,
+        titulo=titulo_final,
+        advogado_id=u.id,
+        status="criada",
+        pdf_nome=pdf.filename,
+        workspace_path=str(pasta),
+        rodada=1,
+        origem=origem,
+        cidadao_id=cidadao_id,
+    )
+    session.add(t); session.commit(); session.refresh(t)
+
+    ws.salvar_meta(h, {
+        "hash": h,
+        "titulo": t.titulo,
+        "advogado": {"id": u.id, "email": u.email, "nome": u.nome},
+        "pdf_nome": pdf.filename,
+        "pdf_bytes": len(conteudo),
+        "criada_em": t.criada_em.isoformat(),
+        "origem": origem,
+    })
+    ws.registrar_evento(h, "criada", tarefa_id=t.id, advogado_id=u.id)
+    ws.registrar_evento(h, "pdf_salvo", nome=pdf.filename, bytes=len(conteudo))
+
+    session.add(LogEvento(tarefa_id=t.id, tipo="criada",
+                          payload=f'{{"hash":"{h}"}}'))
+    session.commit()
+
+    from main import groq_client
+    bg.add_task(run_pipeline, t.id, groq_client, "", session_token)
+
+    log.info("📁 Tarefa criada + pipeline agendada | id=%s hash=%s origem=%s", t.id, h, origem)
+    return t
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -118,6 +185,8 @@ async def dashboard(
     q = select(Tarefa).order_by(Tarefa.criada_em.desc())   # type: ignore
     if u.papel == "advogado":
         q = q.where(Tarefa.advogado_id == u.id)
+    elif u.papel != "fornecedor":  # LeIA: a citizen sees what they sent or what is linked to them
+        q = q.where((Tarefa.advogado_id == u.id) | (Tarefa.cidadao_id == u.id))
 
     tarefas = session.exec(q).all()
 
@@ -191,10 +260,13 @@ async def api_pdf_destilar(
                           payload=f'{{"hash":"{h}"}}'))
     session.commit()
 
-    token = request.cookies.get("sessao")
+    token = u.session_token  # LeIA: v5 (Carlos) reads the token from the user
     from main import groq_client
-    from core.pipeline_pdf import executar_pipeline_pdf
-    bg.add_task(executar_pipeline_pdf, t.id, groq_client, "", token)
+    bg.add_task(run_pipeline, t.id, groq_client, "", token)   # LeIA: bounded by PIPELINE_CONCURRENCY
+
+    if not token:
+        log.warning("⚠️  [chat] session_token ausente para usuário %s — "
+                   "destilação NÃO será registrada na memória de sessão", u.id)
 
     log.info("📁 [chat] Tarefa criada + destilação agendada | id=%s hash=%s", t.id, h)
     return {"tarefa_id": t.id, "hash": h}
@@ -309,7 +381,7 @@ async def api_resumo_estruturado_submit(
     session.add(LogEvento(tarefa_id=t.id, tipo="criada", payload=f'{{"hash":"{h}"}}'))
     session.commit()
 
-    token = request.cookies.get("sessao")
+    token = u.session_token
     from core.api import executar_resumo_estruturado
     bg.add_task(executar_resumo_estruturado, t.id, pdf_bytes, texto,
                 nome_pdf or "documento.pdf", token)
@@ -441,7 +513,7 @@ async def api_jurisprudencia_submit(
     session.add(LogEvento(tarefa_id=t.id, tipo="criada", payload=f'{{"hash":"{h}"}}'))
     session.commit()
 
-    token = request.cookies.get("sessao")
+    token = u.session_token
     from core.api_jurisprudencia import executar_jurisprudencia
     bg.add_task(executar_jurisprudencia, t.id, pdf_bytes, texto, consulta,
                 nome_pdf or "documento.pdf", token)
@@ -495,7 +567,6 @@ async def api_jurisprudencia_resultado(
 # ══════════════════════════════════════════════════════════════════════════
 @router.get("/api/sessao/memoria")
 async def api_sessao_memoria(
-    request: Request,
     u: Usuario = Depends(usuario_atual),
 ):
     """
@@ -503,7 +574,7 @@ async def api_sessao_memoria(
     destilação processada (para o aviso no topo do chat) + o JSON completo
     das 3 partes (para inspeção/depuração no painel de Contexto).
     """
-    token = request.cookies.get("sessao")
+    token = u.session_token
     return {
         "processadas": sess.resumo_abas_processadas(token),
         "anexo": sess.anexo_compartilhado(token),
@@ -512,7 +583,6 @@ async def api_sessao_memoria(
 
 @router.post("/api/sessao/memoria/limpar")
 async def api_sessao_memoria_limpar(
-    request: Request,
     aba: Optional[str] = Form(default=None),
     u: Usuario = Depends(usuario_atual),
 ):
@@ -523,7 +593,7 @@ async def api_sessao_memoria_limpar(
     """
     if aba is not None and aba not in sess.ABAS:
         raise HTTPException(400, f"aba inválida: {aba}")
-    token = request.cookies.get("sessao")
+    token = u.session_token
     sess.limpar(token, aba)  # type: ignore[arg-type]
     return {"message": "✅ Memória de sessão limpa" + (f" (aba: {aba})" if aba else "")}
 
@@ -545,46 +615,10 @@ async def nova_post(
     u: Usuario = Depends(usuario_atual),
     session: Session = Depends(get_session),
 ):
-    if not _ok_pdf(pdf):
-        raise HTTPException(400, "Envie um PDF.")
-
-    h = ws.novo_hash()
-    pasta = ws.pasta(h)
-
-    conteudo = await pdf.read()
-    (pasta / "original.pdf").write_bytes(conteudo)
-
-    t = Tarefa(
-        hash=h,
-        titulo=titulo.strip()[:200],
-        advogado_id=u.id,
-        status="criada",
-        pdf_nome=pdf.filename,
-        workspace_path=str(pasta),
-        rodada=1,
-    )
-    session.add(t); session.commit(); session.refresh(t)
-
-    ws.salvar_meta(h, {
-        "hash": h,
-        "titulo": t.titulo,
-        "advogado": {"id": u.id, "email": u.email, "nome": u.nome},
-        "pdf_nome": pdf.filename,
-        "pdf_bytes": len(conteudo),
-        "criada_em": t.criada_em.isoformat(),
-    })
-    ws.registrar_evento(h, "criada", tarefa_id=t.id, advogado_id=u.id)
-    ws.registrar_evento(h, "pdf_salvo", nome=pdf.filename, bytes=len(conteudo))
-
-    session.add(LogEvento(tarefa_id=t.id, tipo="criada",
-                          payload=f'{{"hash":"{h}"}}'))
-    session.commit()
-
-    from main import groq_client
-    from core.pipeline_pdf import executar_pipeline_pdf
-    bg.add_task(executar_pipeline_pdf, t.id, groq_client, "")
-
-    log.info("📁 Tarefa criada + pipeline agendada | id=%s hash=%s", t.id, h)
+    # LeIA: creation steps live in create_pdf_task (shared with POST /api/tarefas)
+    t = await create_pdf_task(session, u, titulo, pdf, bg,
+                              origem="cidadao" if u.papel == "cidadao" else "advogado",
+                              cidadao_id=u.id if u.papel == "cidadao" else None)
     return RedirectResponse(f"/tarefas/{t.id}", status_code=303)
 
 
@@ -631,12 +665,17 @@ async def detalhe(
         if not tt.aprovado:
             tentativas_erros[tt.id] = tn.analisar_erros(tt, qs)
 
+    # LeIA: doubts the citizen sent to the lawyer
+    duvidas = session.exec(select(Duvida).where(Duvida.tarefa_id == t.id)
+                           .order_by(Duvida.criada_em.desc())).all()   # type: ignore
+
     return templates.TemplateResponse(
         request,
         "tarefa_detalhe.html",
         {
             "usuario": u,
             "tarefa": t,
+            "duvidas": duvidas,
             "eventos": list(reversed(eventos)),
             "link_cliente": link_cliente,
             "resumo_md": resumo_md,
@@ -692,8 +731,7 @@ async def reprocessar(
     ws.registrar_evento(t.hash, "reprocessar")
 
     from main import groq_client
-    from core.pipeline_pdf import executar_pipeline_pdf
-    bg.add_task(executar_pipeline_pdf, t.id, groq_client, "")
+    bg.add_task(run_pipeline, t.id, groq_client, "")   # LeIA: bounded by PIPELINE_CONCURRENCY
 
     log.info("🔄 Reprocessando tarefa %s (hash=%s)", t.id, t.hash)
     return RedirectResponse(f"/tarefas/{t.id}", status_code=303)
@@ -748,13 +786,12 @@ async def nova_rodada(
     ws.registrar_evento(h, "clonada", origem=t.hash, rodada=nova_rodada_n)
 
     from main import groq_client
-    from core.pipeline_pdf import executar_pipeline_pdf
     variacao = (
         f"RODADA_{nova_rodada_n}_HASH_{h[:8]}_NONCE_{secrets.token_hex(4)} — "
         f"Gere 12 questões COMPLETAMENTE DIFERENTES das geradas na rodada anterior "
         f"(novos enunciados, novas alternativas, novas áreas priorizadas)."
     )
-    bg.add_task(executar_pipeline_pdf, novo.id, groq_client, variacao)
+    bg.add_task(run_pipeline, novo.id, groq_client, variacao)   # LeIA: bounded by PIPELINE_CONCURRENCY
 
     log.info("🔁 Nova rodada | origem=%s novo=%s hash=%s", t.id, novo.id, h)
     return RedirectResponse(f"/tarefas/{novo.id}", status_code=303)
@@ -862,7 +899,7 @@ async def cliente_view(
 # ══════════════════════════════════════════════════════════════════════════
 #  API PÚBLICA DO CLIENTE — quiz
 # ══════════════════════════════════════════════════════════════════════════
-@router.post("/api/t/{hash_}/quiz")
+@router.post("/api/t/{hash_}/quiz", dependencies=[Depends(rate_limit)])   # LeIA: per-IP limit
 async def api_quiz(
     hash_: str,
     payload: dict,
@@ -918,7 +955,7 @@ async def api_quiz(
 # ══════════════════════════════════════════════════════════════════════════
 #  API PÚBLICA DO CLIENTE — chat (streaming)
 # ══════════════════════════════════════════════════════════════════════════
-@router.post("/api/t/{hash_}/chat")
+@router.post("/api/t/{hash_}/chat", dependencies=[Depends(rate_limit)])   # LeIA: per-IP limit
 async def api_cliente_chat(
     hash_: str,
     payload: dict,
