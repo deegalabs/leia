@@ -33,5 +33,5 @@ nessa versão; o mock Python faz o carimbo de verdade.
 vercel link --yes --project leia --scope danielgorgonhas-projects
 vercel deploy --prod --yes --scope danielgorgonhas-projects
 ```
-Produção: https://leia-snowy.vercel.app (protection de deploy só nos previews). Com o serviço publicado, definir
-`NEXT_PUBLIC_API_BASE` no projeto e liberar CORS no serviço para `https://leia-snowy.vercel.app`.
+Produção: https://leia-snowy.vercel.app (protection de deploy só nos previews). Variáveis de produção: `NEXT_PUBLIC_API_BASE`
+(URL do serviço no Railway) e `NEXT_PUBLIC_DEMO_HASH` (hash da tarefa de exemplo usada em "Ver um exemplo").

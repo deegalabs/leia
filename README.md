@@ -56,19 +56,24 @@ Cada entrega é uma tag anotada no git; detalhes e comandos em [docs/DELIVERIES.
 - [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md): como subir código, publicar na pasta oficial e fechar uma entrega.
 
 ## Demonstração hospedada
-**https://leia-snowy.vercel.app** (app na Vercel com o mock interno e um contrato de exemplo; sem carimbo público
-nessa versão). Toque em "Ver um exemplo" e percorra até o comprovante. O serviço real entra por variável de ambiente.
+- App (cidadã): **https://leia-snowy.vercel.app** (Vercel, projeto `leia`).
+- Serviço cognitivo: **https://llm-service-production-4278.up.railway.app** (Railway, projeto `leia`, serviço `llm-service`,
+  volume em `/data`). O app aponta para ele por `NEXT_PUBLIC_API_BASE`; o painel do profissional é o `/login` do serviço.
+- Toque em "Ver um exemplo": é uma tarefa real, processada pelo workflow a partir de
+  [examples/contrato-honorarios-exemplo.pdf](examples/contrato-honorarios-exemplo.pdf) (contrato fictício).
 
 ## Como rodar
-Dois processos: o serviço (hoje o mock, com um contrato de exemplo) e o app. Sem `NEXT_PUBLIC_API_BASE`, o app usa o
-mock interno (`apps/web/app/api/*`) e roda sozinho.
+Dois processos: o serviço cognitivo (FastAPI) e o app (Next.js). Sem `NEXT_PUBLIC_API_BASE`, o app usa um mock interno
+(`apps/web/app/api/*`) e roda sozinho, sem chave de modelo.
 ```bash
-# 1. serviço (mock do serviço cognitivo, mesmas rotas, CORS para localhost:3000)
-cd apps/llm-service && python -m venv .venv && . .venv/bin/activate
-pip install fastapi uvicorn jinja2 -r requirements-leia.txt && uvicorn mock.app:app --port 8000
+# 1. serviço (precisa de GROQ_API_KEY; sem ela, use o mock: uvicorn mock.app:app --port 8000)
+cd apps/llm-service && python -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt
+cp .env.example .env   # preencha GROQ_API_KEY e ADMIN_PASSWORD
+set -a; . ./.env; set +a; uvicorn main:app --port 8000      # painel em http://localhost:8000/login
 
-# 2. app (interface do produto)
-cd apps/web && cp .env.example .env.local && pnpm install && pnpm dev      # http://localhost:3000
+# 2. app
+cd apps/web && printf 'NEXT_PUBLIC_API_BASE=http://localhost:8000\n' > .env.local && pnpm install && pnpm dev   # http://localhost:3000
 ```
-Abra `http://localhost:3000` e toque em "Ver um exemplo". Com o serviço real: [apps/llm-service/README.md](apps/llm-service/README.md).
+No painel, "Novo documento" com um PDF de texto; o link da cliente aponta para o app (`CLIENT_APP_URL`). Detalhes:
+[apps/llm-service/README.md](apps/llm-service/README.md) e [apps/web/README.md](apps/web/README.md).
 Auditoria: [docs/AUDIT-GUIDE.md](docs/AUDIT-GUIDE.md). Conferir um registro: `scripts/verify_cli.py registro.json <hash>`.
