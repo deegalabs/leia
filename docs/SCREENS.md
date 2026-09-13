@@ -1,7 +1,30 @@
 # Telas
 
+## Jornada (13/09): do login do advogado ao sucesso do cliente
+Web app responsivo, um código, desktop e celular. Ordem em que acontece; a coluna "hoje" aponta o template do serviço.
+
+| # | Tela | Hoje (templates do serviço) |
+|---|---|---|
+| L1 | Login do advogado (e-mail e senha na V1) | `tarefa_detalhe.html` |
+| L2 | Início: Iniciar chat · Anexar PDF · Painel | tela nova (captura de 13/09, 8h13) |
+| L3 | Anexar PDF com progresso por etapa | `tarefa_nova.html` + `cliente_view.html` |
+| L4 | Painel: documentos, status, filtros | `index.html` |
+| L5 | Revisar: texto simples, trecho original, escolher perguntas | parte de `tarefa_nova.html` (falta editar e escolher) |
+| L6 | Aprovar e gerar link do cliente | `tarefa_nova.html` ("Link cliente") |
+| C1 | Cliente: início, apresentação e limites | topo de `dashboard.html` |
+| C2 | Cliente: tópico n de N | resumo de `dashboard.html` (hoje inteiro numa página) |
+| C3 | Cliente: dúvida | chat lateral de `dashboard.html` |
+| C4 | Cliente: conferindo (perguntas abertas) | questões de `dashboard.html` (hoje múltipla escolha) |
+| C5 | Cliente: confirmação | não existe |
+| C6 | Cliente: comprovante (sucesso) | bloco "assinatura" de `dashboard.html` |
+| L7 | Painel: registrado, respostas, prova | tentativas de `tarefa_nova.html` |
+| P1 | Verificação pública | não existe |
+
+As specs detalhadas continuam em `design/screen-*.md` (A0–A4 = L1–L7; C0–C6; P1).
+
 ## Plataforma e acesso
-- **Cidadã: PWA mobile-first.** Aplicação web instalável no celular (manifesto, ícone, tela cheia, sem barra do navegador),
+- **Um web app responsivo** (desktop e celular). Instalar como aplicativo (PWA) é extra, não requisito.
+- **Cidadã no celular.** Aplicação web, opcionalmente instalável (manifesto, ícone, tela cheia),
   com service worker que guarda o shell e o conteúdo da sessão já carregado (tópicos, perguntas, áudio): se a rede cair,
   a cidadã continua lendo e ouvindo; respostas ficam em fila e sobem quando voltar. Alvos de toque ≥ 48 px, texto grande,
   navegação inferior com no máximo três ações, uma tela por tópico.
