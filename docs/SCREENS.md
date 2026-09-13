@@ -1,11 +1,10 @@
 # Telas
 
 ## Jornada (13/09): do login do advogado ao sucesso do cliente
-Web app responsivo, um código, desktop e celular. Ordem em que acontece; a coluna "hoje" aponta o template do serviço.
+Web app responsivo, um código, desktop e celular. Sem login no hackathon (anotado como pós-hackathon). Ordem em que acontece; a coluna "hoje" aponta o template do serviço.
 
 | # | Tela | Hoje (templates do serviço) |
 |---|---|---|
-| L1 | Login do advogado (e-mail e senha na V1) | `tarefa_detalhe.html` |
 | L2 | Início: Iniciar chat · Anexar PDF · Painel | tela nova (captura de 13/09, 8h13) |
 | L3 | Anexar PDF com progresso por etapa | `tarefa_nova.html` + `cliente_view.html` |
 | L4 | Painel: documentos, status, filtros | `index.html` |
@@ -19,6 +18,7 @@ Web app responsivo, um código, desktop e celular. Ordem em que acontece; a colu
 | C6 | Cliente: comprovante (sucesso) | bloco "assinatura" de `dashboard.html` |
 | L7 | Painel: registrado, respostas, prova | tentativas de `tarefa_nova.html` |
 | P1 | Verificação pública | não existe |
+| Pós | Login do advogado (e-mail e senha ou social) e conferência da OAB: fora do hackathon; acesso aberto durante o evento | `tarefa_detalhe.html` existe, não entra na jornada |
 
 As specs detalhadas continuam em `design/screen-*.md` (A0–A4 = L1–L7; C0–C6; P1).
 
