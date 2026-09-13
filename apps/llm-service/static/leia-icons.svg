@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+  <!-- Lucide-style symbols (stroke 2, 24 grid). Use: <svg class="i"><use href="/static/leia-icons.svg#file-text"/></svg> -->
+  <symbol id="file-text" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></symbol>
+  <symbol id="book-open" viewBox="0 0 24 24"><path d="M2 5h6a3 3 0 0 1 3 3v12a2 2 0 0 0-2-2H2z"/><path d="M22 5h-6a3 3 0 0 0-3 3v12a2 2 0 0 1 2-2h7z"/></symbol>
+  <symbol id="help-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7M12 17h.01"/></symbol>
+  <symbol id="message-circle-question" viewBox="0 0 24 24"><path d="M12 3a9 9 0 0 1 0 18 9 9 0 0 1-4.6-1.3L3 21l1.3-4.4A9 9 0 0 1 12 3z"/><path d="M9.8 9.5a2.3 2.3 0 1 1 3.2 2.1c-.6.3-.9.8-.9 1.4M12 16h.01"/></symbol>
+  <symbol id="clipboard-check" viewBox="0 0 24 24"><rect x="6" y="4" width="12" height="17" rx="2"/><path d="M9 4V3h6v1"/><path d="M9 13l2 2 4-4"/></symbol>
+  <symbol id="badge-check" viewBox="0 0 24 24"><path d="M12 3l2.2 1.6 2.7-.3 1 2.5 2.5 1-.3 2.7L21.7 13l-1.6 2.2.3 2.7-2.5 1-1 2.5-2.7-.3L12 22.7 9.8 21l-2.7.3-1-2.5-2.5-1 .3-2.7L2.3 13l1.6-2.2-.3-2.7 2.5-1 1-2.5 2.7.3z"/><path d="M8.5 12.5l2.3 2.3 4.7-4.8"/></symbol>
+  <symbol id="stamp" viewBox="0 0 24 24"><path d="M5 21h14"/><path d="M6 17h12a1 1 0 0 0 1-1v-2a3 3 0 0 0-3-3h-1l-1-5a2 2 0 0 0-4 0l-1 5H8a3 3 0 0 0-3 3v2a1 1 0 0 0 1 1z"/></symbol>
+  <symbol id="rotate-ccw" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></symbol>
+  <symbol id="repeat" viewBox="0 0 24 24"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></symbol>
+  <symbol id="download" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></symbol>
+  <symbol id="scroll-text" viewBox="0 0 24 24"><path d="M8 21h12a2 2 0 0 0 2-2v-2H10v2a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v3h4"/><path d="M19 17V5a2 2 0 0 0-2-2H4"/><path d="M15 8h-5M15 12h-5"/></symbol>
+  <symbol id="clipboard-list" viewBox="0 0 24 24"><rect x="6" y="4" width="12" height="17" rx="2"/><path d="M9 4V3h6v1"/><path d="M9 11h6M9 15h6"/></symbol>
+  <symbol id="hourglass" viewBox="0 0 24 24"><path d="M6 2h12M6 22h12"/><path d="M7 2v4a5 5 0 0 0 10 0V2M7 22v-4a5 5 0 0 1 10 0v4"/></symbol>
+  <symbol id="check" viewBox="0 0 24 24"><path d="M5 12l5 5L20 7"/></symbol>
+  <symbol id="x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="lightbulb" viewBox="0 0 24 24"><path d="M9 18h6M10 21h4"/><path d="M8 13a5.5 5.5 0 1 1 8 0c-.8.9-1.2 1.7-1.3 2.5H9.3C9.2 14.7 8.8 13.9 8 13z"/></symbol>
+  <symbol id="inbox" viewBox="0 0 24 24"><path d="M3 13l2.5-8h13L21 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 13h5l1.5 3h5l1.5-3h5"/></symbol>
+  <symbol id="plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="log-out" viewBox="0 0 24 24"><path d="M10 17l5-5-5-5M15 12H3"/><path d="M13 3h5a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-5"/></symbol>
+  <symbol id="mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3M9 21h6"/></symbol>
+  <symbol id="scale" viewBox="0 0 24 24"><path d="M12 3v18M4 21h16M6 7h12"/><path d="M6 7l-3 7a3 3 0 0 0 6 0z"/><path d="M18 7l-3 7a3 3 0 0 0 6 0z"/></symbol>
+</svg>

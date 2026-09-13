@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Seu comprovante · LeIA</title>
+<link rel="stylesheet" href="/static/leia-theme.css">
+<style>
+  body.leia-citizen { margin: 0; padding: 20px 16px 40px; }
+  .wrap { max-width: 520px; margin: 0 auto; }
+  h1 { font-size: 1.5rem; margin: 0 0 8px; }
+  .card { background: #fff; border: 1px solid rgba(8,24,32,.12); border-radius: 12px; padding: 16px; display: grid; gap: 10px; }
+  .qr { display: block; width: 180px; height: 180px; margin: 0 auto; }
+  .hash { font-family: var(--mono); font-size: .8rem; word-break: break-all; color: #3F4B58; }
+  .status { display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: .9rem; font-weight: 700; }
+  .status.ok { background: #DDF1E6; color: #1F7A4D; } .status.pend { background: #FFF4DD; color: #7A4800; }
+  .actions { display: grid; gap: 8px; margin-top: 16px; }
+  .btn { display: block; text-align: center; border-radius: 12px; padding: 13px; font-weight: 700; text-decoration: none; min-height: 48px; box-sizing: border-box; }
+  .btn.primary { background: #1F7373; color: #fff; } .btn.secondary { border: 2px solid #081820; color: #081820; }
+  @media print { .actions { display: none; } body { padding: 0; } }
+</style>
+</head>
+<body class="leia-citizen">
+<div class="wrap">
+  <h1>Seu comprovante</h1>
+  <p>Este comprovante mostra que você leu a explicação do seu documento e respondeu às perguntas neste dia.</p>
+  <div class="card">
+    <img class="qr" src="data:image/png;base64,{{ qr_base64 }}" alt="QR para conferir o registro em {{ verify_url }}">
+    <div><span class="status {{ 'ok' if attempt.aprovado else 'pend' }}">{{ 'Entendimento registrado' if attempt.aprovado else 'Pendente: vamos ver de novo' }}</span></div>
+    <div><strong>Registrado em:</strong> {{ payload.createdAt }}</div>
+    <div><strong>Código do registro:</strong><div class="hash">{{ payload_hash }}</div></div>
+    <div><strong>Carimbo de tempo público:</strong> {{ 'presente' if ots_present else 'pendente (chega em alguns minutos)' }}</div>
+  </div>
+  <p>Este código não contém seu documento nem suas respostas. Ele não é a assinatura do contrato. Qualquer pessoa pode conferir pelo QR.</p>
+  <div class="actions">
+    <a class="btn primary" href="javascript:window.print()">Salvar comprovante</a>
+    <a class="btn secondary" href="{{ verify_url }}">Conferir o registro</a>
+  </div>
+</div>
+</body>
+</html>

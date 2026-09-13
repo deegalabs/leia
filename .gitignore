@@ -22,3 +22,4 @@ Thumbs.db
 # local data
 data/*.db
 uploads/
+.venv-leia/

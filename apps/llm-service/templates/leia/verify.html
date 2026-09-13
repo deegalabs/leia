@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Verificação do registro · LeIA</title>
+<link rel="stylesheet" href="/static/leia-theme.css">
+<style>
+  body.leia-citizen { margin: 0; padding: 20px 16px 40px; }
+  .wrap { max-width: 720px; margin: 0 auto; }
+  h1 { font-size: 1.5rem; margin: 0 0 8px; }
+  .card { background: #fff; border: 1px solid rgba(8,24,32,.12); border-radius: 12px; padding: 16px; margin-bottom: 14px; }
+  .hash, pre { font-family: var(--mono); font-size: .8rem; word-break: break-all; white-space: pre-wrap; color: #3F4B58; }
+  ol li { margin-bottom: 6px; }
+  .tag { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: .85rem; font-weight: 700; }
+  .tag.ok { background: #DDF1E6; color: #1F7A4D; } .tag.pend { background: #FFF4DD; color: #7A4800; }
+  a { color: #1F7373; }
+</style>
+</head>
+<body class="leia-citizen">
+<div class="wrap">
+  <h1>Verificação do registro</h1>
+  <p>Esta página não contém nome, documento nem respostas. Só o que é preciso para conferir que o registro existe e não mudou.</p>
+  <div class="card">
+    <p><strong>Código (SHA-256 do JSON canônico):</strong></p>
+    <div class="hash">{{ payload_hash }}</div>
+    <p><strong>Registrado em:</strong> {{ payload.createdAt }} · <strong>Carimbo público:</strong>
+      <span class="tag {{ 'ok' if ots_present else 'pend' }}">{{ 'OpenTimestamps presente' if ots_present else 'pendente' }}</span>
+      {% if ots_present %}· <a href="/verify/{{ attempt.hash_imutavel }}/proof.ots">baixar prova .ots</a>{% endif %}
+    </p>
+  </div>
+  <div class="card">
+    <p><strong>JSON canônico</strong> (copie exatamente como está):</p>
+    <pre>{{ canonical }}</pre>
+  </div>
+  <div class="card">
+    <p><strong>Como conferir</strong></p>
+    <ol>
+      <li>Salve o JSON canônico acima em um arquivo, sem espaços nem quebras de linha extras.</li>
+      <li>Rode <code>sha256sum arquivo.json</code> (ou <code>openssl dgst -sha256 arquivo.json</code>).</li>
+      <li>Compare com o código acima. Se for igual, o registro não mudou.</li>
+      <li>Com a prova .ots: <code>ots verify arquivo.json.ots</code> mostra a data e hora carimbadas na rede pública.</li>
+    </ol>
+    <p><a href="/verify/{{ attempt.hash_imutavel }}?format=json">Ver em JSON</a></p>
+  </div>
+</div>
+</body>
+</html>

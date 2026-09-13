@@ -23,9 +23,9 @@ Cada entrega é uma tag anotada no git; detalhes e comandos em [docs/DELIVERIES.
 | Entrega | Prazo | Tag | Estado |
 |---|---|---|---|
 | 1. Canvas | sáb 12h | `token-economy/v0.1.0` | entregue, ver [evidence/01-canvas](evidence/01-canvas/) |
-| 2. V1 com testes internos | sáb 15h30 | `token-economy/v0.2.0` | em construção, escopo em [docs/MVP.md](docs/MVP.md) |
+| 2. V1 com testes internos | sáb 15h30 | `token-economy/v0.2.0` | V1 do serviço rodou no laptop do Carlos; escopo em [docs/MVP.md](docs/MVP.md) |
 | 3. V2 com testes externos | sáb 17h30 | `token-economy/v0.3.0` | planejada |
-| 4. Produto + auditoria | dom 10h30 | `token-economy/v0.4.0` | planejada |
+| 4. Produto + auditoria | dom 10h30 | `token-economy/v0.4.0` | em construção: interface da cidadã, comprovante, verificação, mock, roteiro de auditoria |
 | 5. Slides | dom 14h30 | `token-economy/v0.5.0` | planejada |
 | Pitch | dom 16h30 | `token-economy/v1.0.0` | planejado |
 
@@ -36,7 +36,8 @@ Cada entrega é uma tag anotada no git; detalhes e comandos em [docs/DELIVERIES.
 ├── prompts/       prompts do produto (versionados) e registro dos prompts usados na construção
 ├── evidence/      evidências de cada entrega e dos pontos extras
 ├── scripts/       tag-delivery.sh (fecha uma entrega: tag + changelog)
-└── apps/          web (interface) e llm-service (FastAPI); código a partir de 12/09/2026
+├── examples/      contrato de exemplo (fixture) para rodar sem o serviço
+└── apps/          llm-service (FastAPI: serviço + interface da cidadã + registro); web (Next.js, pós-hackathon)
 ```
 
 ## Documentos
@@ -55,4 +56,12 @@ Cada entrega é uma tag anotada no git; detalhes e comandos em [docs/DELIVERIES.
 - [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md): como subir código, publicar na pasta oficial e fechar uma entrega.
 
 ## Como rodar
-A preencher com o código (apps/web e apps/llm-service). Meta: um comando, menos de 5 minutos, PDFs de exemplo incluídos.
+Interface da cidadã, comprovante e verificação rodam hoje sobre um mock do serviço com um contrato de exemplo:
+```bash
+cd apps/llm-service
+python -m venv .venv && . .venv/bin/activate
+pip install fastapi uvicorn jinja2 -r requirements-leia.txt
+uvicorn mock.app:app --port 8000        # http://localhost:8000
+```
+Com o serviço real: [apps/llm-service/README.md](apps/llm-service/README.md) (integração em 10 minutos).
+Auditoria: [docs/AUDIT-GUIDE.md](docs/AUDIT-GUIDE.md). Conferir um registro: `scripts/verify_cli.py payload.json <hash>`.

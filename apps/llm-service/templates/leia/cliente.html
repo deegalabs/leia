@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>{{ tarefa.titulo }} · LeIA</title>
+<link rel="stylesheet" href="/static/leia-theme.css">
+<style>
+  :root { --ink:#081820; --paper:#FAF8F4; --card:#FFFFFF; --line:rgba(8,24,32,.14); --act:#1F7373; --act-ink:#FFFFFF; --pend-bg:#FFF4DD; --pend:#7A4800; --ok-bg:#DDF1E6; --ok:#1F7A4D; --quote:#E3F1F1; }
+  html { background: var(--paper); }
+  body.leia-citizen { margin:0; padding: 0 16px 96px; background: var(--paper); color: var(--ink); }
+  .wrap { max-width: 560px; margin: 0 auto; }
+  header.top { display:flex; align-items:center; justify-content:space-between; padding: 14px 0; }
+  header.top img { height: 28px; }
+  .step-label { font-size: .95rem; color: #3F4B58; }
+  .screen { display:none; } .screen.on { display:block; }
+  h1 { font-size: 1.55rem; line-height: 1.25; margin: 8px 0 12px; }
+  h2 { font-size: 1.3rem; line-height: 1.3; margin: 0 0 10px; }
+  p { margin: 0 0 12px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px; margin-bottom: 14px; }
+  .assistant { display:flex; gap: 12px; align-items:flex-start; }
+  .assistant .mark { width: 44px; height: 44px; flex: none; border-radius: 50%; background: var(--ink); display:grid; place-items:center; }
+  .assistant .mark img { width: 26px; }
+  .limits { font-size: 1rem; color: #3F4B58; }
+  .progress { display:flex; gap: 6px; margin: 6px 0 14px; }
+  .progress i { flex:1; height: 6px; border-radius: 3px; background: #D9DEDF; } .progress i.done { background: var(--act); }
+  details.quote { margin-top: 12px; }
+  details.quote summary { cursor: pointer; font-weight: 700; color: var(--act); min-height: 48px; display:flex; align-items:center; gap: 8px; list-style: none; }
+  details.quote summary::-webkit-details-marker { display:none; }
+  blockquote { margin: 8px 0 0; padding: 12px 14px; background: var(--quote); border-left: 4px solid var(--act); font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: .95rem; line-height: 1.5; }
+  blockquote small { display:block; margin-top: 6px; color: #3F4B58; font-family: inherit; }
+  .btn { display:flex; align-items:center; justify-content:center; gap: 8px; width: 100%; min-height: 52px; border-radius: 12px; border: 2px solid var(--ink); background: transparent; color: var(--ink); font: inherit; font-size: 1.05rem; font-weight: 700; cursor: pointer; text-decoration: none; box-sizing: border-box; padding: 10px 16px; }
+  .btn.primary { background: var(--act); border-color: var(--act); color: var(--act-ink); }
+  .btn.ghost { border-color: transparent; text-decoration: underline; min-height: 44px; }
+  .btn:disabled { opacity: .55; cursor: default; }
+  .btn:focus-visible, .alt:focus-visible, summary:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+  .row { display:grid; gap: 10px; margin-top: 14px; }
+  .row.two { grid-template-columns: 1fr 1fr; }
+  .alt { display:flex; align-items:center; gap: 12px; width: 100%; text-align:left; min-height: 56px; padding: 12px 14px; border: 2px solid var(--line); border-radius: 12px; background: var(--card); font: inherit; font-size: 1.05rem; cursor: pointer; margin-bottom: 10px; }
+  .alt .letter { flex:none; width: 34px; height: 34px; border-radius: 50%; display:grid; place-items:center; border: 2px solid var(--ink); font-weight: 700; }
+  .alt[aria-checked="true"] { border-color: var(--act); background: #F1F8F8; } .alt[aria-checked="true"] .letter { background: var(--act); border-color: var(--act); color: #fff; }
+  .badge { display:inline-block; padding: 6px 12px; border-radius: 999px; font-weight: 700; font-size: 1rem; }
+  .badge.ok { background: var(--ok-bg); color: var(--ok); } .badge.pend { background: var(--pend-bg); color: var(--pend); }
+  .review li { margin-bottom: 8px; }
+  .status { min-height: 24px; color: #3F4B58; font-size: 1rem; margin-top: 8px; }
+  .status.err { color: #8A1C1C; }
+  .md h2 { font-size: 1.2rem; margin-top: 18px; }
+  /* chat drawer */
+  .fab { position: fixed; right: 16px; bottom: 16px; z-index: 5; min-height: 52px; padding: 0 18px; border-radius: 999px; border: 0; background: var(--ink); color: #fff; font: inherit; font-size: 1rem; font-weight: 700; display:flex; align-items:center; gap: 8px; box-shadow: 0 6px 20px rgba(8,24,32,.25); cursor: pointer; }
+  .drawer { position: fixed; inset: auto 0 0 0; max-height: 82vh; background: var(--card); border-radius: 18px 18px 0 0; box-shadow: 0 -8px 30px rgba(8,24,32,.25); transform: translateY(105%); transition: transform .25s; z-index: 6; display:flex; flex-direction: column; }
+  .drawer.on { transform: none; }
+  .drawer header { display:flex; align-items:center; justify-content:space-between; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+  .drawer header .btn { width:auto; min-height: 44px; padding: 6px 12px; }
+  .chat-body { overflow:auto; padding: 14px 16px; display:flex; flex-direction:column; gap: 10px; flex:1; }
+  .msg { max-width: 90%; padding: 12px 14px; border-radius: 14px; line-height: 1.5; font-size: 1.05rem; white-space: pre-wrap; }
+  .msg.user { align-self:flex-end; background: var(--ink); color: #fff; } .msg.bot { align-self:flex-start; background: #F1F3F3; }
+  .chat-form { display:flex; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--line); }
+  .chat-form input { flex:1; min-height: 48px; border: 2px solid var(--line); border-radius: 12px; padding: 0 12px; font: inherit; font-size: 1.05rem; }
+  .chat-form .btn { width:auto; min-height: 48px; }
+  .overlay { position: fixed; inset: 0; background: rgba(8,24,32,.45); display:none; z-index: 5; } .overlay.on { display:block; }
+  .sr { position:absolute; left:-9999px; }
+  @media (min-width: 900px) { .wrap { max-width: 680px; } .drawer { left: auto; right: 24px; width: 420px; border-radius: 18px 18px 0 0; } }
+  @media (prefers-reduced-motion: reduce) { .drawer { transition: none; } }
+</style>
+</head>
+<body class="leia-citizen">
+<div class="wrap">
+  <header class="top">
+    <img src="/static/logo-horizontal-light.svg" alt="LeIA">
+    <span class="step-label" id="step-label"></span>
+  </header>
+
+  {% if tarefa.status != 'concluida' and tarefa.status != 'pronta' and not questoes %}
+  <section class="card" aria-live="polite">
+    <h1>Estamos preparando a explicação do seu documento</h1>
+    <p>Isso leva alguns minutos. Esta página atualiza sozinha. Você pode fechar e abrir o mesmo link depois.</p>
+  </section>
+  <meta http-equiv="refresh" content="8">
+  {% else %}
+
+  <!-- L2 boas-vindas -->
+  <section class="screen on" id="s-welcome" aria-labelledby="h-welcome">
+    <div class="card assistant">
+      <div class="mark" aria-hidden="true"><img src="/static/logo-mark.svg" alt=""></div>
+      <div>
+        <h1 id="h-welcome">Olá. Vou explicar o documento "{{ tarefa.titulo }}" com você.</h1>
+        <p>Vamos ver os pontos principais, um de cada vez. Depois, algumas perguntas para eu conferir se expliquei bem. Sem tempo limite.</p>
+        <p class="limits">Sou uma assistente automática. Explico o que está escrito. Não sou advogada e não dou conselho jurídico. Suas respostas ficam só com você.</p>
+      </div>
+    </div>
+    <div class="row">
+      <button class="btn primary" id="btn-start">Começar a explicação</button>
+      <button class="btn ghost" data-speak="h-welcome">Ouvir esta página</button>
+    </div>
+  </section>
+
+  <!-- L3 explicação, um tópico por vez -->
+  <section class="screen" id="s-topic" aria-live="polite">
+    <div class="progress" id="topic-progress" aria-hidden="true"></div>
+    <div class="card" id="topic-card"></div>
+    <div class="row two">
+      <button class="btn" id="btn-topic-prev">Voltar</button>
+      <button class="btn primary" id="btn-topic-next">Entendi, próximo</button>
+    </div>
+    <div class="row"><button class="btn ghost" data-speak="topic-card">Ouvir este ponto</button></div>
+  </section>
+
+  <!-- L5 perguntas, uma por vez -->
+  <section class="screen" id="s-quiz" aria-live="polite">
+    <div class="progress" id="quiz-progress" aria-hidden="true"></div>
+    <div class="card">
+      <h2 id="q-title">Vamos conferir se eu expliquei bem</h2>
+      <p id="q-text"></p>
+      <div id="q-alts" role="radiogroup" aria-labelledby="q-text"></div>
+    </div>
+    <div class="row two">
+      <button class="btn" id="btn-q-prev">Voltar</button>
+      <button class="btn primary" id="btn-q-next" disabled>Próxima pergunta</button>
+    </div>
+    <div class="row"><button class="btn ghost" data-speak="q-text">Ouvir a pergunta</button></div>
+    <div class="status" id="quiz-status" role="status"></div>
+  </section>
+
+  <!-- L6 resultado -->
+  <section class="screen" id="s-result" aria-live="polite">
+    <div class="card" id="result-card"></div>
+    <div class="row" id="result-actions"></div>
+  </section>
+  {% endif %}
+</div>
+
+<button class="fab" id="btn-chat" hidden>Tenho uma dúvida</button>
+<div class="overlay" id="overlay"></div>
+<div class="drawer" id="drawer" role="dialog" aria-label="Tirar dúvida com a assistente" aria-modal="true">
+  <header><strong>Tenho uma dúvida</strong><button class="btn" id="btn-chat-close">Fechar</button></header>
+  <div class="chat-body" id="chat-body">
+    <div class="msg bot">Pode perguntar com suas palavras. Eu respondo só com o que está neste documento. Se não estiver escrito, eu aviso.</div>
+  </div>
+  <form class="chat-form" id="chat-form">
+    <label class="sr" for="chat-input">Sua dúvida</label>
+    <input id="chat-input" autocomplete="off" placeholder="Fale ou escreva sua dúvida aqui">
+    <button class="btn primary" type="submit" id="chat-send">Enviar</button>
+  </form>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
+<script src="/static/leia-api.js"></script>
+<script>
+  /* Server data. Only public fields reach this page: no answer key, no justification. */
+  const HASH = {{ tarefa.hash|tojson }};
+  const TOPICOS = {% if topicos %}{{ topicos|tojson }}{% else %}null{% endif %};
+  const RESUMO_MD = {{ (resumo_md or "")|tojson }};
+  const QUESTOES = [{% if questoes and questoes.questoes %}{% for q in questoes.questoes %}{"id":{{ q.id|tojson }},"enunciado":{{ q.enunciado|tojson }},"alternativas":{{ q.alternativas|tojson }}}{% if not loop.last %},{% endif %}{% endfor %}{% endif %}];
+  const ULTIMA = {% if ultima_tentativa %}{"aprovado":{{ ultima_tentativa.aprovado|tojson }},"hash_imutavel":{{ ultima_tentativa.hash_imutavel|tojson }},"acertos":{{ ultima_tentativa.acertos|tojson }},"total":{{ ultima_tentativa.total|tojson }}}{% else %}null{% endif %};
+</script>
+<script>
+(function(){
+  const $ = (id) => document.getElementById(id);
+  const screens = ["s-welcome","s-topic","s-quiz","s-result"];
+  const label = $("step-label");
+  function show(id, text){ screens.forEach(s => { const el = $(s); if (el) el.classList.toggle("on", s === id); }); if (label) label.textContent = text || ""; window.scrollTo({top:0}); $("btn-chat").hidden = (id === "s-welcome" || id === "s-result" && !lastResult); }
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  const md = (s) => (window.DOMPurify && window.marked) ? DOMPurify.sanitize(marked.parse(s || "")) : esc(s);
+
+  /* topics: structured list when the service sends it, otherwise sections split from the markdown summary */
+  let topics = TOPICOS;
+  if (!topics) {
+    const parts = (RESUMO_MD || "").split(/\n(?=##? )/).map(p => p.trim()).filter(Boolean);
+    topics = parts.map((p, i) => { const m = p.match(/^##? (.+)\n?([\s\S]*)$/); return m ? { id: i+1, titulo: m[1].trim(), explicacao_md: m[2].trim() } : { id: i+1, titulo: "Ponto " + (i+1), explicacao_md: p }; });
+    if (!topics.length) topics = [{ id: 1, titulo: "Explicação", explicacao_md: RESUMO_MD || "Explicação indisponível." }];
+  }
+  let ti = 0;
+  function progress(el, n, i){ el.innerHTML = Array.from({length:n}, (_,k) => `<i class="${k <= i ? "done" : ""}"></i>`).join(""); }
+  function renderTopic(){
+    const t = topics[ti];
+    progress($("topic-progress"), topics.length, ti);
+    $("topic-card").innerHTML = `<p class="step-label">Ponto ${ti+1} de ${topics.length}</p><h2>${esc(t.titulo)}</h2>` +
+      (t.explicacao_md !== undefined ? `<div class="md">${md(t.explicacao_md)}</div>` : `<p>${esc(t.explicacao)}</p>`) +
+      (t.trecho ? `<details class="quote"><summary>Ver o trecho original do documento</summary><blockquote>"${esc(t.trecho)}"${t.clausula ? `<small>Cláusula ${esc(t.clausula)}</small>` : ""}</blockquote></details>` : "");
+    $("btn-topic-prev").textContent = ti === 0 ? "Voltar ao início" : "Voltar";
+    $("btn-topic-next").textContent = ti === topics.length - 1 ? (QUESTOES.length ? "Entendi, ir para as perguntas" : "Entendi") : "Entendi, próximo";
+    show("s-topic", `Explicação ${ti+1}/${topics.length}`);
+  }
+  $("btn-start").onclick = () => { ti = 0; renderTopic(); };
+  $("btn-topic-prev").onclick = () => { if (ti === 0) show("s-welcome"); else { ti--; renderTopic(); } };
+  $("btn-topic-next").onclick = () => { if (ti < topics.length - 1) { ti++; renderTopic(); } else if (QUESTOES.length) { qi = 0; renderQuestion(); } else { show("s-welcome"); } };
+
+  /* questions, one per screen, answers stay in memory until the final submit */
+  let qi = 0; const answers = {}; let lastResult = null;
+  function renderQuestion(){
+    const q = QUESTOES[qi];
+    progress($("quiz-progress"), QUESTOES.length, qi);
+    $("q-title").textContent = `Pergunta ${qi+1} de ${QUESTOES.length}`;
+    $("q-text").textContent = q.enunciado;
+    $("q-alts").innerHTML = q.alternativas.map((a, i) => `<button type="button" class="alt" role="radio" aria-checked="${answers[q.id] === i}" data-idx="${i}"><span class="letter" aria-hidden="true">${"ABCD"[i] || i+1}</span><span>${esc(a)}</span></button>`).join("");
+    $("q-alts").querySelectorAll(".alt").forEach(b => b.onclick = () => { answers[q.id] = parseInt(b.dataset.idx, 10); renderQuestion(); });
+    $("btn-q-next").disabled = answers[q.id] === undefined;
+    $("btn-q-next").textContent = qi === QUESTOES.length - 1 ? "Enviar minhas respostas" : "Próxima pergunta";
+    $("btn-q-prev").textContent = qi === 0 ? "Rever a explicação" : "Voltar";
+    show("s-quiz", `Perguntas ${qi+1}/${QUESTOES.length}`);
+  }
+  $("btn-q-prev").onclick = () => { if (qi === 0) { ti = topics.length - 1; renderTopic(); } else { qi--; renderQuestion(); } };
+  $("btn-q-next").onclick = async () => {
+    if (qi < QUESTOES.length - 1) { qi++; renderQuestion(); return; }
+    const st = $("quiz-status"); st.classList.remove("err"); st.textContent = "Conferindo suas respostas."; $("btn-q-next").disabled = true;
+    try { lastResult = await LeiaApi.submitQuiz(HASH, answers); renderResult(lastResult); }
+    catch (e) { st.classList.add("err"); st.textContent = "Deu um problema do nosso lado. Tente de novo em instantes."; $("btn-q-next").disabled = false; }
+  };
+  function renderResult(d){
+    const card = $("result-card"), actions = $("result-actions");
+    if (d.aprovado) {
+      card.innerHTML = `<span class="badge ok">Entendimento registrado</span><h1>Você entendeu o documento.</h1><p>Seu comprovante está pronto. Ele mostra que você leu a explicação e respondeu às perguntas hoje. Ele não é a assinatura do contrato.</p><p class="limits">Código do registro:<br><code style="word-break:break-all">${esc(d.hash_imutavel || "")}</code></p>`;
+      actions.innerHTML = `<a class="btn primary" href="${LeiaApi.receiptUrl(HASH)}">Ver meu comprovante</a><button class="btn" id="btn-again">Rever a explicação</button>`;
+    } else {
+      const pts = (d.erros || []).map(e => `<li>${esc(e.enunciado || ("Pergunta " + e.id))}</li>`).join("");
+      card.innerHTML = `<span class="badge pend">Vamos ver de novo</span><h1>Alguns pontos merecem outra explicação.</h1><p>Isso é normal. Vou explicar de novo e depois você responde outra vez, sem pressa.</p>${pts ? `<p><strong>O que vale ver de novo:</strong></p><ul class="review">${pts}</ul>` : ""}`;
+      actions.innerHTML = `<button class="btn primary" id="btn-again">Ler a explicação de novo</button><button class="btn" id="btn-doubt">Tenho uma dúvida</button>`;
+    }
+    show("s-result", "");
+    $("btn-chat").hidden = false;
+    const again = $("btn-again"); if (again) again.onclick = () => { for (const k in answers) delete answers[k]; ti = 0; renderTopic(); };
+    const doubt = $("btn-doubt"); if (doubt) doubt.onclick = openChat;
+  }
+  if (ULTIMA && ULTIMA.aprovado) { lastResult = ULTIMA; renderResult(ULTIMA); }
+
+  /* chat drawer (SSE) */
+  function openChat(){ $("drawer").classList.add("on"); $("overlay").classList.add("on"); setTimeout(() => $("chat-input").focus(), 200); }
+  function closeChat(){ $("drawer").classList.remove("on"); $("overlay").classList.remove("on"); }
+  $("btn-chat").onclick = openChat; $("btn-chat-close").onclick = closeChat; $("overlay").onclick = closeChat;
+  document.addEventListener("keydown", e => { if (e.key === "Escape") closeChat(); });
+  let busy = false;
+  $("chat-form").onsubmit = async (e) => {
+    e.preventDefault(); if (busy) return;
+    const input = $("chat-input"), body = $("chat-body"); const txt = input.value.trim(); if (!txt) return;
+    const u = document.createElement("div"); u.className = "msg user"; u.textContent = txt; body.appendChild(u); input.value = "";
+    const b = document.createElement("div"); b.className = "msg bot"; b.textContent = "Estou lendo o documento."; body.appendChild(b); body.scrollTop = body.scrollHeight;
+    busy = true; $("chat-send").disabled = true;
+    try { await LeiaApi.chat(HASH, txt, (acc) => { b.textContent = acc; body.scrollTop = body.scrollHeight; }); }
+    catch (err) { b.textContent = "Deu um problema do nosso lado. Tente perguntar de novo."; }
+    finally { busy = false; $("chat-send").disabled = false; }
+  };
+
+  /* listen: Web Speech API, pt-BR, no external service */
+  let speaking = false;
+  document.querySelectorAll("[data-speak]").forEach(btn => btn.onclick = () => {
+    if (!("speechSynthesis" in window)) { btn.textContent = "Leitura em voz não disponível neste aparelho"; return; }
+    if (speaking) { speechSynthesis.cancel(); speaking = false; return; }
+    const el = $(btn.dataset.speak); const u = new SpeechSynthesisUtterance(el ? el.innerText : ""); u.lang = "pt-BR"; u.rate = 0.95;
+    u.onend = () => { speaking = false; }; speaking = true; speechSynthesis.speak(u);
+  });
+})();
+</script>
+</body>
+</html>

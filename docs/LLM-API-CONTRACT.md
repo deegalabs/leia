@@ -1,53 +1,45 @@
-# Contrato da API do serviço de LLM (FastAPI)
+# Contrato entre a interface e o serviço cognitivo (FastAPI)
 
-Proposta da interface para o serviço. Vale até o dono do serviço confirmar ou ajustar. JSON, UTF-8, `snake_case`.
-Base: `http://localhost:8000/api/v1`. Autenticação: cabeçalho `X-Api-Key` (chave interna do app web); o login social fica no
-app web (Auth.js), que envia `user_ref` (pseudônimo) nos endpoints de sessão. CORS liberado para a origem da interface.
-Erros: `{ "error": { "code": "...", "message": "..." } }` com HTTP 4xx/5xx.
+Fonte: rotas observadas nos templates do serviço recebidos em 12/09 (`temp/` na pasta de trabalho) e no workflow v0.
+A interface da cidadã (`apps/llm-service/templates/leia/cliente.html`) consome **exatamente** essas rotas; o mock em
+`apps/llm-service/mock/` as reproduz com dados de exemplo para desenvolver sem o serviço. Base: mesma origem por
+padrão; `window.LEIA_API_BASE` aponta para outra origem quando a interface for servida separada (aí o serviço precisa de
+CORS para essa origem).
 
-## Endpoints mínimos para a V1 (texto)
-| Método e rota | Entrada | Saída | Usado por |
+## Rotas que o serviço já tem (e a interface usa)
+| Método e rota | Entrada | Saída | Uso na interface |
 |---|---|---|---|
-| `GET /health` | | `{ "status": "ok", "models": [...] }` | interface, auditor |
-| `POST /documents` | `multipart/form-data`: `file` (PDF com texto), `document_type` (`procuracao` \| `contrato_honorarios` \| `acordo`) | `{ document_id, pages, clauses: [{ clause_id, index, page, text }] }` | tela do advogado |
-| `POST /documents/{document_id}/explain` | `{ }` | `{ sections: [{ section_id, order, clause_id, title, plain_text, why_it_matters, quote, quote_verified, risk_level }], prompt_version, model }` | tela do advogado (revisão) e do cliente (tópicos) |
-| `POST /documents/{document_id}/questions` | `{ "n": 3 }` | `{ questions: [{ question_id, clause_id, question, expected_elements: [...] }] }` (`expected_elements` só para o advogado) | tela do advogado |
-| `POST /sessions` | `{ document_id, lawyer_ref, question_ids: [...] }` | `{ session_id, client_token }` | tela do advogado (aprovar e gerar link) |
-| `POST /sessions/{session_id}/bind` | `{ client_token, user_ref }` | `{ status }` vincula a cidadã logada à sessão | tela C0 |
-| `GET /sessions/{session_id}` | | `{ status, document_type, sections, questions (sem expected_elements), answers, pending_for_lawyer }` | ambas |
-| `POST /sessions/{session_id}/answers` | `{ question_id, answer_text, attempt }` | `{ score: 0..3, matched_elements, missing_elements, feedback_for_client, re_explanation }` | tela do cliente |
-| `POST /sessions/{session_id}/chat` | `{ message }` | `{ answer, clause_id, quote, refused: bool }` (`refused=true` → `answer` = `NAO_ESTA_NO_DOCUMENTO`) | tela do cliente |
-| `POST /sessions/{session_id}/confirm` | `{ }` | `{ status: "confirmed" }` | tela do cliente |
-| `POST /sessions/{session_id}/validate` | `{ approved: bool, notes }` | `{ status: "validated" }` | tela do advogado |
-| `POST /sessions/{session_id}/finalize` | `{ }` | `{ payload, canonical, payload_hash, anchor: { chain_id, tx_hash, explorer_url, block_time, ots_pending } \| null }` | tela do advogado |
-| `GET /verify/{session_id}` | | `{ payload_hash, canonical, anchor, validation_summary }` (público) | página de verificação |
+| `GET /t/{hash}` | | HTML renderizado com o contexto `tarefa {hash, titulo, status}`, `resumo_md` (markdown), `questoes.questoes[]`, `ultima_tentativa` | página da cidadã. O template `leia/cliente.html` usa o mesmo contexto e pode substituir o atual sem mudar a rota |
+| `POST /api/t/{hash}/quiz` | `{ "respostas": { "<id>": <índice 0..3> } }` | `{ aprovado, acertos, total, numero, hash_imutavel, erros: [{ id, area, enunciado, escolhida }] }` | envio das respostas; `erros[].enunciado` vira a lista "o que vale ver de novo" |
+| `POST /api/t/{hash}/chat` | `{ "mensagem": "..." }` | SSE: `data: {"t": "trecho"}` por token; `data: {"error": "..."}` em falha | dúvida da cidadã, resposta em streaming |
+| `GET /t/{hash}/pdf-assinado` | | PDF | substituído pelo comprovante em HTML (abaixo); pode continuar existindo |
+| `GET /tarefas/*`, `POST /tarefas/nova`, `/reprocessar`, `/nova-rodada` | | HTML | painel de quem envia o documento; fica como está, só recebe o tema |
 
-## Endpoints da V2
-| Método e rota | Entrada | Saída |
-|---|---|---|
-| `POST /tts` | `{ text }` | áudio (`audio/mpeg`) |
-| `POST /stt` | `multipart`: `audio` | `{ text }` |
-| `POST /sessions/{id}/chat` com `Accept: text/event-stream` | idem | resposta em streaming (opcional) |
+Campos do contexto que a interface **não** coloca no HTML da cidadã: `questoes[].correta` e `questoes[].justificativa`
+(a avaliação já acontece no servidor em `/quiz`). O template só emite `id`, `enunciado` e `alternativas`.
 
-## Regras que a interface assume
-1. Toda `section` tem `quote` presente no texto da cláusula (`quote_verified = true`); se `false`, a interface não exibe a seção.
-2. `expected_elements` nunca chega à tela do cliente (o serviço omite em `GET /sessions/{id}` para `client_token`).
-3. `score < 2` devolve `re_explanation` e a mesma pergunta é repetida; na segunda tentativa insuficiente, o serviço marca `pending_for_lawyer`.
-4. `finalize` só funciona após `validate` com `approved = true`.
-5. O serviço grava `logs/citations.jsonl` e `logs/judge.jsonl` (auditoria) e expõe `prompt_version` em toda resposta gerada.
+## Rotas que a interface acrescenta (módulo `leia/registry.py`, uma linha no serviço)
+| Método e rota | Saída |
+|---|---|
+| `GET /t/{hash_imutavel}/comprovante` | HTML: situação, data, código do registro (SHA-256 do JSON canônico), QR para `/verify/...`, o que prova e o que não prova |
+| `GET /verify/{hash_imutavel}` | HTML público: JSON canônico, hash, prova OpenTimestamps se existir, passos para conferir; `?format=json` devolve `{ payload, canonical, payloadHash, otsPresent }` |
+| `GET /verify/{hash_imutavel}/proof.ots` | prova OpenTimestamps (binária) |
 
-## Mapeamento para o workflow recebido
-Ver [LLM-WORKFLOW-REVIEW.md](LLM-WORKFLOW-REVIEW.md): `POST /documents` = fase 1 + T6; `/explain` = T7–T13 + `_ui`; `/questions` = T14 adaptado
-para perguntas abertas; `/answers` e `/chat` = tarefas novas T15 e T16.
+O serviço fornece só um adaptador: `get_attempt(hash_imutavel) -> dict | None` com `tarefa_hash, numero, acertos,
+total, aprovado, criada_em, salt` e, opcionalmente, `ots` (bytes gravados após `ots_stamp`). Nada pessoal entra no
+JSON canônico (`docs/../SPEC-001` na pasta de trabalho).
 
-## Perguntas ao dono do serviço (responder hoje até 13h30)
-1. Quais desses endpoints já existem ou existirão até 15h? Quais nomes/campos mudam?
-2. Comando para subir o serviço, porta, variáveis de ambiente e chave de modelo usada.
-3. O parse aceita PDF ou só texto? Qual o limite de páginas? PDF escaneado é recusado?
-4. A explicação devolve `quote` e `clause_id` por seção e verifica a substring? Se não, quando entra?
-5. A rubrica 0 a 3 e a re-explicação estão no serviço ou a interface precisa fazer o loop?
-6. Recusa literal `NAO_ESTA_NO_DOCUMENTO` implementada? Qual o tratamento de pergunta fora do documento?
-7. Hash, canonicalização e ancoragem ficam no serviço (Python: `hashlib`, `rfc8785`, `web3`, `opentimestamps-client`) ou na interface? Proposta: no serviço.
-8. Latência esperada por chamada; precisa de streaming na V1?
-9. Onde ficam os prompts? Precisam estar em `prompts/` com `name` e `version` (auditoria da Dimensão 3).
-10. O que precisa de nós: PDFs de exemplo, banco de perguntas, rubrica, glossário, base de referência.
+## Dois insumos que fariam a interface ficar completa (validação, não correção)
+1. **`GET /api/t/{hash}` em JSON** com `tarefa, resumo_md, topicos, questoes (sem correta/justificativa), ultima_tentativa`.
+   Hoje a página é renderizada no servidor e isso basta; o JSON só é necessário se a interface for servida em outra origem
+   ou para o app pós-hackathon. O mock já responde nesse formato.
+2. **`topicos[]` com lastro** no contexto da página: `{ id, titulo, explicacao, trecho, clausula }`, vindos das sínteses com
+   `lastro` da fase 3 do workflow e do mapa `_ui`. Com isso a cidadã vê "um ponto por vez" com o botão "Ver o trecho
+   original". Sem `topicos`, a interface divide o `resumo_md` pelos títulos `##` e funciona igual, só sem o trecho literal.
+
+## Perguntas para o dono do serviço (para fechar a integração)
+1. URL onde o serviço vai rodar durante a auditoria (laptop local ou nuvem) e comando para subir.
+2. A resposta de `/quiz` já traz `erros[].enunciado`? (o template atual usa; o mock usa).
+3. Formato exato dos eventos SSE de `/chat`: `data: {"t": ...}` e fim por fechamento da conexão, correto?
+4. `tarefa.status` durante o processamento: quais valores existem ("concluida" é o final?) para a página de espera.
+5. Onde ficam os prompts do workflow no código, para apontar em `prompts/workflow/`.

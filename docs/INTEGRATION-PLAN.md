@@ -28,6 +28,13 @@ scripts/                   verify-cli.py (recalcula o hash e confere a prova), t
 Contrato entre as partes continua em `docs/LLM-API-CONTRACT.md`; o que existe hoje são as rotas do serviço
 (`/tarefas/*`, `/t/{hash}`, `/api/t/{hash}/quiz`, `/api/t/{hash}/chat`). Não criar API paralela hoje.
 
+## Andamento em 13/09 pela manhã: interface primeiro, serviço depois
+O código do serviço ainda não chegou às 9h, então a interface foi construída contra o contrato observado nos templates
+(`docs/LLM-API-CONTRACT.md`) e testada com um mock que responde às mesmas rotas com um contrato de exemplo
+(`apps/llm-service/mock/`, `examples/fixture-honorarios.json`). Quando o serviço chegar, a página da cidadã
+(`templates/leia/cliente.html`) entra no lugar da atual usando o mesmo contexto, e o comprovante entra com uma linha
+(`include_router`). Se o serviço subir em outra origem, `window.LEIA_API_BASE` aponta para ela (com CORS liberado lá).
+
 ## Plano até a Entrega 4 (10h30) e durante a auditoria
 | Hora | Atividade | Quem |
 |---|---|---|
