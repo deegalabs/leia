@@ -10,7 +10,8 @@ leia/registry.py                   JSON canônico + SHA-256, comprovante com QR 
                                    verificação pública (/verify/{hash_imutavel}, ?format=json, proof.ots)
 leia/api_auth.py                   contas do app (Bearer): /api/auth/cadastro, login, me, logout
 leia/api_tarefas.py                documentos de quem está logado: GET/POST /api/tarefas, GET /api/tarefas/{id},
-                                   POST /api/tarefas/{id}/duvidas/{duvida_id}/responder
+                                   POST /api/tarefas/{id}/duvidas/{duvida_id}/responder, revisão do advogado:
+                                   GET /api/tarefas/{id}/revisao (com gabarito) e POST /api/tarefas/{id}/aprovar
 leia/pipeline.py                   semáforo (PIPELINE_CONCURRENCY) em volta do workflow; falha fica só na tarefa dela
 leia/ratelimit.py                  limite por IP em memória (RATE_LIMIT_PER_MINUTE) nas rotas públicas de escrita
 templates/leia/                    comprovante e verificação (servidos por este serviço); cliente.html é reserva
@@ -37,7 +38,7 @@ Novas na v3:
 python -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt
 cp .env.example .env && set -a && . ./.env && set +a
 uvicorn main:app --port 8000          # http://localhost:8000/login (ADMIN_EMAIL / ADMIN_PASSWORD)
-python -m pytest -q tests_leia.py tests_v3.py   # mock e add-ons; contas, documentos, dúvidas, vínculo, limite por IP
+python -m pytest -q tests_leia.py tests_v3.py   # mock e add-ons; contas, documentos, dúvidas, vínculo, limite por IP, revisão
 ```
 
 ## Railway
@@ -57,8 +58,15 @@ Públicas (o hash é o segredo): `GET /api/t/{hash}` (agora com `advogado`, `tem
 Com `Authorization: Bearer <token>` (o token vem de `/api/auth/cadastro` ou `/api/auth/login`; um por usuário, login novo
 invalida o anterior): `GET /api/auth/me`, `POST /api/auth/logout`, `GET /api/tarefas`, `POST /api/tarefas` (multipart
 `titulo` + `pdf`), `GET /api/tarefas/{id}`, `POST /api/tarefas/{id}/duvidas/{duvida_id}/responder`,
+`GET /api/tarefas/{id}/revisao` (dono ou admin: inferências, resumo e perguntas com `correta` e `justificativa`; 409 em
+`criada`/`processando`), `POST /api/tarefas/{id}/aprovar` (só de `pronta` para `enviada`; grava evento `aprovada`),
 `POST /api/t/{hash}/vincular` (papel `cidadao`). Sem credencial as rotas `/api/*` respondem 401; as páginas do painel
 continuam redirecionando para `/login` e também aceitam o Bearer.
+
+Revisão do advogado: uma tarefa com `origem = advogado` em `pronta` fica em revisão. Até o `aprovar`, `GET /api/t/{hash}`
+devolve `tarefa.status = "revisao"` sem resumo, tópicos ou perguntas, e `GET /api/t/{hash}/inferencias`,
+`POST .../quiz` e `POST .../chat` respondem 409 "Em revisão pelo advogado". Tarefa enviada pela cidadã (`origem =
+cidadao`) não passa por revisão: `pronta` já libera. `enviada` e `assinada` continuam liberadas.
 
 Contratos: [../../docs/LLM-API-CONTRACT.md](../../docs/LLM-API-CONTRACT.md) e
 [../../docs/API-V3-CONTRACT.md](../../docs/API-V3-CONTRACT.md).
