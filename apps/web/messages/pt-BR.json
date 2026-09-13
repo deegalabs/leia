@@ -286,7 +286,10 @@
         "tentativa_registrada": "Respostas registradas",
         "entendimento_registrado": "Entendimento registrado",
         "falhou": "Não deu certo",
-        "aprovada": "Liberado para a cliente"
+        "aprovada": "Liberado para a cliente",
+        "task_start": "Etapa iniciada",
+        "task_done": "Etapa concluída",
+        "task_error": "Etapa não concluída"
       },
       "clientLinkPending": "O link só abre a explicação depois que você revisar e liberar."
     },
@@ -365,6 +368,34 @@
   },
   "journey": {
     "reviewWaitTitle": "O advogado está revisando a explicação",
-    "reviewWaitText": "Você recebe o link liberado em breve. Pode fechar e abrir esta página depois."
+    "reviewWaitText": "Você recebe o link liberado em breve. Pode fechar e abrir esta página depois.",
+    "preparingTitle": "Estamos preparando a explicação do seu documento",
+    "preparingText": "Isso leva alguns minutos. Esta página atualiza sozinha. Você pode fechar e abrir o mesmo link depois.",
+    "currentStep": "Etapa atual: {step}",
+    "stepsLabel": "Etapas da preparação",
+    "stepsProgress": "{n} de {total} etapas concluídas",
+    "stepState": {
+      "pendente": "a começar",
+      "em_andamento": "em andamento",
+      "concluida": "concluída",
+      "erro": "não deu certo"
+    },
+    "seconds": "{n} s",
+    "readingTitle": "O que a assistente está lendo agora",
+    "readingIntro": "Cada cor mostra o que a assistente já encontrou no texto. A lista cresce a cada etapa.",
+    "readingNoText": "O texto do documento ainda está sendo lido.",
+    "readingNoMarks": "Ainda sem marcações. As primeiras aparecem em instantes.",
+    "readingToggle": "Ver o documento com as marcações até agora",
+    "readingToggleClose": "Fechar o documento",
+    "welcomeWithQuestions": "Vamos ver os {n} pontos principais, um de cada vez. Depois, algumas perguntas para eu conferir se expliquei bem. Sem tempo limite.",
+    "welcomeNoQuestions": "Vamos ver os {n} pontos principais, um de cada vez. Sem tempo limite.",
+    "allSeenTitle": "Você viu todos os pontos",
+    "allSeenText": "Este documento não tem perguntas de conferência. Você pode ver o texto com as marcações ou ler a explicação de novo.",
+    "allSeenList": "O que você viu",
+    "viewMarkedDocument": "Ver o documento com as marcações",
+    "reviewExplanation": "Rever a explicação",
+    "understoodLast": "Entendi",
+    "confidence": "confiança {pct}%",
+    "confidenceLabel": "Confiança da assistente neste trecho: {pct}%"
   }
 }

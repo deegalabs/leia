@@ -68,5 +68,13 @@ devolve `tarefa.status = "revisao"` sem resumo, tópicos ou perguntas, e `GET /a
 `POST .../quiz` e `POST .../chat` respondem 409 "Em revisão pelo advogado". Tarefa enviada pela cidadã (`origem =
 cidadao`) não passa por revisão: `pronta` já libera. `enviada` e `assinada` continuam liberadas.
 
+Preparação visível: `GET /api/t/{hash}` traz `etapas` (as 14 etapas do workflow com estado e tempo, lidas de `log.jsonl`
+e dos arquivos `T*.json`) e até 60 eventos do pipeline sem ip/ua; `GET /api/t/{hash}/inferencias` responde também em
+`criada`/`processando` com `parcial: true`, o texto extraído e as classes já produzidas (arquivos `T1..T5_*.json`).
+
+Fluxo externo ("Resumo estruturado" do painel): sem `resumo_humanizado.md` mas com `resumo_estruturado.json`, o resumo vem
+de `processo.resposta_final.texto`, os tópicos e as inferências de `processo.classe_*` (posição e `score` de `_ui` quando
+válidos, senão busca no texto), `questoes: []` e `sem_perguntas: true`; `etapas` fica vazio.
+
 Contratos: [../../docs/LLM-API-CONTRACT.md](../../docs/LLM-API-CONTRACT.md) e
 [../../docs/API-V3-CONTRACT.md](../../docs/API-V3-CONTRACT.md).

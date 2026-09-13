@@ -456,3 +456,162 @@ def test_shuffle_keeps_answer_and_public_events_have_no_ip():
     assert [q["correta"] for q in same["questoes"]] == [q["correta"] for q in out["questoes"]]
     ev = public_events([{"tipo": "cliente_abriu", "ip": "1.2.3.4", "ua": "x"}, {"tipo": "task_done", "id": "T1", "ip": "9.9.9.9"}])
     assert ev == [{"tipo": "task_done", "id": "T1"}]
+
+
+# ── visible preparation and tasks of the external flow ────────────────────
+
+def staged_log(h: str, events: list[dict]) -> None:
+    """Replace the workspace log with the given events (ip/ua included on purpose)."""
+    (ws.pasta(h) / "log.jsonl").write_text("".join(json.dumps(e, ensure_ascii=False) + "\n" for e in events), encoding="utf-8")
+
+
+def test_steps_from_log_and_files(lawyer):
+    """LeIA: etapas come from log.jsonl (T1 done, T2 running, others pending) and from the T*.json files."""
+    from leia.api_cliente import STEP_NAMES, build_steps
+    assert len(STEP_NAMES) == 14 and list(STEP_NAMES)[0] == "T1_IDENTIFICADOR_PARTES" and list(STEP_NAMES)[-1] == "T14_QUESTOES"
+    task = create_task(lawyer["token"], "Em preparo")
+    h = task["hash"]
+    staged_log(h, [{"ts": "t", "tipo": "pipeline_start", "tarefa_id": task["id"], "ip": "1.2.3.4"},
+                   {"ts": "t", "tipo": "task_start", "id": "T1_IDENTIFICADOR_PARTES", "idx": 1, "total": 16},
+                   {"ts": "t", "tipo": "task_done", "id": "T1_IDENTIFICADOR_PARTES", "tempo": 4.2},
+                   {"ts": "t", "tipo": "task_start", "id": "T2_IDENTIFICADOR_DATAS_VALORES", "idx": 2, "total": 16}])
+    set_status(h, "processando")
+    data = client.get(f"/api/t/{h}").json()
+    assert data["tarefa"]["status"] == "processando" and data["resumo_md"] is None
+    etapas = data["etapas"]
+    assert [e["id"] for e in etapas] == list(STEP_NAMES) and etapas[0]["nome"] == "Identificar as partes"
+    assert etapas[0] == {"id": "T1_IDENTIFICADOR_PARTES", "nome": "Identificar as partes", "estado": "concluida", "tempo": 4.2}
+    assert etapas[1]["estado"] == "em_andamento" and etapas[1]["tempo"] is None
+    assert all(e["estado"] == "pendente" for e in etapas[2:]) and etapas[13]["nome"] == "Preparar as perguntas"
+    assert all("ip" not in e and "ua" not in e for e in data["eventos"]) and data["eventos"][0]["tipo"] == "pipeline_start"
+
+    # a file the log knows nothing about counts as done; an error in the log wins over a stale file
+    (ws.pasta(h) / "T3_IDENTIFICADOR_FATOS.json").write_text(json.dumps({"fatos": []}), encoding="utf-8")
+    (ws.pasta(h) / "T4_IDENTIFICADOR_FUNDAMENTOS.json").write_text(json.dumps({"fundamentos": []}), encoding="utf-8")
+    ws.registrar_evento(h, "task_start", id="T4_IDENTIFICADOR_FUNDAMENTOS", idx=4, total=16)
+    ws.registrar_evento(h, "task_error", id="T4_IDENTIFICADOR_FUNDAMENTOS", erro="x")
+    states = {e["id"]: e["estado"] for e in build_steps(ws.ler_eventos(h), ws.pasta(h))}
+    assert states["T3_IDENTIFICADOR_FATOS"] == "concluida" and states["T4_IDENTIFICADOR_FUNDAMENTOS"] == "erro"
+    assert states["T5_IDENTIFICADOR_PEDIDOS"] == "pendente"
+    # every status carries etapas (a fresh task: 14 pending steps; nothing from an external flow: none)
+    assert build_steps([], None) and all(s["estado"] == "pendente" for s in build_steps([], None))
+    assert build_steps([{"tipo": "resumo_estruturado_start"}], None) == []
+
+
+def test_public_events_drop_ip_and_keep_the_last_60(lawyer):
+    task = create_task(lawyer["token"], "Muitos eventos")
+    h = task["hash"]
+    staged_log(h, [{"ts": "t", "tipo": "criada", "advogado_id": 1, "ip": "9.9.9.9", "ua": "x"}]
+               + [{"ts": "t", "tipo": "task_done", "id": "T1_IDENTIFICADOR_PARTES", "tempo": n, "ip": "9.9.9.9", "ua": "x"} for n in range(70)]
+               + [{"ts": "t", "tipo": "cliente_abriu", "ip": "9.9.9.9"}])
+    ev = client.get(f"/api/t/{h}").json()["eventos"]
+    assert len(ev) == 60 and ev[-1]["tempo"] == 69 and ev[0]["tempo"] == 10
+    assert all(set(e) == {"ts", "tipo", "id", "tempo"} for e in ev)
+    assert "9.9.9.9" not in json.dumps(ev)
+
+
+def test_partial_inferences_while_processing(lawyer):
+    """LeIA: during processando the inferences answer 200 with parcial true and the classes produced so far."""
+    task = create_task(lawyer["token"], "Parcial")
+    h = task["hash"]
+    folder = ws.pasta(h)
+    folder.joinpath("texto_extraido.txt").unlink(missing_ok=True)  # the offline workflow already extracted it
+    set_status(h, "criada")
+    r = client.get(f"/api/t/{h}/inferencias")
+    assert r.status_code == 200 and r.json()["parcial"] is True and r.json()["texto"] == "" and r.json()["classes"] == []
+    folder.joinpath("texto_extraido.txt").write_text(FAKE_TEXT, encoding="utf-8")
+    folder.joinpath("T1_IDENTIFICADOR_PARTES.json").write_text(json.dumps({"identificacao": [
+        {"campo": "contratante", "valor": "O CONTRATANTE", "trecho_verbatim": "O CONTRATANTE pagará", "pos_trecho_verbatim": "0:0"}]}), encoding="utf-8")
+    folder.joinpath("T3_IDENTIFICADOR_FATOS.json").write_text(json.dumps({"fatos": [
+        {"campo": "condicao", "valor": "só se ganhar", "trecho_verbatim": "só se ganhar a ação", "pos_trecho_verbatim": "0:0"},
+        {"campo": "outro", "valor": "x", "trecho_verbatim": "frase que não está no documento", "pos_trecho_verbatim": "0:0"}]}), encoding="utf-8")
+    set_status(h, "processando")
+    r = client.get(f"/api/t/{h}/inferencias")
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert data["parcial"] is True and data["texto"] == FAKE_TEXT and data["sinteses"] == []
+    assert [c["classe"] for c in data["classes"]] == ["identificacao", "fatos"]
+    assert data["total"] == 3 and data["conferidos"] == 2
+    item = data["classes"][0]["itens"][0]
+    assert item["conferido"] and FAKE_TEXT[item["pos"][0]:item["pos"][1]] == "O CONTRATANTE pagará" and "score" not in item
+    assert data["classes"][1]["itens"][1]["pos"] is None
+    # finished tasks keep the full body and say so
+    fake_artifacts(h)
+    set_status(h, "enviada")
+    full = client.get(f"/api/t/{h}/inferencias").json()
+    assert full["parcial"] is False and full["classes"][0]["classe"] == "datas_valores" and full["sinteses"]
+    set_status(h, "falhou")
+    assert client.get(f"/api/t/{h}/inferencias").status_code == 409
+
+
+EXTERNAL_TEXT = "Processo n. 1. Agravante: Ministério Público.\nO recurso não merece trânsito.\nRequer seja ele provido."
+
+
+def external_artifacts(h: str) -> None:
+    """Workspace of the external "Resumo estruturado" flow: only resumo_estruturado.json and its text."""
+    folder = ws.pasta(h)
+    a = EXTERNAL_TEXT.index("O recurso não merece trânsito.")
+    doc = {"processo": {
+        "id_manifestacao": "x",
+        "classe_i_fatos": [
+            {"campo": "partes_qualificadas", "sub_tipo": "recorrente", "valor": "Ministério Público", "trecho_verbatim": "Agravante: Ministério Público", "sintese_relacao": None},
+            {"campo": "data", "sub_tipo": "d", "valor": "2019", "trecho_verbatim": "seja ele provido", "sintese_relacao": None}],
+        "classe_i_decisao": [
+            {"campo": "decidido", "sub_tipo": "sentenca", "valor": json.dumps({"resultado": "IMPROVIDO", "relator": None, "parte_dispositiva": "O recurso não merece trânsito."}),
+             "trecho_verbatim": "O recurso não merece trânsito.", "sintese_relacao": None}],
+        "classe_v_relevancia": [],
+        "resumo_classe_i": {"campo": "resumo_fatos", "valor": "O MP recorreu e perdeu.", "lastro": ["Agravante: Ministério Público"]},
+        "resposta_final": {"texto": "## 1. Síntese\nO Ministério Público recorreu e o recurso não passou."},
+        "conferencia": {"ok": True}},
+        "_ui": {"classe_i_fatos": [{"pos_trecho_verbatim": "0:0", "score_trecho_verbatim": 0.5, "todas_trecho_verbatim": "[]"},
+                                   {"pos_trecho_verbatim": "9999:10010", "score_trecho_verbatim": 0.9, "todas_trecho_verbatim": "[]"}],
+                "classe_i_decisao": [{"pos_trecho_verbatim": f"{a}:{a + 30}", "score_trecho_verbatim": 1.0, "todas_trecho_verbatim": f"[{a}:{a + 30}]"}]}}
+    folder.joinpath("resumo_estruturado.json").write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+    folder.joinpath("resumo_estruturado_texto.txt").write_text(EXTERNAL_TEXT, encoding="utf-8")
+    ws.registrar_evento(h, "resumo_estruturado_start", tarefa_id=0)
+    ws.registrar_evento(h, "resumo_estruturado_done", tokens=10, elapsed=1.0)
+
+
+def test_external_flow_fallback(citizen):
+    """LeIA: a task with only resumo_estruturado.json gets its explanation and topics from it, without questions."""
+    task = create_task(citizen["token"], "Fluxo externo")
+    h = task["hash"]
+    for name in ("resumo_humanizado.md", "questoes.json", "memoria_persistente.json", "texto_extraido.txt"):
+        (ws.pasta(h) / name).unlink(missing_ok=True)
+    staged_log(h, [{"ts": "t", "tipo": "criada", "tarefa_id": task["id"]}])  # no trace of the offline local workflow
+    external_artifacts(h)
+    set_status(h, "pronta")
+    data = client.get(f"/api/t/{h}").json()
+    assert data["tarefa"]["status"] == "pronta" and data["etapas"] == []
+    assert data["resumo_md"].startswith("## 1. Síntese") and data["questoes"] == [] and data["sem_perguntas"] is True
+    topics = data["topicos"]
+    assert [t["titulo"] for t in topics] == ["Partes qualificadas", "Data", "Decidido"]
+    assert topics[0] == {"id": 1, "titulo": "Partes qualificadas", "explicacao": "Ministério Público", "classe": "classe_i_fatos",
+                         "trecho": "Agravante: Ministério Público", "score": 0.5}
+    assert topics[2]["explicacao"] == "IMPROVIDO, O recurso não merece trânsito." and topics[2]["score"] == 1.0
+    assert all("clausula" not in t for t in topics)
+    assert any(e["tipo"] == "resumo_estruturado_done" for e in data["eventos"])
+
+    inf = client.get(f"/api/t/{h}/inferencias").json()
+    assert inf["parcial"] is False and inf["texto"] == EXTERNAL_TEXT
+    assert [(c["classe"], c["rotulo"]) for c in inf["classes"]] == [("classe_i_fatos", "Fatos"), ("classe_i_decisao", "Decisão"), ("classe_v_relevancia", "Relevância")]
+    fatos, decisao = inf["classes"][0]["itens"], inf["classes"][1]["itens"]
+    a = EXTERNAL_TEXT.index("O recurso não merece trânsito.")
+    assert decisao[0]["pos"] == [a, a + 30] and decisao[0]["conferido"] and decisao[0]["score"] == 1.0  # _ui position used as is
+    assert decisao[0]["valor"] == "IMPROVIDO, O recurso não merece trânsito."
+    assert fatos[0]["pos"] == [EXTERNAL_TEXT.index("Agravante"), EXTERNAL_TEXT.index("Agravante") + len("Agravante: Ministério Público")]  # 0:0 falls back to search
+    assert fatos[1]["pos"] == [EXTERNAL_TEXT.index("seja ele"), len(EXTERNAL_TEXT) - 1] and fatos[1]["score"] == 0.9  # out of range falls back
+    assert inf["total"] == 3 and inf["conferidos"] == 3
+    assert inf["sinteses"] == [{"classe": "resumo_classe_i", "rotulo": "Fatos e decisão", "texto": "O MP recorreu e perdeu.", "lastro": ["Agravante: Ministério Público"]}]
+    # the lawyer review route shares the same body
+    r = client.get(f"/api/tarefas/{task['id']}/revisao", headers=bearer(citizen["token"]))
+    assert r.status_code == 200 and r.json()["inferencias"]["classes"][1]["itens"][0]["pos"] == [a, a + 30]
+
+
+def test_parse_pos_and_value_text():
+    from leia.api_cliente import parse_pos, value_text
+    assert parse_pos("0:0", 100) is None and parse_pos("[0:0;12:20]", 100) == [12, 20] and parse_pos("5:9, 12:20", 100) == [5, 9]
+    assert parse_pos("5:200", 100) is None and parse_pos("7:7", 100) is None and parse_pos(None, 100) is None and parse_pos("a:b", 100) is None
+    assert value_text('{"tipo": "lei", "norma": "CPC", "artigo": null}') == "lei, CPC"
+    assert value_text({"a": {"b": "X"}, "c": ["Y", "X"]}) == "X, Y" and value_text("plain") == "plain" and value_text(None) == ""
+    assert value_text("{não é json}") == "{não é json}"

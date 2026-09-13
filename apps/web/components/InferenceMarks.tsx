@@ -1,6 +1,7 @@
 "use client";
 import { useMemo } from "react";
 import type { Inferences, InferenceClass, InferenceItem } from "@/lib/inferences";
+import { scorePercent } from "@/lib/api";
 import { fmt, m } from "@/lib/i18n";
 import { Card, StatusChip } from "./ui";
 
@@ -45,6 +46,25 @@ export function MarkedText({ texto, items, idPrefix = "mark" }: { texto: string;
   );
 }
 
+/* LeIA: small neutral chip with the external flow's score, next to the "checked" seal. Never a grade for the citizen. */
+export function ScoreChip({ score }: { score: number }) {
+  const pct = scorePercent(score);
+  return <span className="inline-flex items-center rounded-full bg-[var(--muted)] px-2.5 py-1 text-[0.85rem] font-bold text-ink-2" aria-label={fmt(m.journey.confidenceLabel, { pct })}>{fmt(m.journey.confidence, { pct })}</span>;
+}
+
+/* LeIA: per-class counts for the wait screen (what the assistant marked so far) */
+export function ClassCounts({ classes }: { classes: InferenceClass[] }) {
+  return (
+    <ul className="flex flex-wrap gap-2" aria-label={m.panel.review.tabs.marks}>
+      {classes.map((c) => (
+        <li key={c.classe} className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-2.5 py-1 text-[0.9rem]">
+          <span aria-hidden className="inline-block h-3 w-3 rounded" style={{ backgroundColor: c.cor }} />{c.rotulo} <span className="font-bold">({c.itens.length})</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export function MarkCounts({ data }: { data: Pick<Inferences, "total" | "conferidos"> }) {
   return (
     <div className="flex flex-wrap gap-2">
@@ -66,7 +86,10 @@ export function ClassCards({ classes, onView, withSeal = false }: { classes: Inf
               <li key={it.ref} className="rounded-[10px] border border-line p-2.5 text-[0.95rem]">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <p><span className="font-bold">{(it.campo ?? "").replace(/_/g, " ")}</span>{it.valor ? `: ${it.valor}` : ""}</p>
-                  {withSeal && <StatusChip tone={it.conferido ? "ok" : "pending"}>{it.conferido ? m.panel.review.checked : m.panel.review.notLocated}</StatusChip>}
+                  <span className="flex flex-wrap items-center gap-1.5">
+                    {withSeal && <StatusChip tone={it.conferido ? "ok" : "pending"}>{it.conferido ? m.panel.review.checked : m.panel.review.notLocated}</StatusChip>}
+                    {it.score !== undefined && <ScoreChip score={it.score} />}
+                  </span>
                 </div>
                 <p className="mt-1 text-ink-2">“{it.trecho}”</p>
                 {it.conferido

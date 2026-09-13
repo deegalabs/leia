@@ -1,9 +1,12 @@
 /* Inferences over the original text: quote positions found by whitespace-insensitive substring search.
    Mirrors leia/api_cliente.py (build_inferences) so the in-app mock and the service agree. */
-export type InferenceItem = { ref: string; campo: string | null; valor: string | null; trecho: string; pos: [number, number] | null; conferido: boolean; cor: string };
+/* LeIA: score comes from the external flow ("_ui.score_trecho_verbatim"), 0..1 or 0..100; absent on the local pipeline */
+export type InferenceItem = { ref: string; campo: string | null; valor: string | null; trecho: string; pos: [number, number] | null; conferido: boolean; cor: string; score?: number };
 export type InferenceClass = { classe: string; rotulo: string; cor: string; itens: InferenceItem[] };
 export type Synthesis = { classe: string; rotulo: string; texto: string; lastro: string[] };
-export type Inferences = { tarefa: { hash: string; titulo: string }; texto: string; classes: InferenceClass[]; sinteses: Synthesis[]; total: number; conferidos: number };
+/* LeIA: parcial = answered while the pipeline runs (docs/API-V3-CONTRACT.md, "Preparação visível"): texto may still be empty
+   and classes holds only what the workflow produced so far */
+export type Inferences = { tarefa: { hash: string; titulo: string }; texto: string; classes: InferenceClass[]; sinteses: Synthesis[]; total: number; conferidos: number; parcial?: boolean };
 
 function normMap(text: string): { norm: string; idx: number[] } {
   const out: string[] = []; const idx: number[] = []; let prevSpace = false;

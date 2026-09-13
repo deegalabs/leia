@@ -1,15 +1,18 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { MessageCircle } from "lucide-react";
+import { Check, MessageCircle } from "lucide-react";
 import { bindTask, getTask, submitQuiz, topicsOf, type QuizResult, type Task } from "@/lib/api";
 import { isReady } from "@/lib/status";
 import { useAuth } from "@/lib/auth"; /* LeIA: v3 accounts */
 import { AssistantBanner, BottomActionBar, Button, Card, LinkButton, Page, ProgressSteps, SpeakButton, StatusChip } from "./ui";
 import { ChatSheet } from "./ChatSheet";
 import { Paragraphs, cleanTitle } from "./Inline"; /* LeIA: Paragraphs moved to Inline.tsx, shared with the lawyer review */
-import { m } from "@/lib/i18n";
+import { Preparing } from "./Preparing"; /* LeIA: visible preparation (steps and partial marks) */
+import { ScoreChip } from "./InferenceMarks";
+import { fmt, m } from "@/lib/i18n";
 
-type Step = { kind: "welcome" } | { kind: "topic"; n: number } | { kind: "question"; k: number } | { kind: "result" };
+/* LeIA: "done" ends a journey without questions (external flow): no receipt, no chip */
+type Step = { kind: "welcome" } | { kind: "topic"; n: number } | { kind: "question"; k: number } | { kind: "result" } | { kind: "done" };
 
 export function Journey({ hash }: { hash: string }) {
   const [task, setTask] = useState<Task | null>(null);
@@ -55,6 +58,8 @@ export function Journey({ hash }: { hash: string }) {
 
   const topics = useMemo(() => (task ? topicsOf(task) : []), [task]);
   const questions = task?.questoes ?? [];
+  /* LeIA: external flow. Without questions the journey ends after the last topic, with no receipt. */
+  const noQuestions = Boolean(task && (task.sem_perguntas || questions.length === 0));
   /* LeIA: v3. topicsOf() always yields a fallback topic, so readiness comes from the status or real content, never from that fallback. */
   const hasContent = Boolean(task && ((task.topicos && task.topicos.length > 0) || questions.length > 0 || (task.resumo_md && task.resumo_md.trim())));
   const ready = task && (isReady(task.tarefa.status) || hasContent);
@@ -84,18 +89,8 @@ export function Journey({ hash }: { hash: string }) {
       </Card>
     </Page>
   );
-  if (!ready) {
-    const last = task.eventos && task.eventos.length ? task.eventos[task.eventos.length - 1] : null;
-    return (
-      <Page><AssistantBanner />
-        <Card>
-          <h1 className="mb-2 text-[1.5rem]">Estamos preparando a explicação do seu documento</h1>
-          <p>Isso leva alguns minutos. Esta página atualiza sozinha. Você pode fechar e abrir o mesmo link depois.</p>
-          {last && <p className="mt-2 text-[0.95rem] text-ink-2" role="status">Etapa atual: {String(last.tipo ?? "").replace(/_/g, " ")}{last.id ? ` (${String(last.id)}${last.idx !== undefined && last.total ? `, ${Number(last.idx) + 1} de ${String(last.total)}` : ""})` : ""}</p>}
-        </Card>
-      </Page>
-    );
-  }
+  /* LeIA: visible preparation. The 14 steps, the "n de 14" bar and the document being marked; the 8 s task poll stays above. */
+  if (!ready) return <Preparing hash={hash} task={task} />;
 
   /* floating "doubt" button only where the action bar has no such button */
   const fab = (step.kind === "question" || (step.kind === "result" && result?.aprovado)) && (
@@ -116,7 +111,7 @@ export function Journey({ hash }: { hash: string }) {
             </span>
             <div>
               <h1 className="mb-2 text-[1.5rem]">Olá. Vou explicar o documento &ldquo;{task.tarefa.titulo}&rdquo; com você.</h1>
-              <p className="mb-2">Vamos ver os {topics.length} pontos principais, um de cada vez. Depois, algumas perguntas para eu conferir se expliquei bem. Sem tempo limite.</p>
+              <p className="mb-2">{fmt(noQuestions ? m.journey.welcomeNoQuestions : m.journey.welcomeWithQuestions, { n: topics.length })}</p>
             </div>
           </div>
           <Card tone="soft" className="mt-4">
@@ -129,7 +124,7 @@ export function Journey({ hash }: { hash: string }) {
             <ol className="list-decimal space-y-1 pl-5 text-[1rem]">
               <li>Eu explico cada parte e mostro o trecho original.</li>
               <li>Você pode perguntar. Eu respondo só com o que está no documento.</li>
-              <li>No fim, você responde algumas perguntas e recebe um comprovante.</li>
+              {!noQuestions && <li>No fim, você responde algumas perguntas e recebe um comprovante.</li>}
             </ol>
           </Card>
           <p className="mt-3 text-[0.95rem] text-ink-2">Você não assina nada aqui.</p>
@@ -158,13 +153,13 @@ export function Journey({ hash }: { hash: string }) {
                     {t.clausula && <small className="mb-1 block text-ink-2">Cláusula {t.clausula}</small>}
                     <mark aria-label="trecho destacado">&ldquo;{t.trecho}&rdquo;</mark>
                   </blockquote>
-                  <p className="mt-1 text-[0.9rem] text-ok">Trecho conferido: copiado exatamente do seu documento.</p>
+                  <p className="mt-1 flex flex-wrap items-center gap-2 text-[0.9rem] text-ok"><span>Trecho conferido: copiado exatamente do seu documento.</span>{t.score !== undefined && <ScoreChip score={t.score} />}</p>
                 </details>
               )}
             </Card>
             <BottomActionBar>
-              <Button onClick={() => (last ? (questions.length ? setStep({ kind: "question", k: 0 }) : setStep({ kind: "welcome" })) : setStep({ kind: "topic", n: step.n + 1 }))}>
-                {last ? (questions.length ? "Entendi, vamos conferir" : "Entendi") : "Entendi, próximo"}
+              <Button onClick={() => (last ? (noQuestions ? setStep({ kind: "done" }) : setStep({ kind: "question", k: 0 })) : setStep({ kind: "topic", n: step.n + 1 }))}>
+                {last ? (noQuestions ? m.journey.understoodLast : "Entendi, vamos conferir") : "Entendi, próximo"}
               </Button>
               <LinkButton href={`/t/${hash}/documento`} variant="ghost">Ver o documento com as marcações</LinkButton>
               <div className="grid grid-cols-2 gap-2">
@@ -207,6 +202,22 @@ export function Journey({ hash }: { hash: string }) {
           </>
         );
       })()}
+
+      {/* LeIA: external flow. No questions: the journey ends here, with no chip, no receipt and no proof. */}
+      {step.kind === "done" && (
+        <>
+          <h1 className="mb-2 text-[1.5rem]">{m.journey.allSeenTitle}</h1>
+          <p>{m.journey.allSeenText}</p>
+          <Card className="mt-4">
+            <h2 className="mb-2 text-[1.15rem]">{m.journey.allSeenList}</h2>
+            <ul className="space-y-1">{topics.map((t) => <li key={t.id} className="flex gap-2"><Check size={20} aria-hidden className="mt-0.5 flex-none text-ok" />{cleanTitle(t.titulo)}</li>)}</ul>
+          </Card>
+          <BottomActionBar>
+            <LinkButton href={`/t/${hash}/documento`}>{m.journey.viewMarkedDocument}</LinkButton>
+            <Button variant="secondary" onClick={() => setStep({ kind: "topic", n: 0 })}>{m.journey.reviewExplanation}</Button>
+          </BottomActionBar>
+        </>
+      )}
 
       {step.kind === "result" && result && (
         result.aprovado ? (

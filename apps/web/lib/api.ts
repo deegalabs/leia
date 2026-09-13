@@ -4,7 +4,11 @@ import { authHeaders } from "./auth"; /* LeIA: v3 Bearer session (lib/auth.ts) *
 export const API_BASE = (process.env.NEXT_PUBLIC_API_BASE ?? "").replace(/\/$/, "");
 export const usingInternalMock = API_BASE === "";
 
-export type Topic = { id: number; titulo: string; explicacao?: string; explicacao_md?: string; trecho?: string; clausula?: string };
+/* LeIA: score (0..1 or 0..100) only on topics from the external "Resumo estruturado" flow */
+export type Topic = { id: number; titulo: string; explicacao?: string; explicacao_md?: string; trecho?: string; clausula?: string; score?: number };
+/* LeIA: one of the 14 workflow steps as the public route reports it (docs/API-V3-CONTRACT.md, "Preparação visível") */
+export type StageState = "pendente" | "em_andamento" | "concluida" | "erro";
+export type Stage = { id: string; nome: string; estado: StageState; tempo?: number | null };
 export type Question = { id: number; enunciado: string; alternativas: string[]; area?: string };
 export type Attempt = { aprovado: boolean; hash_imutavel: string; acertos: number; total: number; numero?: number };
 export type Task = {
@@ -19,6 +23,9 @@ export type Task = {
   tem_advogado?: boolean;
   cidadao_vinculado?: boolean;
   duvidas_enviadas?: number;
+  /* LeIA: visible preparation (docs/API-V3-CONTRACT.md, "Preparação visível e tarefas do fluxo externo") */
+  etapas?: Stage[];
+  sem_perguntas?: boolean;
 };
 export type QuizResult = Attempt & { comprovante_token?: string; erros: { id: number; area?: string; enunciado?: string; escolhida?: number | null }[] };
 export type VerifyResult = {
@@ -158,11 +165,19 @@ export function clientLinkUrl(linkOrHash: string): string {
   return typeof window === "undefined" ? path : `${window.location.origin}${path}`;
 }
 
-/* LeIA: inferences (original text with the tagged quotes and what the workflow concluded) */
+/* LeIA: inferences (original text with the tagged quotes and what the workflow concluded).
+   While the pipeline runs the service answers 200 with parcial: true (texto may be empty, classes only what exists so far);
+   409 only while the lawyer reviews, 404 when the hash is unknown. */
 import type { Inferences } from "./inferences";
 export async function getInferences(hash: string): Promise<Inferences> {
   const r = await check(await fetch(`${API_BASE}/api/t/${hash}/inferencias`, { cache: "no-store" }));
-  return r.json();
+  const data = (await r.json()) as Inferences;
+  return { ...data, texto: data.texto ?? "", classes: data.classes ?? [], sinteses: data.sinteses ?? [], total: data.total ?? 0, conferidos: data.conferidos ?? 0 };
+}
+/* A score as the citizen reads it: 0 to 100 (the service sends 0..1 or 0..100). */
+export function scorePercent(score: number): number {
+  const v = score <= 1 ? score * 100 : score;
+  return Math.max(0, Math.min(100, Math.round(v)));
 }
 
 /* LeIA: lawyer review before release (docs/API-V3-CONTRACT.md, "Revisão do advogado antes de liberar"). */
