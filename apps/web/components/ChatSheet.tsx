@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { chat } from "@/lib/api";
 import { Button } from "./ui";
+import { Inline } from "./Inline";
 
 type Msg = { role: "user" | "bot"; text: string };
 const EXAMPLES = ["Quanto eu pago se perder?", "Posso desistir depois?", "Quem paga as despesas?"];
@@ -42,7 +43,7 @@ export function ChatSheet({ hash, open, onClose }: { hash: string; open: boolean
         </header>
         <div ref={bodyRef} className="flex flex-1 flex-col gap-2.5 overflow-auto px-4 py-3">
           {msgs.map((x, i) => (
-            <p key={i} className={`max-w-[90%] whitespace-pre-wrap rounded-[14px] px-3.5 py-3 ${x.role === "user" ? "self-end bg-navy text-paper" : "self-start bg-muted text-ink"}`}>{x.text}</p>
+            <p key={i} className={`max-w-[90%] whitespace-pre-wrap rounded-[14px] px-3.5 py-3 ${x.role === "user" ? "self-end bg-navy text-paper" : "self-start bg-muted text-ink"}`}>{x.role === "bot" ? <Inline text={x.text} /> : x.text}</p>
           ))}
           {msgs.length === 1 && (
             <div className="flex flex-wrap gap-2">

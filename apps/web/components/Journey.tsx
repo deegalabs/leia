@@ -4,14 +4,10 @@ import { MessageCircle } from "lucide-react";
 import { getTask, submitQuiz, topicsOf, type QuizResult, type Task } from "@/lib/api";
 import { AssistantBanner, BottomActionBar, Button, Card, LinkButton, Page, ProgressSteps, SpeakButton, StatusChip } from "./ui";
 import { ChatSheet } from "./ChatSheet";
+import { Inline, cleanTitle } from "./Inline";
 
 type Step = { kind: "welcome" } | { kind: "topic"; n: number } | { kind: "question"; k: number } | { kind: "result" };
 
-/* Minimal inline markdown: **bold** and *italics*; everything else stays literal text (never HTML). */
-function Inline({ text }: { text: string }) {
-  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g).filter(Boolean);
-  return <>{parts.map((part, i) => part.startsWith("**") ? <strong key={i}>{part.slice(2, -2)}</strong> : part.startsWith("*") ? <em key={i}>{part.slice(1, -1)}</em> : part)}</>;
-}
 function Paragraphs({ text }: { text: string }) {
   const blocks = text.split(/\n\s*\n/).map((b) => b.trim()).filter(Boolean);
   return <>{blocks.map((b, i) => {
@@ -132,7 +128,7 @@ export function Journey({ hash }: { hash: string }) {
           <>
             <ProgressSteps total={topics.length} current={step.n} label={`Ponto ${step.n + 1} de ${topics.length}`} />
             <Card key={t.id}>
-              <h1 className="mb-3 text-[1.4rem]" aria-label={`Ponto ${step.n + 1} de ${topics.length}: ${t.titulo}`}>{t.titulo}</h1>
+              <h1 className="mb-3 text-[1.4rem]" aria-label={`Ponto ${step.n + 1} de ${topics.length}: ${cleanTitle(t.titulo)}`}>{cleanTitle(t.titulo)}</h1>
               <Paragraphs text={text} />
               <SpeakButton text={`${t.titulo}. ${text}`} label="Ouvir explicação" />
               {t.trecho && (
@@ -201,7 +197,7 @@ export function Journey({ hash }: { hash: string }) {
             <p>Seu comprovante está pronto. Ele mostra que você leu a explicação e respondeu às perguntas hoje. Ele não é a assinatura do contrato.</p>
             <Card className="mt-4">
               <h2 className="mb-2 text-[1.15rem]">O que você viu</h2>
-              <ul className="space-y-1">{topics.map((t) => <li key={t.id} className="flex gap-2"><span aria-hidden className="text-ok">✓</span>{t.titulo}</li>)}</ul>
+              <ul className="space-y-1">{topics.map((t) => <li key={t.id} className="flex gap-2"><span aria-hidden className="text-ok">✓</span>{cleanTitle(t.titulo)}</li>)}</ul>
             </Card>
             <BottomActionBar>
               <LinkButton href={`/comprovante/${result.comprovante_token ?? result.hash_imutavel}`}>Ver meu comprovante</LinkButton>
