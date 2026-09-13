@@ -7,17 +7,20 @@ import { DOCS, REPO_URL, type DocEntry } from "./docs";
    - Headings get stable ids; the h2 list comes back as a table of contents.
    - Relative links to other repository files open the matching /docs page, or the file on GitHub.
    - Tables get a scroll wrapper (keyboard reachable), ARIA roles and a data-label per cell so the stylesheet
-     can stack them as cards on narrow screens without losing the header of each value. */
+     can stack them as cards on narrow screens without losing the header of each value.
+   - ```mermaid fences come back as separate parts so the page can draw them in the browser (components/Mermaid.tsx). */
 export type TocItem = { id: string; text: string };
-type RenderContext = { toc: TocItem[]; seen: Map<string, number>; source: string };
+export type DocPart = { kind: "html"; html: string } | { kind: "mermaid"; code: string; title?: string };
+type RenderContext = { toc: TocItem[]; seen: Map<string, number>; source: string; diagrams: { code: string; title?: string }[]; lastHeading?: string };
 
 const escapeAttr = (s: string) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const plain = (html: string) => html.replace(/<[^>]+>/g, "").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&").replace(/\s+/g, " ").trim();
 const slugify = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9\s-]/g, "").trim().replace(/\s+/g, "-").slice(0, 80) || "secao";
 /* a break opportunity after each slash lets long routes and paths wrap between segments instead of mid-word */
 const breakable = (html: string) => html.replace(/<code>([^<]*)<\/code>/g, (_m, t: string) => `<code>${t.replace(/\//g, "/<wbr>")}</code>`);
+const PLACEHOLDER = /<!--leia-diagram:(\d+)-->/g;
 
-let ctx: RenderContext = { toc: [], seen: new Map(), source: "" };
+let ctx: RenderContext = { toc: [], seen: new Map(), source: "", diagrams: [] };
 
 function resolveLink(href: string, source: string): string {
   if (/^([a-z][a-z0-9+.-]*:|#|\/)/i.test(href)) return href; // absolute URL, anchor or site path
@@ -38,8 +41,14 @@ const md = new Marked({
       const n = ctx.seen.get(base) ?? 0;
       ctx.seen.set(base, n + 1);
       const id = n ? `${base}-${n}` : base;
+      ctx.lastHeading = plain(text);
       if (token.depth === 2) ctx.toc.push({ id, text: plain(text) });
       return `<h${token.depth} id="${id}">${text}</h${token.depth}>\n`;
+    },
+    code(token: Tokens.Code) {
+      if ((token.lang ?? "").trim().toLowerCase() !== "mermaid") return false; // default renderer
+      ctx.diagrams.push({ code: token.text, title: ctx.lastHeading });
+      return `<!--leia-diagram:${ctx.diagrams.length - 1}-->\n`;
     },
     link(token: Tokens.Link) {
       const href = resolveLink(token.href, ctx.source);
@@ -66,9 +75,20 @@ const md = new Marked({
   },
 });
 
-export function renderDoc(entry: DocEntry): { html: string; toc: TocItem[] } {
+export function renderDoc(entry: DocEntry): { parts: DocPart[]; toc: TocItem[] } {
   const source = readFileSync(join(process.cwd(), "content", "docs", entry.file), "utf8");
-  ctx = { toc: [], seen: new Map(), source: entry.source };
+  ctx = { toc: [], seen: new Map(), source: entry.source, diagrams: [] };
   const html = md.parse(source) as string;
-  return { html, toc: ctx.toc };
+  const parts: DocPart[] = [];
+  let last = 0;
+  for (const m of html.matchAll(PLACEHOLDER)) {
+    const before = html.slice(last, m.index);
+    if (before.trim()) parts.push({ kind: "html", html: before });
+    const d = ctx.diagrams[Number(m[1])];
+    parts.push({ kind: "mermaid", code: d.code, title: d.title });
+    last = (m.index ?? 0) + m[0].length;
+  }
+  const tail = html.slice(last);
+  if (tail.trim() || parts.length === 0) parts.push({ kind: "html", html: tail });
+  return { parts, toc: ctx.toc };
 }

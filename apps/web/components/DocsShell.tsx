@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { ArrowUp, BookOpen, ChevronDown, ChevronLeft, ChevronRight, ExternalLink, List } from "lucide-react";
 import { DOCS, REPO_URL, type DocEntry } from "@/lib/docs";
-import type { TocItem } from "@/lib/markdown";
+import type { DocPart, TocItem } from "@/lib/markdown";
+import { Mermaid } from "./Mermaid";
 
 /* Documentation layout: sidebar with grouped sections, content, previous/next pager (as in the team's other products).
    Below 1024px the sidebar becomes a collapsible section picker above the text and tables stack as cards (see globals.css).
-   Long pages get a "Nesta página" list built from the h2 headings. */
-export function DocsShell({ current, html, toc }: { current: DocEntry; html: string; toc: TocItem[] }) {
+   Long pages get a "Nesta página" list built from the h2 headings. Mermaid diagrams are drawn in the browser. */
+export function DocsShell({ current, parts, toc }: { current: DocEntry; parts: DocPart[]; toc: TocItem[] }) {
   const idx = DOCS.findIndex((d) => d.slug === current.slug);
   const prev = idx > 0 ? DOCS[idx - 1] : null;
   const next = idx < DOCS.length - 1 ? DOCS[idx + 1] : null;
@@ -52,7 +53,7 @@ export function DocsShell({ current, html, toc }: { current: DocEntry; html: str
               </nav>
             </details>
           )}
-          <div className="docs-prose" dangerouslySetInnerHTML={{ __html: html }} />
+          {parts.map((p, i) => p.kind === "html" ? <div key={i} className="docs-prose" dangerouslySetInnerHTML={{ __html: p.html }} /> : <Mermaid key={i} code={p.code} title={p.title} />)}
           <p className="mt-6 text-[0.9rem] text-ink-2">
             Fonte: <a className="break-all text-teal-deep underline underline-offset-2" href={`${REPO_URL}/blob/main/${current.source}`} target="_blank" rel="noreferrer"><ExternalLink size={14} aria-hidden className="mr-1 inline" />{current.source}</a> (abre no GitHub)
           </p>

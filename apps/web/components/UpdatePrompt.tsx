@@ -7,6 +7,7 @@ import { RefreshCw, X } from "lucide-react";
    app comes back to the foreground, so an app left open still notices a deploy. */
 export function UpdatePrompt() {
   const [waiting, setWaiting] = useState<ServiceWorker | null>(null);
+  const [nextBuild, setNextBuild] = useState<string | null>(null);
   const [applying, setApplying] = useState(false);
   const reloading = useRef(false);
 
@@ -28,10 +29,16 @@ export function UpdatePrompt() {
     return () => { window.clearInterval(timer); document.removeEventListener("visibilitychange", onVisible); navigator.serviceWorker.removeEventListener("controllerchange", onControl); };
   }, []);
 
-  useEffect(() => { if (waiting) { try { navigator.vibrate?.(12); } catch { /* no haptics */ } } }, [waiting]);
+  useEffect(() => {
+    if (!waiting) return;
+    try { navigator.vibrate?.(12); } catch { /* no haptics */ }
+    /* the waiting worker carries the id of the new build; read it so the prompt can name what is coming */
+    fetch("/sw.js", { cache: "no-store" }).then((r) => r.text()).then((t) => { const m = /BUILD_ID = "([^"]+)"/.exec(t); if (m) setNextBuild(m[1].split("-")[0]); }).catch(() => {});
+  }, [waiting]);
 
   if (!waiting) return null;
-  const version = `v${process.env.NEXT_PUBLIC_APP_VERSION ?? ""} · ${process.env.NEXT_PUBLIC_COMMIT_SHA ?? ""}`;
+  const current = process.env.NEXT_PUBLIC_COMMIT_SHA || "dev";
+  const version = `v${process.env.NEXT_PUBLIC_APP_VERSION ?? ""} · de ${current} para ${nextBuild ?? "nova build"}`;
   return (
     <div role="status" aria-live="polite" className="fixed inset-x-3 bottom-3 z-50 flex items-center gap-3 rounded-[14px] bg-navy px-4 py-3 text-paper shadow-[0_8px_30px_rgba(8,24,32,.35)] md:inset-x-auto md:right-6 md:w-[420px]">
       <div className="min-w-0 flex-1">
@@ -47,7 +54,7 @@ export function UpdatePrompt() {
   );
 }
 
-/* "v0.4.0 · abc1234" for the footer. */
+/* "v1.0.0 · abc1234" for the footer: the version is fixed (no release tags yet); the commit sha is what changes per deploy. */
 export function VersionBadge({ className = "" }: { className?: string }) {
   const sha = process.env.NEXT_PUBLIC_COMMIT_SHA ?? "dev";
   return <span className={`font-mono text-[0.85rem] ${className}`}>LeIA v{process.env.NEXT_PUBLIC_APP_VERSION ?? "0.0.0"} · {sha === "dev" ? sha : <a href={`https://github.com/deegalabs/leia/commit/${sha}`} className="underline underline-offset-2" target="_blank" rel="noreferrer">{sha}</a>}</span>;
