@@ -51,13 +51,13 @@ export function Mermaid({ code, title }: { code: string; title?: string }) {
       <dialog ref={dialog} onCancel={(e) => { e.preventDefault(); close(); }} aria-label={label}
         className="diagram-dialog m-0 h-dvh max-h-none w-screen max-w-none bg-paper-2 p-0 text-ink backdrop:bg-navy/80">
         <div className="flex h-full flex-col">
-          <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-2">
-            <p className="font-bold">{label}</p>
-            <div className="flex items-center gap-1">
+          <div className="flex items-center justify-between gap-2 border-b border-line px-3 py-2 sm:px-4">
+            <p className="min-w-0 flex-1 truncate font-bold" title={label}>{label}</p>
+            <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
               <button type="button" aria-label="Reduzir" onClick={() => setZoom((z) => Math.max(1, +(z - 0.5).toFixed(1)))} className="grid h-11 w-11 place-items-center rounded-button text-teal-deep hover:bg-teal-soft"><Minus size={18} aria-hidden /></button>
-              <button type="button" onClick={() => setZoom(1)} className="inline-flex min-h-[44px] items-center gap-1 rounded-button px-2 text-[0.9rem] font-bold text-teal-deep hover:bg-teal-soft"><Scan size={16} aria-hidden /> Ajustar</button>
+              <button type="button" aria-label="Ajustar à tela" onClick={() => setZoom(1)} className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1 rounded-button px-2 text-[0.9rem] font-bold text-teal-deep hover:bg-teal-soft"><Scan size={18} aria-hidden /><span className="hidden sm:inline">Ajustar</span></button>
               <button type="button" aria-label="Ampliar" onClick={() => setZoom((z) => Math.min(5, +(z + 0.5).toFixed(1)))} className="grid h-11 w-11 place-items-center rounded-button text-teal-deep hover:bg-teal-soft"><Plus size={18} aria-hidden /></button>
-              <button type="button" onClick={close} className="inline-flex min-h-[44px] items-center gap-2 rounded-button px-3 font-bold text-teal-deep hover:bg-teal-soft"><X size={18} aria-hidden /> Fechar</button>
+              <button type="button" aria-label="Fechar" onClick={close} className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-2 rounded-button px-2 font-bold text-teal-deep hover:bg-teal-soft sm:px-3"><X size={18} aria-hidden /><span className="hidden sm:inline">Fechar</span></button>
             </div>
           </div>
           {svg && <div className="diagram diagram-full min-h-0 flex-1 overflow-auto p-3" data-fit={zoom === 1 ? "1" : undefined} style={{ ["--zoom" as string]: zoom }} dangerouslySetInnerHTML={{ __html: svg }} />}
