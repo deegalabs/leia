@@ -36,8 +36,19 @@ acrescenta são só dois arquivos novos (comprovante e verificação) e a substi
 | `tarefa_detalhe.html` | formulário de entrada (`/login`) | Pós | fica como está; credenciais da auditoria no README |
 | tela "Início" (captura 8h13, sem arquivo em `temp/`) | Iniciar chat, Anexar PDF, Painel | L2 | fica; logo e uma linha de posicionamento; **não** se cria landing separada hoje |
 
-Telas que a interface acrescenta: `leia/comprovante.html` (C6) e `leia/verify.html` (P1). Nada mais. A landing
-(`docs/design/screen-15-landing.md`) e a confirmação explícita (C5 com botão) ficam no roadmap.
+Telas que a interface acrescenta: comprovante (C6) e verificação pública (P1). Nada mais. A confirmação explícita (C5
+com botão) fica no roadmap.
+
+### Onde cada tela vive no app (`apps/web`, ADR-0009, 13/09 10h)
+| Tela | Rota no app | Componente | Dados |
+|---|---|---|---|
+| Landing (tela 15) | `/` | `app/page.tsx` | estática |
+| C1 a C5 | `/t/{hash}` | `components/Journey.tsx` (etapas: boas-vindas, ponto n de N, dúvida em gaveta, pergunta k de K, resultado) | `GET /api/t/{hash}`, `POST /quiz`, `POST /chat` |
+| C6 | `/comprovante/{hash_imutavel}` | `components/Receipt.tsx` | `GET /verify/{hash_imutavel}?format=json` |
+| P1 | `/verify/{hash_imutavel}` | `components/Verify.tsx` | idem + `proof.ots` |
+| L2 a L7, bastidores, login | serviço (FastAPI) | templates do Carlos com tema e textos | |
+
+A página `apps/llm-service/templates/leia/cliente.html` (mesma jornada, servida pelo FastAPI) é reserva da Entrega 4.
 
 ## Plataforma e acesso
 - **Um web app responsivo** (desktop e celular). Instalar como aplicativo (PWA) é extra, não requisito.

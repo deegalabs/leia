@@ -18,6 +18,7 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import RedirectResponse, StreamingResponse
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -28,6 +29,8 @@ ROOT = HERE.parent
 FIXTURE = pathlib.Path(os.getenv("LEIA_FIXTURE", ROOT.parent.parent / "examples" / "fixture-honorarios.json"))
 
 app = FastAPI(title="LeIA mock service")
+app.add_middleware(CORSMiddleware, allow_origins=os.getenv("CORS_ORIGINS", "http://localhost:3000").split(","),
+                   allow_methods=["*"], allow_headers=["*"])
 app.mount("/static", StaticFiles(directory=ROOT / "static"), name="static")
 templates = Jinja2Templates(directory=ROOT / "templates")
 
@@ -39,6 +42,12 @@ def _task(hash_: str) -> dict[str, Any]:
     if hash_ != STATE["tarefa"]["hash"]:
         raise HTTPException(status_code=404)
     return STATE
+
+
+def _public_attempt(attempt: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not attempt:
+        return None
+    return {k: attempt[k] for k in ("aprovado", "hash_imutavel", "acertos", "total", "numero")}
 
 
 def _public_questions(state: dict[str, Any]) -> list[dict[str, Any]]:
@@ -66,7 +75,7 @@ def task_json(hash_: str):
     state = _task(hash_)
     last = STATE["tentativas"][-1] if STATE["tentativas"] else None
     return {"tarefa": state["tarefa"], "resumo_md": state["resumo_md"], "topicos": state.get("topicos"),
-            "questoes": _public_questions(state), "ultima_tentativa": last}
+            "questoes": _public_questions(state), "ultima_tentativa": _public_attempt(last)}
 
 
 @app.post("/api/t/{hash_}/quiz")

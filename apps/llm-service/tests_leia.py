@@ -35,6 +35,14 @@ def test_quiz_pass_and_receipt():
     assert client.get(f"/verify/{r['hash_imutavel']}").status_code == 200
 
 
+def test_task_json_after_attempt_is_serializable():
+    key = {str(q["id"]): q["correta"] for q in STATE["questoes"]["questoes"]}
+    client.post(f"/api/t/{HASH}/quiz", json={"respostas": key})
+    r = client.get(f"/api/t/{HASH}")
+    assert r.status_code == 200 and r.json()["ultima_tentativa"]["aprovado"] is True
+    assert "ots" not in r.json()["ultima_tentativa"] and "salt" not in r.json()["ultima_tentativa"]
+
+
 def test_quiz_fail_lists_points_to_review():
     r = client.post(f"/api/t/{HASH}/quiz", json={"respostas": {"1": 3, "2": 3}}).json()
     assert not r["aprovado"] and len(r["erros"]) == 12 and r["erros"][0]["enunciado"]

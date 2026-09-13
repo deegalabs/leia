@@ -1,16 +1,16 @@
 # Stack e plano de desenvolvimento: integração com o serviço do Carlos (13/09, dia 2)
 
-Decisão (ADR-0008 na pasta de trabalho): **a interface do hackathon é hospedada dentro do FastAPI do Carlos**, na mesma
-origem, sem CORS nem segundo deploy. Motivo: às 10h30 o auditor precisa testar no laptop. Isso define onde a interface
-roda, não quem a faz: **a interface do produto (cidadã, comprovante, verificação) é do Daniel e consome só a API do
-serviço**; os templates do Carlos são as telas internas do serviço (painel, detalhe, bastidores, login) e recebem apenas
-tema e textos. O mesmo código roda separado (`window.LEIA_API_BASE`) quando o serviço expuser a tarefa em JSON e CORS;
-o app Next.js (`apps/web`) fica para depois do evento.
+Decisão (ADR-0009 na pasta de trabalho, substitui o ADR-0008): **a interface do produto é o app Next.js em `apps/web`,
+separado, responsivo (celular e desktop), consumindo só a API do serviço** (`NEXT_PUBLIC_API_BASE`). Os templates do
+Carlos são as telas internas do serviço (painel, detalhe, bastidores, login) e recebem apenas tema e textos. A página
+HTML em `apps/llm-service/templates/leia/cliente.html` fica como reserva para a Entrega 4 se a API JSON ou o CORS não
+estiverem no serviço real a tempo. Na auditoria rodam dois processos: serviço (`uvicorn`) e app (`pnpm dev`).
 
 ## Stack (o que roda hoje)
 | Camada | Tecnologia | Dono | Estado |
 |---|---|---|---|
-| Serviço e interface | Python 3.12, FastAPI, Jinja2, `uvicorn`; templates: início, anexar PDF, painel, detalhe, página do cliente, espera, chat/bastidores | Carlos | rodando |
+| Serviço | Python 3.12, FastAPI, Jinja2, `uvicorn`; templates internos: início, anexar PDF, painel, detalhe, espera, bastidores, login | Carlos | rodando |
+| Interface do produto | Next.js 16 (App Router), Tailwind 4, Lucide, `qrcode`; rotas `/`, `/t/{hash}`, `/comprovante/{hash_imutavel}`, `/verify/{hash_imutavel}`; consome só a API | Daniel | rodando contra o mock |
 | Motor cognitivo | Groq `openai/gpt-oss-120b`, workflow de 16 tarefas (etiquetar → memória → sintetizar com lastro → resumo → perguntas), temperatura 0, semente fixa; prompts em `prompts/workflow/` | Carlos | rodando |
 | Dados | banco do serviço (tarefas, tentativas com hash SHA-256, eventos com tempo por etapa) | Carlos | rodando |
 | Marca e acessibilidade | `docs/brand/leia-theme.css` (remapeia as variáveis dos templates), `leia-icons.svg`, logos SVG, `copy-replacements.md`; Tailwind CDN já usado pelos templates | Daniel | pronto para aplicar |

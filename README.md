@@ -37,7 +37,7 @@ Cada entrega é uma tag anotada no git; detalhes e comandos em [docs/DELIVERIES.
 ├── evidence/      evidências de cada entrega e dos pontos extras
 ├── scripts/       tag-delivery.sh (fecha uma entrega: tag + changelog)
 ├── examples/      contrato de exemplo (fixture) para rodar sem o serviço
-└── apps/          llm-service (FastAPI: serviço + interface da cidadã + registro); web (Next.js, pós-hackathon)
+└── apps/          web (Next.js: interface do produto) e llm-service (FastAPI: serviço, registro, mock)
 ```
 
 ## Documentos
@@ -56,12 +56,14 @@ Cada entrega é uma tag anotada no git; detalhes e comandos em [docs/DELIVERIES.
 - [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md): como subir código, publicar na pasta oficial e fechar uma entrega.
 
 ## Como rodar
-Interface da cidadã, comprovante e verificação rodam hoje sobre um mock do serviço com um contrato de exemplo:
+Dois processos: o serviço (hoje o mock, com um contrato de exemplo) e o app.
 ```bash
-cd apps/llm-service
-python -m venv .venv && . .venv/bin/activate
-pip install fastapi uvicorn jinja2 -r requirements-leia.txt
-uvicorn mock.app:app --port 8000        # http://localhost:8000
+# 1. serviço (mock do serviço cognitivo, mesmas rotas, CORS para localhost:3000)
+cd apps/llm-service && python -m venv .venv && . .venv/bin/activate
+pip install fastapi uvicorn jinja2 -r requirements-leia.txt && uvicorn mock.app:app --port 8000
+
+# 2. app (interface do produto)
+cd apps/web && cp .env.example .env.local && pnpm install && pnpm dev      # http://localhost:3000
 ```
-Com o serviço real: [apps/llm-service/README.md](apps/llm-service/README.md) (integração em 10 minutos).
-Auditoria: [docs/AUDIT-GUIDE.md](docs/AUDIT-GUIDE.md). Conferir um registro: `scripts/verify_cli.py payload.json <hash>`.
+Abra `http://localhost:3000` e toque em "Ver um exemplo". Com o serviço real: [apps/llm-service/README.md](apps/llm-service/README.md).
+Auditoria: [docs/AUDIT-GUIDE.md](docs/AUDIT-GUIDE.md). Conferir um registro: `scripts/verify_cli.py registro.json <hash>`.
