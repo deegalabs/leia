@@ -60,6 +60,7 @@ A página `apps/llm-service/templates/leia/cliente.html` (mesma jornada, servida
 | A1 Enviar documento | `/enviar` | PDF + título; advogado recebe o link da cliente; cidadã vai direto para a jornada | `POST /api/tarefas` |
 | C3 Dúvida | gaveta em `/t/{hash}` | além do chat, "Enviar esta dúvida para o advogado" quando a tarefa tem advogado; cai no painel dele | `POST /api/t/{hash}/duvida` |
 | Documento e marcações | `/t/{hash}/documento` | texto original com cada trecho marcado por classe (quem é quem, datas e valores, fatos, fundamentos, pedidos), lista das marcações com "Ver no texto", "O que a assistente concluiu" (sínteses com lastro), contagem de conferidas palavra por palavra; ligado da jornada e do detalhe do painel | `GET /api/t/{hash}/inferencias` |
+
 Regra do produto: todo documento passa pela estruturação (workflow) antes do chat; a cidadã pode usar a plataforma
 sozinha (sem advogado) ou pelo link do advogado. Contrato: `docs/API-V3-CONTRACT.md`.
 

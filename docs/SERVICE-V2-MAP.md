@@ -248,7 +248,7 @@ Com fallback para o layout `{identificacao, datas_valores, fatos, fundamentos, p
 | Chamada | Corpo | Resposta |
 |---|---|---|
 | `POST /submit` | multipart `file=(nome, bytes, application/pdf)` ou `text=<str>`; resumo acrescenta `enable_synthesis="true"`, `reasoning_effort="medium"`, `modo_disparo="paralelo"` (`api.py:45-57`); jurisprudência acrescenta `consulta` (`api_jurisprudencia.py:45-47`) | `{"job_id": str, "total_steps": int}` gravado em `resumo_estruturado_job.json` / `jurisprudencia_job.json` |
-| `GET /status/{job_id}` | | `{"status": "done"|"error"|outro, "current_step", "step_index", "total_steps", "tokens_total", "elapsed", "error"}` |
+| `GET /status/{job_id}` | | `{"status": "done"\|"error"\|outro, "current_step", "step_index", "total_steps", "tokens_total", "elapsed", "error"}` |
 | `GET /result/{job_id}` | | `{"dados_llm", "doc_text", "tokens_total", "elapsed"}` gravado em `resumo_estruturado.json` + `resumo_estruturado_texto.txt` (ou `jurisprudencia_resultado.json` + `jurisprudencia_texto.txt`) |
 | `POST /jobs/{job_id}/rerun/{step_id}` | | repassado |
 | `POST /export-pdf` (`api.py:98-107`) | | sem chamador em lugar nenhum |

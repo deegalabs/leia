@@ -23,20 +23,36 @@ mark { background: var(--color-teal-soft); color: inherit; text-decoration: unde
 @media print { .no-print { display: none !important; } body { background: #fff; } }
 
 /* documentation pages (markdown from the repository) */
-.docs-prose { font-size: 1rem; line-height: 1.6; }
-.docs-prose h1 { font-size: 1.7rem; margin: 0 0 12px; }
+.docs-prose { font-size: 1rem; line-height: 1.6; overflow-wrap: anywhere; }
+.docs-prose h1 { font-size: clamp(1.45rem, 4.5vw + 0.5rem, 1.7rem); margin: 0 0 12px; text-wrap: balance; }
 .docs-prose h2 { font-size: 1.3rem; margin: 28px 0 10px; }
 .docs-prose h3 { font-size: 1.1rem; margin: 22px 0 8px; }
+.docs-prose h2, .docs-prose h3, .docs-prose h4 { scroll-margin-top: 16px; }
 .docs-prose p, .docs-prose ul, .docs-prose ol { margin: 0 0 12px; }
 .docs-prose ul { padding-left: 22px; list-style: disc; } .docs-prose ol { padding-left: 22px; list-style: decimal; }
 .docs-prose li { margin-bottom: 4px; }
 .docs-prose a { color: var(--color-teal-deep); text-decoration: underline; text-underline-offset: 3px; }
 .docs-prose code { font-family: var(--font-mono); font-size: 0.9em; background: var(--muted); padding: 1px 5px; border-radius: 6px; }
-.docs-prose pre { background: var(--color-navy); color: var(--color-paper); padding: 14px; border-radius: 12px; overflow-x: auto; margin: 0 0 14px; }
-.docs-prose pre code { background: transparent; color: inherit; padding: 0; }
-.docs-prose table { display: block; overflow-x: auto; border-collapse: collapse; margin: 0 0 14px; font-size: 0.95rem; }
-.docs-prose th, .docs-prose td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; vertical-align: top; }
-.docs-prose th { background: var(--muted); }
+.docs-prose pre { max-width: 100%; background: var(--color-navy); color: var(--color-paper); padding: 14px; border-radius: 12px; overflow-x: auto; margin: 0 0 14px; font-size: 0.9rem; line-height: 1.5; }
+.docs-prose pre code { background: transparent; color: inherit; padding: 0; font-size: inherit; overflow-wrap: normal; }
 .docs-prose blockquote { border-left: 4px solid var(--color-teal-deep); background: var(--color-teal-soft); padding: 10px 14px; border-radius: 10px; margin: 0 0 14px; }
+.docs-prose blockquote p:last-child { margin: 0; }
 .docs-prose hr { border: 0; border-top: 1px solid var(--border); margin: 24px 0; }
-.docs-prose img { max-width: 100%; border-radius: 10px; }
+.docs-prose img { max-width: 100%; height: auto; border-radius: 10px; }
+/* tables: a real grid on wide screens (scrolling inside its own box if it must), one card per row on phones */
+.docs-prose .table-wrap { max-width: 100%; overflow-x: auto; margin: 0 0 16px; -webkit-overflow-scrolling: touch; }
+.docs-prose table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+.docs-prose th, .docs-prose td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; vertical-align: top; overflow-wrap: normal; } /* whole words in the grid; code breaks after slashes (see lib/markdown.ts) and the wrapper scrolls if it must */
+.docs-prose th { background: var(--muted); font-weight: 700; }
+@media (max-width: 639px) {
+  .docs-prose table, .docs-prose tbody, .docs-prose tr, .docs-prose td { display: block; }
+  .docs-prose thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .docs-prose tr { border: 1px solid var(--border); border-radius: 12px; background: var(--color-surface); padding: 6px 12px; margin: 0 0 10px; }
+  .docs-prose td { border: 0; border-top: 1px solid var(--border); padding: 8px 0; }
+  .docs-prose td:first-child { border-top: 0; }
+  .docs-prose td[data-empty] { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); padding: 0; border: 0; } /* stays in the accessibility tree */
+  .docs-prose td::before { content: attr(data-label); content: attr(data-label) / ""; display: block; margin-bottom: 2px; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--color-ink-2); }
+  .docs-prose td:first-child:not([data-empty]) { font-weight: 700; }
+  .docs-prose td { overflow-wrap: anywhere; }
+  .docs-prose pre { padding: 12px; font-size: 0.85rem; border-radius: 10px; }
+}

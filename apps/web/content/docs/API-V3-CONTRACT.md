@@ -54,6 +54,7 @@ invalida o anterior).
 | `/painel/{id}` | detalhe: eventos, tentativas, dúvidas com campo de resposta (advogado) |
 | `/enviar` | enviar um PDF (cidadã ou advogado); depois vai para `/t/{hash}` (advogado: mostra o link para enviar à cliente) |
 | `/t/{hash}` | jornada; na gaveta de dúvida, botão "Enviar esta dúvida para o advogado" quando `tem_advogado`; se logada como cidadã, vincula a tarefa |
+
 Sem serviço (`NEXT_PUBLIC_API_BASE` vazio), o mock interno em `app/api/*` responde a tudo com dados em memória do processo.
 
 ## Revisão do advogado antes de liberar (13/09, 18h)

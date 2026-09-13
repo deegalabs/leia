@@ -14,5 +14,6 @@ export default async function DocPage({ params }: PageProps<"/docs/[slug]">) {
   const { slug } = await params;
   const doc = docBySlug(slug);
   if (!doc) notFound();
-  return <DocsShell current={doc} html={renderDoc(doc.file)} />;
+  const { html, toc } = renderDoc(doc);
+  return <DocsShell current={doc} html={html} toc={toc} />;
 }

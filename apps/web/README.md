@@ -42,8 +42,11 @@ Contas de demonstração (senha `leia1234`): `advogada@exemplo.leia` (advogado, 
 
 ## Publicar na Vercel
 ```bash
-vercel link --yes --project leia --scope danielgorgonhas-projects
-vercel deploy --prod --yes --scope danielgorgonhas-projects
+pnpm dlx vercel@latest link --yes --project leia --scope danielgorgonhas-projects
+pnpm dlx vercel@latest deploy --prod --yes --scope danielgorgonhas-projects --build-env GIT_COMMIT_SHA=$(git rev-parse HEAD)
 ```
+Use sempre a CLI atual via `pnpm dlx vercel@latest`: a versão 54 instalada globalmente falha com "experimentalServices".
+`GIT_COMMIT_SHA` alimenta o selo de versão da landing e o nome do cache do service worker (sem ele a build usa
+`VERCEL_GIT_COMMIT_SHA`, que só existe em deploys a partir do GitHub).
 Produção: https://leia-snowy.vercel.app (protection de deploy só nos previews). Variáveis de produção: `NEXT_PUBLIC_API_BASE`
 (URL do serviço no Railway) e `NEXT_PUBLIC_DEMO_HASH` (hash da tarefa de exemplo usada em "Ver um exemplo").
