@@ -5,22 +5,39 @@ Web app responsivo, um código, desktop e celular. Sem login no hackathon (anota
 
 | # | Tela | Hoje (templates do serviço) |
 |---|---|---|
-| L2 | Início: Iniciar chat · Anexar PDF · Painel | tela nova (captura de 13/09, 8h13) |
-| L3 | Anexar PDF com progresso por etapa | `tarefa_nova.html` + `cliente_view.html` |
-| L4 | Painel: documentos, status, filtros | `index.html` |
-| L5 | Revisar: texto simples, trecho original, escolher perguntas | parte de `tarefa_nova.html` (falta editar e escolher) |
-| L6 | Aprovar e gerar link do cliente | `tarefa_nova.html` ("Link cliente") |
-| C1 | Cliente: início, apresentação e limites | topo de `dashboard.html` |
-| C2 | Cliente: tópico n de N | resumo de `dashboard.html` (hoje inteiro numa página) |
-| C3 | Cliente: dúvida | chat lateral de `dashboard.html` |
-| C4 | Cliente: conferindo (perguntas abertas) | questões de `dashboard.html` (hoje múltipla escolha) |
-| C5 | Cliente: confirmação | não existe |
-| C6 | Cliente: comprovante (sucesso) | bloco "assinatura" de `dashboard.html` |
-| L7 | Painel: registrado, respostas, prova | tentativas de `tarefa_nova.html` |
-| P1 | Verificação pública | não existe |
-| Pós | Login do advogado (e-mail e senha ou social) e conferência da OAB: fora do hackathon; acesso aberto durante o evento | `tarefa_detalhe.html` existe, não entra na jornada |
+| L2 | Início: Iniciar chat · Anexar PDF · Painel | tela nova do serviço (captura de 13/09, 8h13); recebe logo e tema, sem landing separada |
+| L3 | Anexar PDF com progresso por etapa | `tarefa_nova.html` (bloco "Pipeline em execução" e log de eventos) |
+| L4 | Painel: documentos, status, filtros | `index.html` (tema e textos; IP fora da tela) |
+| L5 | Revisar: texto simples, trecho original, escolher perguntas | parte de `tarefa_nova.html` (resumo e perguntas); editar e escolher ficam pós-hackathon |
+| L6 | Aprovar e gerar link do cliente | `tarefa_nova.html` ("Link da cliente") |
+| C1 | Cliente: início, apresentação e limites | `leia/cliente.html`, etapa boas-vindas (substitui `dashboard.html` na rota `/t/{hash}`); espera: `cliente_view.html` |
+| C2 | Cliente: tópico n de N | `leia/cliente.html`, etapa "Ponto n de N" com trecho original (usa `topicos` se o serviço enviar; senão divide o `resumo_md`) |
+| C3 | Cliente: dúvida | `leia/cliente.html`, gaveta "Tenho uma dúvida" (mesma rota `/api/t/{hash}/chat`) |
+| C4 | Cliente: conferindo | `leia/cliente.html`, uma pergunta por tela, múltipla escolha como o serviço gera hoje (abertas: pós-hackathon) |
+| C5 | Cliente: confirmação | `leia/cliente.html`, etapa de resultado ("Entendimento registrado" ou "Vamos ver de novo"); o registro acontece no `/quiz` do serviço, então o botão "Confirmo que entendi" fica pós-hackathon |
+| C6 | Cliente: comprovante (sucesso) | `leia/comprovante.html` em `/t/{hash_imutavel}/comprovante` (QR, código, o que prova); `pdf-assinado` do serviço pode continuar |
+| L7 | Painel: registrado, respostas, prova | tentativas de `tarefa_nova.html` + link para `/verify/{hash_imutavel}` |
+| P1 | Verificação pública | `leia/verify.html` em `/verify/{hash_imutavel}` (JSON canônico, hash, prova .ots) |
+| Pós | Login do advogado (e-mail e senha ou social) e conferência da OAB: fora do hackathon | `tarefa_detalhe.html` (formulário de entrada do serviço) continua existindo; a auditora recebe as credenciais no README; não entra na jornada |
 
 As specs detalhadas continuam em `design/screen-*.md` (A0–A4 = L1–L7; C0–C6; P1).
+
+### Conciliação com os templates do serviço (13/09, 9h30)
+Regra: nenhuma tela além das previstas acima. Cada arquivo recebido do serviço tem um destino; o que a interface
+acrescenta são só dois arquivos novos (comprovante e verificação) e a substituição da página da cidadã.
+
+| Template do serviço | O que é | Tela prevista | Destino |
+|---|---|---|---|
+| `index.html` | painel de tarefas com filtros, reprocessar, chat | L4 | fica; tema, textos, IP fora da lista |
+| `tarefa_nova.html` | detalhe da tarefa: pipeline, resumo, perguntas com gabarito, tentativas, PDF | L3, L5, L6, L7 | fica; tema, textos, link "Ver registro público" nas tentativas aprovadas |
+| `cliente_view.html` | espera da cidadã ("Preparando seu documento", refresh 5 s) | C1 (estado de espera) | fica; tema e texto |
+| `dashboard.html` | página da cidadã inteira numa tela: resumo, 12 questões, modal de resultado, chat | C1 a C6 | substituída por `leia/cliente.html` na mesma rota e com o mesmo contexto; arquivo fica no repositório como referência |
+| `login.html` | bancada "AI Forensics": chat investigador, payload, log, memória, contexto, protocolo | nenhuma | fica fora da jornada como **Bastidores**, só para a auditoria (D3: memória persistente, log por etapa); acessível pelo painel, sem link para a cidadã |
+| `tarefa_detalhe.html` | formulário de entrada (`/login`) | Pós | fica como está; credenciais da auditoria no README |
+| tela "Início" (captura 8h13, sem arquivo em `temp/`) | Iniciar chat, Anexar PDF, Painel | L2 | fica; logo e uma linha de posicionamento; **não** se cria landing separada hoje |
+
+Telas que a interface acrescenta: `leia/comprovante.html` (C6) e `leia/verify.html` (P1). Nada mais. A landing
+(`docs/design/screen-15-landing.md`) e a confirmação explícita (C5 com botão) ficam no roadmap.
 
 ## Plataforma e acesso
 - **Um web app responsivo** (desktop e celular). Instalar como aplicativo (PWA) é extra, não requisito.
