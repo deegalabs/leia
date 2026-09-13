@@ -17,12 +17,12 @@ DETAIL = "Muitas tentativas em pouco tempo. Aguarde um minuto e tente de novo."
 
 
 def client_ip(request: Request) -> str:
-    """First address of X-Forwarded-For when present (proxy), else the socket peer."""
-    forwarded = request.headers.get("x-forwarded-for", "")
-    if forwarded:
-        first = forwarded.split(",")[0].strip()
-        if first:
-            return first
+    """Socket peer as seen by uvicorn (already rewritten from the proxy headers with --proxy-headers).
+    X-Forwarded-For is only honoured when RATE_LIMIT_TRUST_XFF=true (tests, or a trusted single proxy)."""
+    if os.getenv("RATE_LIMIT_TRUST_XFF", "false").lower() in ("1", "true", "yes"):
+        xff = request.headers.get("x-forwarded-for", "")
+        if xff:
+            return xff.split(",")[0].strip()
     return request.client.host if request.client else "?"
 
 

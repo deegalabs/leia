@@ -48,11 +48,11 @@ export function ChatSheet({ hash, open, onClose, temAdvogado = false }: { hash: 
   return (
     <>
       <div className={`fixed inset-0 z-20 bg-navy/45 transition-opacity ${open ? "opacity-100" : "pointer-events-none opacity-0"}`} onClick={onClose} aria-hidden="true" />
-      <div role="dialog" aria-modal="true" aria-label="Tirar dúvida com a assistente" aria-hidden={!open}
+      <div role="dialog" aria-modal="true" aria-label="Tirar dúvida com a assistente" inert={!open}
         className={`fixed inset-x-0 bottom-0 z-30 flex max-h-[85vh] flex-col rounded-t-[18px] bg-surface shadow-[0_-8px_30px_rgba(8,24,32,.25)] transition-transform md:inset-x-auto md:right-6 md:w-[440px] ${open ? "translate-y-0" : "translate-y-[105%]"}`}>
         <header className="flex items-center justify-between border-b border-line px-4 py-3">
           <h2 className="text-[1.15rem]">Tenho uma dúvida</h2>
-          <Button variant="secondary" className="!w-auto !min-h-[44px]" onClick={onClose}><X size={18} aria-hidden /> Fechar</Button>
+          <Button variant="secondary" className="!w-auto !min-h-[48px]" onClick={onClose}><X size={18} aria-hidden /> Fechar</Button>
         </header>
         <div ref={bodyRef} className="flex flex-1 flex-col gap-2.5 overflow-auto px-4 py-3">
           {msgs.map((x, i) => (
@@ -60,14 +60,14 @@ export function ChatSheet({ hash, open, onClose, temAdvogado = false }: { hash: 
           ))}
           {msgs.length === 1 && (
             <div className="flex flex-wrap gap-2">
-              {EXAMPLES.map((e) => <button key={e} type="button" onClick={() => send(e)} className="min-h-[44px] rounded-full border-2 border-line px-3 text-[0.95rem] hover:bg-teal-soft">{e}</button>)}
+              {EXAMPLES.map((e) => <button key={e} type="button" onClick={() => send(e)} className="min-h-[48px] rounded-full border-2 border-line px-3 text-[0.95rem] hover:bg-teal-soft">{e}</button>)}
             </div>
           )}
         </div>
         {temAdvogado && lastQuestion && !busy && (
           <div className="border-t border-line px-4 py-2.5">
             {alreadySent ? <p role="status" className="text-[0.95rem] text-ok">{m.doubt.sent}</p> : (
-              <Button variant="secondary" className="!min-h-[44px]" disabled={forward.state === "sending"} onClick={forwardToLawyer}>
+              <Button variant="secondary" className="!min-h-[48px]" disabled={forward.state === "sending"} onClick={forwardToLawyer}>
                 <Send size={18} aria-hidden /> {forward.state === "sending" ? m.doubt.sending : m.doubt.sendToLawyer}
               </Button>
             )}
@@ -76,9 +76,9 @@ export function ChatSheet({ hash, open, onClose, temAdvogado = false }: { hash: 
         )}
         <form className="flex gap-2 border-t border-line px-4 py-3" onSubmit={(e) => { e.preventDefault(); send(input); }}>
           <label htmlFor="chat-input" className="sr-only">Sua dúvida</label>
-          <input id="chat-input" ref={inputRef} value={input} onChange={(e) => setInput(e.target.value)} autoComplete="off" placeholder="Fale ou escreva sua dúvida aqui"
+          <input id="chat-input" ref={inputRef} value={input} onChange={(e) => setInput(e.target.value)} autoComplete="off" placeholder="Escreva sua dúvida aqui"
             className="min-h-[48px] flex-1 rounded-button border-2 border-line px-3 text-[1.05rem]" />
-          <Button className="!w-auto !min-h-[48px]" disabled={busy || !input.trim()} type="submit">Enviar</Button>
+          <Button className="!w-auto !min-h-[48px]" disabled={busy || !input.trim()} type="submit">Enviar dúvida</Button>
         </form>
       </div>
     </>

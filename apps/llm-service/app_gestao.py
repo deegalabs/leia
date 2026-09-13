@@ -88,6 +88,11 @@ async def create_pdf_task(
     pasta = ws.pasta(h)
 
     conteudo = await pdf.read()
+    # LeIA: size cap and real PDF check (the extension alone is not enough)
+    if len(conteudo) > int(os.getenv("MAX_UPLOAD_MB", "15")) * 1024 * 1024:
+        raise HTTPException(413, "Arquivo grande demais. Envie um PDF de até %s MB." % os.getenv("MAX_UPLOAD_MB", "15"))
+    if not conteudo.startswith(b"%PDF"):
+        raise HTTPException(400, "Este arquivo não é um PDF.")
     if not conteudo:
         raise HTTPException(400, "O arquivo está vazio.")
     (pasta / "original.pdf").write_bytes(conteudo)
@@ -231,6 +236,11 @@ async def api_pdf_destilar(
     pasta_ws = ws.pasta(h)
 
     conteudo = await pdf.read()
+    # LeIA: size cap and real PDF check (the extension alone is not enough)
+    if len(conteudo) > int(os.getenv("MAX_UPLOAD_MB", "15")) * 1024 * 1024:
+        raise HTTPException(413, "Arquivo grande demais. Envie um PDF de até %s MB." % os.getenv("MAX_UPLOAD_MB", "15"))
+    if not conteudo.startswith(b"%PDF"):
+        raise HTTPException(400, "Este arquivo não é um PDF.")
     (pasta_ws / "original.pdf").write_bytes(conteudo)
 
     t = Tarefa(

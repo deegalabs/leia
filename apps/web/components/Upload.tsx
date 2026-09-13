@@ -71,7 +71,7 @@ function UploadBody() {
             <input id="titulo" className={inputClass} value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder={m.upload.docTitlePlaceholder} />
           </Field>
           <Field id="pdf" label={m.upload.file} hint={m.upload.fileHint}>
-            <input id="pdf" ref={fileRef} type="file" accept="application/pdf,.pdf" className="sr-only" onChange={(e) => { setFile(e.target.files?.[0] ?? null); setError(null); }} />
+            <input id="pdf" ref={fileRef} type="file" tabIndex={-1} accept="application/pdf,.pdf" className="sr-only" onChange={(e) => { setFile(e.target.files?.[0] ?? null); setError(null); }} />
             <Button type="button" variant="secondary" onClick={() => fileRef.current?.click()}><FileUp size={20} aria-hidden /> {m.upload.choose}</Button>
             {file && <p className="text-[0.95rem]" aria-live="polite">{fmt(m.upload.chosen, { name: file.name })}</p>}
           </Field>

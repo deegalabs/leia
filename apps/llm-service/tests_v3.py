@@ -6,6 +6,10 @@ in "falhou", which is enough to check creation, visibility and the public JSON.
 """
 from __future__ import annotations
 
+import os
+
+os.environ["RATE_LIMIT_TRUST_XFF"] = "true"  # tests simulate different clients through X-Forwarded-For
+
 import io
 import json
 import os

@@ -54,7 +54,7 @@ export default function Landing() {
           <h2 className="mb-5 text-[1.5rem]">Para quem</h2>
           <div className="grid gap-4 md:grid-cols-3">
             <div className="rounded-card bg-teal-soft p-5"><h3 className="mb-1 text-[1.1rem]">Cidadã</h3><p className="text-[1rem]">Entender o que está escrito antes de decidir, no seu ritmo, sem juridiquês.</p></div>
-            <div className="rounded-card bg-teal-soft p-5"><h3 className="mb-1 text-[1.1rem]">Advogado</h3><p className="text-[1rem]">Enviar o documento, acompanhar as respostas da cliente e ter a prova de que o esclarecimento aconteceu.</p></div>
+            <div className="rounded-card bg-teal-soft p-5"><h3 className="mb-1 text-[1.1rem]">Advogado</h3><p className="text-[1rem]">Enviar o documento, acompanhar as respostas da cliente e ter o registro de que o esclarecimento aconteceu.</p></div>
             <div className="rounded-card bg-teal-soft p-5"><h3 className="mb-1 text-[1.1rem]">Acesso à justiça</h3><p className="text-[1rem]">Defensoria, advogados dativos e Espaço OAB Cidadania.</p></div>
           </div>
         </div>

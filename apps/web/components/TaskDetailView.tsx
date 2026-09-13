@@ -48,7 +48,7 @@ function Body({ id }: { id: string }) {
 
   return (
     <>
-      <Link href="/painel" className="mb-3 inline-flex min-h-[44px] items-center gap-1 font-bold text-teal-deep underline underline-offset-4"><ArrowLeft size={18} aria-hidden /> {m.panel.backToList}</Link>
+      <Link href="/painel" className="mb-3 inline-flex min-h-[48px] items-center gap-1 font-bold text-teal-deep underline underline-offset-4"><ArrowLeft size={18} aria-hidden /> {m.panel.backToList}</Link>
       <div className="mb-1 flex flex-wrap items-start justify-between gap-2">
         <h1 className="text-[1.5rem]">{data.tarefa.titulo}</h1>
         <StatusChip tone={s.tone}>{s.label}</StatusChip>
@@ -84,7 +84,7 @@ function Body({ id }: { id: string }) {
           {last ? <p>{eventLabel(last)}{last.ts ? <span className="text-ink-2"> · {formatDateTime(String(last.ts))}</span> : null}</p> : <p className="text-ink-2">Ainda sem etapas.</p>}
           {data.eventos.length > 1 && (
             <details className="mt-2">
-              <summary className="min-h-[44px] cursor-pointer font-bold text-teal-deep">{m.panel.detail.events} ({data.eventos.length})</summary>
+              <summary className="min-h-[48px] cursor-pointer font-bold text-teal-deep">{m.panel.detail.events} ({data.eventos.length})</summary>
               <ol className="mt-2 space-y-1 text-[0.95rem]">{data.eventos.map((e, i) => <li key={i}>{eventLabel(e)}{e.ts ? <span className="text-ink-2"> · {formatDateTime(String(e.ts))}</span> : null}</li>)}</ol>
             </details>
           )}
@@ -99,7 +99,7 @@ function Body({ id }: { id: string }) {
                   <span>{fmt(m.panel.detail.attemptLine, { n: a.numero, acertos: a.acertos, total: a.total })} <span className="text-ink-2">· {formatDateTime(a.criada_em)}</span></span>
                   <span className="flex items-center gap-2">
                     <StatusChip tone={a.aprovado ? "ok" : "pending"}>{a.aprovado ? m.status.understood : m.c4.seeAgainTitle}</StatusChip>
-                    {a.aprovado && <Link href={`/comprovante/${a.comprovante_token ?? a.hash_imutavel}`} className="inline-flex min-h-[44px] items-center font-bold text-teal-deep underline underline-offset-4">{m.ch.viewReceipt}</Link>}
+                    {a.aprovado && <Link href={`/comprovante/${a.comprovante_token ?? a.hash_imutavel}`} className="inline-flex min-h-[48px] items-center font-bold text-teal-deep underline underline-offset-4">{m.ch.viewReceipt}</Link>}
                   </span>
                 </li>
               ))}
@@ -140,9 +140,9 @@ function DoubtItem({ taskId, d, canReply, onReplied }: { taskId: string; d: Doub
       <p className="mt-1 text-[0.9rem] text-ink-2">{formatDateTime(d.criada_em)}</p>
       {d.contexto.length > 0 && (
         <details className="mt-2">
-          <summary className="min-h-[44px] cursor-pointer font-bold text-teal-deep">{m.panel.detail.chatContext}</summary>
+          <summary className="min-h-[48px] cursor-pointer font-bold text-teal-deep">{m.panel.detail.chatContext}</summary>
           <div className="mt-2 grid gap-1.5">
-            {d.contexto.map((c, i) => <p key={i} className={`max-w-[92%] rounded-[12px] px-3 py-2 text-[0.95rem] ${c.role === "user" ? "self-end bg-navy text-paper" : "self-start bg-muted"}`}><Inline text={c.text} /></p>)}
+            {d.contexto.map((c, i) => <p key={i} className={`max-w-[92%] rounded-[12px] px-3 py-2 text-[0.95rem] ${c.role === "user" ? "justify-self-end bg-navy text-paper" : "justify-self-start bg-muted"}`}><Inline text={c.text} /></p>)}
           </div>
         </details>
       )}

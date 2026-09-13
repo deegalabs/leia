@@ -70,7 +70,7 @@ function LawyerCard({ t }: { t: TaskSummary }) {
       </ul>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <CopyButton text={clientLinkUrl(t.link_cliente || t.hash)} label={m.panel.copyClientLink} />
-        <Link href={`/painel/${t.id}`} className="inline-flex min-h-[44px] items-center gap-1 rounded-button px-2 font-bold text-teal-deep underline underline-offset-4 hover:bg-teal-soft">{m.panel.details} <ChevronRight size={18} aria-hidden /></Link>
+        <Link href={`/painel/${t.id}`} className="inline-flex min-h-[48px] items-center gap-1 rounded-button px-2 font-bold text-teal-deep underline underline-offset-4 hover:bg-teal-soft">{m.panel.details} <ChevronRight size={18} aria-hidden /></Link>
       </div>
     </Card>
   );
@@ -89,7 +89,7 @@ function CitizenCard({ t }: { t: TaskSummary }) {
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
         <LinkButton href={`/t/${t.hash}`} variant={approved ? "secondary" : "primary"}>{m.ch.continue}</LinkButton>
         {approved && <LinkButton href={`/comprovante/${approved.comprovante_token ?? approved.hash_imutavel}`}>{m.ch.viewReceipt}</LinkButton>}
-        <Link href={`/painel/${t.id}`} className="inline-flex min-h-[44px] items-center gap-1 px-1 font-bold text-teal-deep underline underline-offset-4 sm:col-span-2">{m.panel.details} <ChevronRight size={18} aria-hidden /></Link>
+        <Link href={`/painel/${t.id}`} className="inline-flex min-h-[48px] items-center gap-1 px-1 font-bold text-teal-deep underline underline-offset-4 sm:col-span-2">{m.panel.details} <ChevronRight size={18} aria-hidden /></Link>
       </div>
     </Card>
   );

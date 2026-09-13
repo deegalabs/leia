@@ -68,14 +68,17 @@ from app_gestao import router as gestao_router                # noqa: E402
 init_db()
 
 with Session(engine) as _s:
-    if criar_usuario_inicial(
+    # LeIA: the first admin only exists when ADMIN_PASSWORD is set explicitly (no default password)
+    if not os.getenv("ADMIN_PASSWORD"):
+        log.error("ADMIN_PASSWORD não definida: nenhum usuário inicial foi criado")
+    elif criar_usuario_inicial(
         _s,
         email=os.getenv("ADMIN_EMAIL", "admin@local"),
-        senha=os.getenv("ADMIN_PASSWORD", "trocar123"),
+        senha=os.getenv("ADMIN_PASSWORD"),
         nome=os.getenv("ADMIN_NAME", "Administrador"),
         papel="fornecedor",
     ):
-        log.warning("🔐 Usuário inicial criado: %s (senha definida por ADMIN_PASSWORD; troque em produção)", os.getenv("ADMIN_EMAIL", "admin@local"))
+        log.warning("🔐 Usuário inicial criado: %s", os.getenv("ADMIN_EMAIL", "admin@local"))
 
 app.include_router(gestao_router)
 

@@ -2,7 +2,7 @@
   "app": {
     "name": "LeIA",
     "tagline": "Leia antes de assinar.",
-    "subtitle": "Consentimento esclarecido com prova"
+    "subtitle": "Consentimento esclarecido com registro"
   },
   "banner": {
     "line1": "Assistente automática.",
@@ -31,7 +31,7 @@
     "checking": "Conferindo o que você disse",
     "offline": "A conexão caiu. Suas respostas estão salvas. Quando voltar, é só tocar em Continuar.",
     "continue": "Continuar",
-    "systemError": "Deu um problema do nosso lado, não foi você. Estamos tentando de novo.",
+    "systemError": "Deu um problema do nosso lado, não foi você. Tente de novo em instantes.",
     "tryAgain": "Tentar de novo",
     "micDenied": "Sem microfone, tudo bem. Você pode escrever sua resposta aqui.",
     "voiceConsent": "Sua voz será transformada em texto só para conferir se você entendeu. O áudio não vai para o registro público. Você pode pedir para apagar depois.",
@@ -77,7 +77,7 @@
   },
   "c3": {
     "title": "Qual é a sua dúvida?",
-    "placeholder": "Fale ou escreva aqui",
+    "placeholder": "Escreva sua dúvida aqui",
     "scope": "Respondo só com o que está neste documento. O que não estiver nele, eu anoto para {lawyer} responder.",
     "notInDocument": "Isso não está escrito neste documento. Anotei para {lawyer} responder.",
     "adviceRequest": "Se vale a pena assinar é uma decisão sua com {lawyer}. Eu só explico o que está escrito.",
@@ -90,7 +90,7 @@
   "c4": {
     "checkingOf": "Conferindo {k} de {total}",
     "framing": "Para eu ter certeza de que expliquei bem:",
-    "ownWords": "Responda com suas palavras. Não tem resposta errada; se eu não expliquei bem, eu explico de novo.",
+    "ownWords": "Responda com suas palavras, do seu jeito. Se eu não expliquei bem, eu explico de novo.",
     "dontKnow": "Não sei, explica de novo",
     "seeAgainTitle": "Vamos ver de novo",
     "whatWasRight": "O que você disse que está certo:",
@@ -110,7 +110,7 @@
     "title": "Seu comprovante",
     "waitingLawyer": "Aguardando {lawyer} validar. Você recebe um aviso quando o comprovante estiver pronto.",
     "stampPending": "Registro em andamento. O código já existe; o carimbo de tempo chega em alguns minutos.",
-    "proves": "Este código prova que você respondeu estas perguntas neste dia.",
+    "proves": "Este código mostra que você respondeu estas perguntas neste dia.",
     "doesNotContain": "Ele não contém seu documento nem suas respostas. Não é a assinatura do contrato. Qualquer pessoa pode conferir pelo QR.",
     "save": "Salvar comprovante",
     "verifyLink": "Conferir o registro"
@@ -308,7 +308,7 @@
   "doubt": {
     "sendToLawyer": "Enviar esta dúvida para o advogado",
     "sending": "Enviando a dúvida",
-    "sent": "Enviada. O advogado responde pelo painel.",
+    "sent": "Enviada. Quando o advogado responder, a resposta aparece em Meus documentos.",
     "sendFailed": "Não foi possível enviar agora. Tente de novo em instantes.",
     "askFirst": "Escreva sua dúvida acima para poder enviá-la ao advogado."
   }

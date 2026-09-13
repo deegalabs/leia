@@ -10,6 +10,7 @@ import os
 from datetime import datetime
 from typing import Any, Optional
 
+from leia.ratelimit import rate_limit  # LeIA: per-IP limit on uploads
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Request, UploadFile
 from pydantic import BaseModel, Field
 from sqlmodel import Session, func, select
@@ -102,7 +103,7 @@ def list_tasks(request: Request, u: Usuario = Depends(usuario_api), session: Ses
     return {"tarefas": out}
 
 
-@router.post("/api/tarefas", status_code=201)
+@router.post("/api/tarefas", status_code=201, dependencies=[Depends(rate_limit)])
 async def create_task(bg: BackgroundTasks, titulo: str = Form(""), pdf: UploadFile = File(...),
                       u: Usuario = Depends(usuario_api), session: Session = Depends(get_session)):
     is_citizen = u.papel == "cidadao"
