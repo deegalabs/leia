@@ -28,7 +28,11 @@ export function Journey({ hash }: { hash: string }) {
       if (!alive) return;
       setTask(t); setError(null);
       if (t.ultima_tentativa?.aprovado) { setResult({ ...t.ultima_tentativa, erros: [] }); setStep({ kind: "result" }); return; }
-      try { const saved = JSON.parse(localStorage.getItem(storageKey) || "null"); if (saved?.answers) setAnswers(saved.answers); } catch { /* ignore */ }
+      try {
+        const saved = JSON.parse(localStorage.getItem(storageKey) || "null");
+        if (saved?.result?.aprovado) { setResult(saved.result); setStep({ kind: "result" }); return; }
+        if (saved?.answers) setAnswers(saved.answers);
+      } catch { /* ignore */ }
     }).catch(() => {
       if (!alive) return;
       setError("Deu um problema do nosso lado, não foi você. Estamos tentando de novo.");
@@ -36,7 +40,8 @@ export function Journey({ hash }: { hash: string }) {
     });
     return () => { alive = false; };
   }, [hash, storageKey, retry]);
-  useEffect(() => { try { localStorage.setItem(storageKey, JSON.stringify({ answers })); } catch { /* ignore */ } }, [answers, storageKey]);
+  /* persist only after the task is loaded, so the first render does not overwrite what the load effect restores */
+  useEffect(() => { if (!task) return; try { localStorage.setItem(storageKey, JSON.stringify({ answers, result })); } catch { /* ignore */ } }, [task, answers, result, storageKey]);
   useEffect(() => { window.scrollTo({ top: 0 }); }, [step]);
 
   const topics = useMemo(() => (task ? topicsOf(task) : []), [task]);
@@ -180,7 +185,7 @@ export function Journey({ hash }: { hash: string }) {
               <ul className="space-y-1">{topics.map((t) => <li key={t.id} className="flex gap-2"><span aria-hidden className="text-ok">✓</span>{t.titulo}</li>)}</ul>
             </Card>
             <BottomActionBar>
-              <LinkButton href={`/comprovante/${result.hash_imutavel}`}>Ver meu comprovante</LinkButton>
+              <LinkButton href={`/comprovante/${result.comprovante_token ?? result.hash_imutavel}`}>Ver meu comprovante</LinkButton>
               <Button variant="secondary" onClick={() => { setResult(null); setStep({ kind: "topic", n: 0 }); }}>Rever a explicação</Button>
             </BottomActionBar>
           </>

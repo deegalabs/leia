@@ -38,6 +38,13 @@ O código do serviço ainda não chegou às 9h, então a interface foi construí
 (`templates/leia/cliente.html`) entra no lugar da atual usando o mesmo contexto, e o comprovante entra com uma linha
 (`include_router`). Se o serviço subir em outra origem, `window.LEIA_API_BASE` aponta para ela (com CORS liberado lá).
 
+## Estado às 11h30: demo hospedada e código do serviço recebido
+- App publicado em **https://leia-snowy.vercel.app** com o mock interno (rotas em `apps/web/app/api/*`, mesmas
+  formas do serviço). Integrar a API real = definir `NEXT_PUBLIC_API_BASE` no projeto da Vercel e CORS no serviço.
+- Código do Carlos chegou em `temp/src/oab/` (FastAPI + SQLModel + Groq; rotas em `app_gestao.py`; workflow em
+  `protocolo_pdf.json`). Rotas e formas reais documentadas em `docs/LLM-API-CONTRACT.md`. Entra em
+  `apps/llm-service/` na integração (sem `workspace/`, `*.db`, `.env`: o exemplo dele contém um processo real com nomes).
+
 ## Plano até a Entrega 4 (10h30) e durante a auditoria
 | Hora | Atividade | Quem |
 |---|---|---|

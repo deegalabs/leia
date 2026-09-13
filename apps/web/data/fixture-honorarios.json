@@ -1,0 +1,44 @@
+{
+  "tarefa": {
+    "id": 1,
+    "hash": "demo",
+    "titulo": "Contrato de honorários advocatícios",
+    "status": "concluida",
+    "pdf_nome": "contrato-honorarios-exemplo.pdf",
+    "rodada": 1
+  },
+  "documento_texto": [
+    {"clausula": "1", "texto": "CLÁUSULA 1. O CONTRATANTE contrata a CONTRATADA para propor e acompanhar ação de cobrança de verbas trabalhistas em face de seu ex-empregador, até decisão final em primeira instância."},
+    {"clausula": "2", "texto": "CLÁUSULA 2. Pelos serviços, o CONTRATANTE pagará honorários iniciais de R$ 1.500,00 (mil e quinhentos reais), em três parcelas mensais de R$ 500,00, vencendo a primeira em 10 dias após a assinatura deste contrato."},
+    {"clausula": "3", "texto": "CLÁUSULA 3. Além dos honorários iniciais, o CONTRATANTE pagará à CONTRATADA honorários de êxito de 20% (vinte por cento) sobre o valor efetivamente recebido na ação, no momento do recebimento."},
+    {"clausula": "4", "texto": "CLÁUSULA 4. As despesas do processo, como custas, cópias e perícias, correm por conta do CONTRATANTE e serão pagas mediante apresentação de comprovante."},
+    {"clausula": "5", "texto": "CLÁUSULA 5. O CONTRATANTE poderá encerrar este contrato a qualquer tempo, por escrito, ficando devidos os honorários iniciais já vencidos e os honorários de êxito proporcionais ao trabalho realizado até a data do encerramento."},
+    {"clausula": "6", "texto": "CLÁUSULA 6. A CONTRATADA manterá o CONTRATANTE informado sobre os atos relevantes do processo, por telefone ou mensagem, no prazo de 5 dias úteis após cada ato."},
+    {"clausula": "7", "texto": "CLÁUSULA 7. Fica eleito o foro da comarca de Curitiba, Paraná, para resolver qualquer dúvida sobre este contrato."}
+  ],
+  "topicos": [
+    {"id": 1, "titulo": "Para que serve este contrato", "explicacao": "Você está contratando uma advogada para entrar com uma ação de cobrança contra seu antigo empregador. O trabalho dela vai até a primeira decisão do juiz. Se houver recurso depois, isso não está incluído aqui.", "trecho": "até decisão final em primeira instância", "clausula": "1"},
+    {"id": 2, "titulo": "Quanto você paga no começo", "explicacao": "Você paga R$ 1.500 de entrada, divididos em três parcelas de R$ 500 por mês. A primeira parcela vence 10 dias depois de assinar.", "trecho": "honorários iniciais de R$ 1.500,00 (mil e quinhentos reais), em três parcelas mensais de R$ 500,00", "clausula": "2"},
+    {"id": 3, "titulo": "Quanto você paga se ganhar", "explicacao": "Se a ação der certo e você receber dinheiro, 20% do que entrar vai para a advogada. Esse pagamento acontece na hora em que você receber. Se você não receber nada, não paga esses 20%.", "trecho": "honorários de êxito de 20% (vinte por cento) sobre o valor efetivamente recebido na ação", "clausula": "3"},
+    {"id": 4, "titulo": "Outros gastos do processo", "explicacao": "Custas do processo, cópias e perícias são pagas por você, não pela advogada. Ela precisa mostrar o comprovante de cada gasto.", "trecho": "As despesas do processo, como custas, cópias e perícias, correm por conta do CONTRATANTE", "clausula": "4"},
+    {"id": 5, "titulo": "Se você quiser encerrar o contrato", "explicacao": "Você pode encerrar quando quiser, por escrito. Mas as parcelas de entrada que já venceram continuam devidas, e a advogada tem direito a uma parte dos 20% proporcional ao trabalho feito até ali.", "trecho": "ficando devidos os honorários iniciais já vencidos e os honorários de êxito proporcionais ao trabalho realizado", "clausula": "5"},
+    {"id": 6, "titulo": "Como você fica sabendo do processo", "explicacao": "A advogada se compromete a avisar você, por telefone ou mensagem, em até 5 dias úteis depois de cada ato importante do processo.", "trecho": "no prazo de 5 dias úteis após cada ato", "clausula": "6"}
+  ],
+  "resumo_md": "## Para que serve este contrato\nVocê está contratando uma advogada para entrar com uma ação de cobrança contra seu antigo empregador. O trabalho dela vai até a primeira decisão do juiz.\n\n## Quanto você paga no começo\nR$ 1.500 de entrada, em três parcelas de R$ 500 por mês. A primeira vence 10 dias depois de assinar.\n\n## Quanto você paga se ganhar\n20% do que você receber na ação, pagos na hora em que o dinheiro entrar.\n\n## Outros gastos do processo\nCustas, cópias e perícias são pagas por você, mediante comprovante.\n\n## Se você quiser encerrar o contrato\nPode encerrar por escrito a qualquer momento. Parcelas vencidas e uma parte proporcional dos 20% continuam devidas.\n\n## Como você fica sabendo do processo\nAviso por telefone ou mensagem em até 5 dias úteis depois de cada ato.",
+  "questoes": {"questoes": [
+    {"id": 1, "area": "Objeto", "dificuldade": "fácil", "enunciado": "Até onde vai o trabalho da advogada neste contrato?", "alternativas": ["Até a primeira decisão do juiz", "Até o fim de todos os recursos", "Só até entregar a ação no fórum", "Até você receber o dinheiro"], "correta": 0, "justificativa": "Cláusula 1: até decisão final em primeira instância."},
+    {"id": 2, "area": "Honorários iniciais", "dificuldade": "fácil", "enunciado": "Quanto você paga de entrada?", "alternativas": ["R$ 500 em uma vez", "R$ 1.500 em três parcelas de R$ 500", "R$ 3.000 em seis parcelas", "Nada, só paga se ganhar"], "correta": 1, "justificativa": "Cláusula 2."},
+    {"id": 3, "area": "Honorários iniciais", "dificuldade": "média", "enunciado": "Quando vence a primeira parcela da entrada?", "alternativas": ["No dia da assinatura", "10 dias depois de assinar", "30 dias depois de assinar", "Quando o processo começar"], "correta": 1, "justificativa": "Cláusula 2: 10 dias após a assinatura."},
+    {"id": 4, "area": "Honorários de êxito", "dificuldade": "fácil", "enunciado": "Se você ganhar a ação, quanto vai para a advogada?", "alternativas": ["10% do valor pedido", "20% do que você receber", "30% do que você receber", "Nada além da entrada"], "correta": 1, "justificativa": "Cláusula 3."},
+    {"id": 5, "area": "Honorários de êxito", "dificuldade": "média", "enunciado": "Se você não receber nada na ação, você paga os 20%?", "alternativas": ["Sim, sobre o valor pedido", "Sim, metade", "Não, os 20% só valem sobre o que for recebido", "Depende do juiz"], "correta": 2, "justificativa": "Cláusula 3: sobre o valor efetivamente recebido."},
+    {"id": 6, "area": "Despesas", "dificuldade": "fácil", "enunciado": "Quem paga custas, cópias e perícias?", "alternativas": ["A advogada", "Você", "O ex-empregador", "O fórum"], "correta": 1, "justificativa": "Cláusula 4."},
+    {"id": 7, "area": "Despesas", "dificuldade": "média", "enunciado": "Como as despesas devem ser cobradas de você?", "alternativas": ["Por estimativa, sem comprovante", "Com apresentação de comprovante", "Descontadas do valor ganho", "Não podem ser cobradas"], "correta": 1, "justificativa": "Cláusula 4."},
+    {"id": 8, "area": "Encerramento", "dificuldade": "média", "enunciado": "Você pode encerrar o contrato antes do fim?", "alternativas": ["Não, só a advogada pode", "Sim, a qualquer tempo, por escrito", "Só depois de 1 ano", "Só se o juiz autorizar"], "correta": 1, "justificativa": "Cláusula 5."},
+    {"id": 9, "area": "Encerramento", "dificuldade": "difícil", "enunciado": "Se você encerrar, o que continua devido?", "alternativas": ["Nada", "Só as parcelas de entrada vencidas", "Parcelas vencidas e parte proporcional dos 20%", "O valor total da ação"], "correta": 2, "justificativa": "Cláusula 5."},
+    {"id": 10, "area": "Comunicação", "dificuldade": "fácil", "enunciado": "Em quanto tempo a advogada deve avisar você sobre cada ato do processo?", "alternativas": ["No mesmo dia", "Em até 5 dias úteis", "Em até 30 dias", "Não precisa avisar"], "correta": 1, "justificativa": "Cláusula 6."},
+    {"id": 11, "area": "Comunicação", "dificuldade": "média", "enunciado": "Por qual meio a advogada vai avisar você?", "alternativas": ["Só por carta", "Telefone ou mensagem", "Só pessoalmente", "Pelo site do tribunal"], "correta": 1, "justificativa": "Cláusula 6."},
+    {"id": 12, "area": "Foro", "dificuldade": "média", "enunciado": "Onde uma dúvida sobre este contrato seria resolvida?", "alternativas": ["Em Curitiba", "Na cidade onde você mora", "Em Brasília", "Em qualquer cidade"], "correta": 0, "justificativa": "Cláusula 7."}
+  ]},
+  "minimo_aprovacao": 10,
+  "tentativas": []
+}

@@ -13,10 +13,25 @@ Next.js 16 (App Router), Tailwind 4, Lucide, `qrcode`. Textos em `messages/pt-BR
 
 ## Rodar
 ```bash
-cp .env.example .env.local        # NEXT_PUBLIC_API_BASE aponta para o serviço (mock: http://localhost:8000)
 pnpm install
-pnpm dev                          # http://localhost:3000
+pnpm dev                          # http://localhost:3000, com o mock interno (app/api/*)
 pnpm build && pnpm start          # produção
 ```
-Serviço mock: `cd ../llm-service && uvicorn mock.app:app --port 8000` (CORS liberado para localhost:3000 por padrão;
-`CORS_ORIGINS` para outras origens). Contrato: [../../docs/LLM-API-CONTRACT.md](../../docs/LLM-API-CONTRACT.md).
+Para apontar ao serviço cognitivo (ou ao mock Python com carimbo OpenTimestamps), crie `.env.local` com
+`NEXT_PUBLIC_API_BASE=http://localhost:8000` e suba `cd ../llm-service && uvicorn mock.app:app --port 8000`
+(CORS liberado para localhost:3000; `CORS_ORIGINS` para outras origens). Contrato:
+[../../docs/LLM-API-CONTRACT.md](../../docs/LLM-API-CONTRACT.md).
+
+## Mock interno (hospedagem sem serviço)
+`app/api/t/[hash]`, `.../quiz`, `.../chat` (SSE) e `app/api/verify/[attempt]` reproduzem as rotas do serviço com
+`data/fixture-honorarios.json` (cópia de `examples/`). Sem banco: o comprovante viaja como token na URL e o hash é
+recalculado (`lib/registry.ts`, mesmos campos e canonicalização do `leia/registry.py`). Sem carimbo OpenTimestamps
+nessa versão; o mock Python faz o carimbo de verdade.
+
+## Publicar na Vercel
+```bash
+vercel link --yes --project leia --scope danielgorgonhas-projects
+vercel deploy --prod --yes --scope danielgorgonhas-projects
+```
+Produção: https://leia-snowy.vercel.app (protection de deploy só nos previews). Com o serviço publicado, definir
+`NEXT_PUBLIC_API_BASE` no projeto e liberar CORS no serviço para `https://leia-snowy.vercel.app`.

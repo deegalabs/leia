@@ -7,10 +7,10 @@ export function QrCode({ value, label }: { value: string; label: string }) {
   useEffect(() => {
     let alive = true;
     const absolute = value.startsWith("/") ? `${window.location.origin}${value}` : value;
-    QRCode.toDataURL(absolute, { width: 200, margin: 1, color: { dark: "#081820", light: "#FFFFFF" } }).then((u) => { if (alive) setSrc(u); }).catch(() => setSrc(null));
+    QRCode.toDataURL(absolute, { width: 232, margin: 1, color: { dark: "#081820", light: "#FFFFFF" } }).then((u) => { if (alive) setSrc(u); }).catch(() => setSrc(null));
     return () => { alive = false; };
   }, [value]);
-  if (!src) return <div className="mx-auto h-[200px] w-[200px] rounded bg-muted" role="status" aria-label="Gerando o QR" />;
+  if (!src) return <div className="mx-auto h-[232px] w-[232px] rounded bg-muted" role="status" aria-label="Gerando o QR" />;
   // eslint-disable-next-line @next/next/no-img-element
-  return <img src={src} alt={label} width={200} height={200} className="mx-auto" />;
+  return <img src={src} alt={label} width={232} height={232} className="mx-auto" />;
 }

@@ -1,10 +1,29 @@
 # Contrato entre a interface e o serviço cognitivo (FastAPI)
 
-Fonte: rotas observadas nos templates do serviço recebidos em 12/09 (`temp/` na pasta de trabalho) e no workflow v0.
+Fonte: código do serviço recebido em 13/09 às 10h40 (`temp/src/oab/` na pasta de trabalho: `main.py`, `app_gestao.py`,
+`core/`, `templates/`, `protocolo*.json`) e, antes, os templates de 12/09.
 A interface da cidadã (`apps/llm-service/templates/leia/cliente.html`) consome **exatamente** essas rotas; o mock em
 `apps/llm-service/mock/` as reproduz com dados de exemplo para desenvolver sem o serviço. Base: mesma origem por
 padrão; `window.LEIA_API_BASE` aponta para outra origem quando a interface for servida separada (aí o serviço precisa de
 CORS para essa origem).
+
+## O que o código do serviço tem hoje (13/09, `app_gestao.py`)
+| Rota | O que devolve | Observação |
+|---|---|---|
+| `GET /t/{hash}` | HTML (`cliente_view.html`) com `tarefa`, `resumo_md`, `questoes`, `ultima_tentativa` | página da cidadã do serviço |
+| `POST /api/t/{hash}/quiz` | `{ aprovado, acertos, total, numero, hash_imutavel, erros[] }`; aprova com ≥ 83% (`core/tentativas.py`) | o hash é `sha256("PARA.AI\|tarefa\|numero\|respostas\|ip\|ua\|ts")` |
+| `POST /api/t/{hash}/chat` | SSE `data: {"t": ...}` | |
+| `GET /api/resumo-estruturado/{hash}/resultado` | JSON `resumo_estruturado.json`: `processo.classe_*[] {campo, sub_tipo, valor, trecho_verbatim}`, `processo.resumo_classe_* {valor, lastro[]}`, `processo.resposta_final.texto` (markdown), `_ui` (posições e score por trecho) | é a fonte natural dos `topicos` |
+| `GET /api/resumo-estruturado/{hash}/status`, `GET /api/tarefas/{id}/status`, `GET /api/pdf/{hash}/log` | eventos do job (`log.jsonl`) | página de espera |
+| `POST /api/resumo-estruturado/submit`, `POST /api/pdf/destilar`, `POST /tarefas/nova` | criação de tarefa por upload (form) | painel interno |
+| `GET /tarefas/{id}/artefato/{nome}` | arquivos do workspace (`resumo_estruturado.json`, `original.pdf`, `log.jsonl`) | |
+
+Mapeamento para o JSON que o app consome (`GET /api/t/{hash}`, a acrescentar no serviço):
+- `topicos[]` ← `processo.resumo_classe_*`: `titulo` = rótulo da classe em linguagem simples, `explicacao` = `valor`,
+  `trecho` = `lastro[0].trecho_verbatim` (ou o de maior `score_trecho_verbatim` em `_ui`), `clausula` = posição.
+- `resumo_md` ← `processo.resposta_final.texto`.
+- `questoes[]` ← as 12 questões geradas, sem `correta` e `justificativa`.
+- `eventos[]` ← `log.jsonl` (opcional, para a página de espera mostrar "passo n de 14").
 
 ## Rotas que o serviço já tem (e a interface usa)
 | Método e rota | Entrada | Saída | Uso na interface |

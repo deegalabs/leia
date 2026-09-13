@@ -55,8 +55,13 @@ Cada entrega é uma tag anotada no git; detalhes e comandos em [docs/DELIVERIES.
 - [prompts/README.md](prompts/README.md): política de prompts.
 - [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md): como subir código, publicar na pasta oficial e fechar uma entrega.
 
+## Demonstração hospedada
+**https://leia-snowy.vercel.app** (app na Vercel com o mock interno e um contrato de exemplo; sem carimbo público
+nessa versão). Toque em "Ver um exemplo" e percorra até o comprovante. O serviço real entra por variável de ambiente.
+
 ## Como rodar
-Dois processos: o serviço (hoje o mock, com um contrato de exemplo) e o app.
+Dois processos: o serviço (hoje o mock, com um contrato de exemplo) e o app. Sem `NEXT_PUBLIC_API_BASE`, o app usa o
+mock interno (`apps/web/app/api/*`) e roda sozinho.
 ```bash
 # 1. serviço (mock do serviço cognitivo, mesmas rotas, CORS para localhost:3000)
 cd apps/llm-service && python -m venv .venv && . .venv/bin/activate

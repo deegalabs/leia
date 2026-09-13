@@ -1,5 +1,7 @@
-/* Client for the cognitive service. Routes follow the service (see docs/LLM-API-CONTRACT.md). */
-export const API_BASE = (process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000").replace(/\/$/, "");
+/* Client for the cognitive service. Routes follow the service (see docs/LLM-API-CONTRACT.md).
+   NEXT_PUBLIC_API_BASE empty = the in-app mock (app/api/*), used on the hosted demo. */
+export const API_BASE = (process.env.NEXT_PUBLIC_API_BASE ?? "").replace(/\/$/, "");
+export const usingInternalMock = API_BASE === "";
 
 export type Topic = { id: number; titulo: string; explicacao?: string; explicacao_md?: string; trecho?: string; clausula?: string };
 export type Question = { id: number; enunciado: string; alternativas: string[]; area?: string };
@@ -11,7 +13,7 @@ export type Task = {
   questoes: Question[];
   ultima_tentativa: Attempt | null;
 };
-export type QuizResult = Attempt & { erros: { id: number; area?: string; enunciado?: string; escolhida?: number | null }[] };
+export type QuizResult = Attempt & { comprovante_token?: string; erros: { id: number; area?: string; enunciado?: string; escolhida?: number | null }[] };
 export type VerifyResult = {
   payload: { schema: string; documentToken: string; attemptRound: number; attemptSha256: string; understood: boolean; answered: number; createdAt: string };
   canonical: string;
@@ -64,12 +66,14 @@ export async function chat(hash: string, mensagem: string, onText: (acc: string)
 }
 
 export async function getVerify(attempt: string): Promise<VerifyResult> {
-  const r = await check(await fetch(`${API_BASE}/verify/${attempt}?format=json`, { cache: "no-store" }));
+  const url = usingInternalMock ? `/api/verify/${attempt}` : `${API_BASE}/verify/${attempt}?format=json`;
+  const r = await check(await fetch(url, { cache: "no-store" }));
   return r.json();
 }
 
 export const proofUrl = (attempt: string) => `${API_BASE}/verify/${attempt}/proof.ots`;
-export const panelUrl = () => `${API_BASE}/dashboard`;
+/* The professional's panel lives in the service; without a service there is no panel to link. */
+export const panelUrl = (): string | null => (usingInternalMock ? null : `${API_BASE}/`);
 
 /* Topics: structured list from the service, or sections split from the markdown summary. */
 export function topicsOf(task: Task): Topic[] {
