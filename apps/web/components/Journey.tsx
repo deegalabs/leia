@@ -51,8 +51,9 @@ export function Journey({ hash }: { hash: string }) {
         if (saved?.result?.aprovado) { setResult(saved.result); setStep({ kind: "result" }); return; }
         if (saved?.answers) setAnswers(saved.answers);
       } catch { /* ignore */ }
-    }).catch(() => {
+    }).catch((e: Error) => {
       if (!alive) return;
+      if (e.message.includes("404")) { setError("Este link não existe ou foi digitado errado. Confira com quem enviou o documento."); return; }
       setError("Deu um problema do nosso lado, não foi você. Estamos tentando de novo.");
       setTimeout(() => setRetry((n) => n + 1), 4000);
     });

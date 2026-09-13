@@ -27,6 +27,14 @@ from leia.ratelimit import rate_limit
 from leia.registry import build_payload, ots_stamp, payload_hash
 
 READY_STATUSES = ("pronta", "enviada", "assinada")
+PUBLIC_EVENT_TYPES = {"criada", "pdf_salvo", "pipeline_start", "texto_extraido", "task_start", "task_done", "task_error",
+                      "erro_extracao", "pipeline_done", "tentativa", "carimbo_publico", "duvida_enviada", "reprocessar"}
+
+
+def public_events(events: list[dict[str, Any]], limit: int = 8) -> list[dict[str, Any]]:
+    """Pipeline events only, without the visitor's IP or user agent."""
+    out = [{k: v for k, v in e.items() if k not in ("ip", "ua", "user_agent", "advogado_id")} for e in events if e.get("tipo") in PUBLIC_EVENT_TYPES]
+    return out[-limit:]
 router = APIRouter()
 
 
@@ -106,7 +114,7 @@ async def api_cliente_json(hash_: str, session: Session = Depends(get_session)):
     t = _task_or_404(session, hash_)
     lawyer = lawyer_of(session, t)
     doubts = session.exec(select(func.count(Duvida.id)).where(Duvida.tarefa_id == t.id)).one()
-    base = {"tarefa": {"hash": t.hash, "titulo": t.titulo, "status": t.status}, "eventos": ws.ler_eventos(t.hash)[-8:],
+    base = {"tarefa": {"hash": t.hash, "titulo": t.titulo, "status": t.status}, "eventos": public_events(ws.ler_eventos(t.hash), 8),
             "advogado": {"nome": lawyer.nome} if lawyer else None, "tem_advogado": lawyer is not None,
             "cidadao_vinculado": t.cidadao_id is not None, "duvidas_enviadas": int(doubts or 0)}
     if t.status not in READY_STATUSES:

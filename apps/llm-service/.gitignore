@@ -9,3 +9,6 @@ data/
 _legacy/
 .pytest_cache/
 .DS_Store
+*.rej
+*.orig
+.vercel

@@ -95,7 +95,8 @@ export function topicsOf(task: Task): Topic[] {
 }
 
 export function formatDateTime(iso: string): string {
-  const d = new Date(iso);
+  /* the service emits naive UTC timestamps (no Z); treat any string without a zone as UTC */
+  const d = new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(iso) ? iso : `${iso}Z`);
   if (Number.isNaN(d.getTime())) return iso;
   return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" }).format(d);
 }

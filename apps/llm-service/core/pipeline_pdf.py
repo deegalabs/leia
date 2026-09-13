@@ -184,6 +184,23 @@ def _evento(tarefa_id: int, tipo: str, payload: dict | None = None) -> None:
         s.commit()
 
 
+def _embaralhar_alternativas(doc: Any, hash_: str) -> Any:
+    """LeIA: the generator tends to put the right answer first; shuffle deterministically per task and remap `correta`."""
+    import random
+    if not isinstance(doc, dict) or not isinstance(doc.get("questoes"), list):
+        return doc
+    rng = random.Random(f"{hash_}:questoes")
+    for q in doc["questoes"]:
+        alts = q.get("alternativas")
+        if not isinstance(alts, list) or not isinstance(q.get("correta"), int) or not (0 <= q["correta"] < len(alts)):
+            continue
+        order = list(range(len(alts)))
+        rng.shuffle(order)
+        q["alternativas"] = [alts[i] for i in order]
+        q["correta"] = order.index(q["correta"])
+    return doc
+
+
 def _salvar(hash_: str, nome: str, conteudo: Any) -> Path:
     p = pasta(hash_) / nome
     if isinstance(conteudo, (dict, list)):
@@ -334,7 +351,7 @@ async def executar_pipeline_pdf(
         _salvar(hash_, "resumo_humanizado.md", val)
 
     if "T14_QUESTOES" in outputs_anteriores:
-        _salvar(hash_, "questoes.json", outputs_anteriores["T14_QUESTOES"])
+        _salvar(hash_, "questoes.json", _embaralhar_alternativas(outputs_anteriores["T14_QUESTOES"], hash_))   # LeIA
 
     # ── 6. Finaliza
     tempo_total = round(time.time() - t_pipe, 2)

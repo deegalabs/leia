@@ -328,3 +328,17 @@ def test_inferences_are_verified_by_substring(tmp_path=None):
     assert itens[0]["conferido"] and texto[itens[0]["pos"][0]:itens[0]["pos"][1]].startswith("honorários iniciais de")
     assert not itens[1]["conferido"] and itens[1]["pos"] is None
     assert r["total"] == 2 and r["conferidos"] == 1 and r["sinteses"][0]["lastro"] == ["datas_valores[0]"]
+
+
+def test_shuffle_keeps_answer_and_public_events_have_no_ip():
+    """LeIA: alternatives shuffled per task with the right index remapped; public events carry no ip/ua."""
+    from core.pipeline_pdf import _embaralhar_alternativas
+    from leia.api_cliente import public_events
+    doc = {"questoes": [{"id": i, "alternativas": ["certa", "b", "c", "d"], "correta": 0} for i in range(1, 7)]}
+    out = _embaralhar_alternativas(doc, "abc")
+    assert all(q["alternativas"][q["correta"]] == "certa" for q in out["questoes"])
+    assert any(q["correta"] != 0 for q in out["questoes"])
+    same = _embaralhar_alternativas({"questoes": [{"id": i, "alternativas": ["certa", "b", "c", "d"], "correta": 0} for i in range(1, 7)]}, "abc")
+    assert [q["correta"] for q in same["questoes"]] == [q["correta"] for q in out["questoes"]]
+    ev = public_events([{"tipo": "cliente_abriu", "ip": "1.2.3.4", "ua": "x"}, {"tipo": "task_done", "id": "T1", "ip": "9.9.9.9"}])
+    assert ev == [{"tipo": "task_done", "id": "T1"}]

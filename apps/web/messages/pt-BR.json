@@ -284,7 +284,8 @@
         "entendimento_registrado": "Entendimento registrado",
         "falhou": "Não deu certo"
       }
-    }
+    },
+    "openDoubtsOne": "1 dúvida aberta"
   },
   "upload": {
     "title": "Enviar um documento",

@@ -146,7 +146,7 @@ async def login_form(request: Request, erro: Optional[str] = None):
     )
 
 
-@router.post("/login")
+@router.post("/login", dependencies=[Depends(rate_limit)])   # LeIA: per-IP limit
 async def login_post(
     email: str = Form(...),
     senha: str = Form(...),
@@ -932,6 +932,7 @@ async def api_quiz(
 
     tent = tn.registrar(t, respostas, questoes, ip, ua)
     erros = tn.analisar_erros(tent, questoes)
+    erros = [{"id": e.get("id"), "area": e.get("area"), "enunciado": e.get("enunciado"), "escolhida": e.get("escolhida")} for e in erros]  # LeIA: no answer key to the browser
 
     if tent.aprovado:  # LeIA: public timestamp (OpenTimestamps) of the approved attempt, in background
         from leia.api_cliente import stamp_attempt

@@ -19,6 +19,7 @@ import core.tentativas as tn
 import core.workspace as ws
 from app_gestao import _ler_artefato, _permite_ver, create_pdf_task
 from core.auth import usuario_api
+from leia.api_cliente import public_events  # LeIA: no ip/ua in the JSON
 from core.db import Duvida, Tarefa, Tentativa, Usuario, get_session
 
 READY_STATUSES = ("pronta", "enviada", "assinada")
@@ -132,7 +133,7 @@ def get_task(tarefa_id: int, request: Request, u: Usuario = Depends(usuario_api)
     doubts = session.exec(select(Duvida).where(Duvida.tarefa_id == t.id).order_by(Duvida.criada_em)).all()   # type: ignore
     return {"tarefa": task_json(t), "link_cliente": client_link(request, t),
             "resumo_md": (_ler_artefato(t.hash, "resumo_humanizado.md") or "") if t.status in READY_STATUSES else None,
-            "eventos": ws.ler_eventos(t.hash)[-20:], "tentativas": attempts,
+            "eventos": public_events(ws.ler_eventos(t.hash), 20), "tentativas": attempts,
             "duvidas": [doubt_json(d) for d in doubts], "cidadao": cidadao, "advogado": advogado}
 
 

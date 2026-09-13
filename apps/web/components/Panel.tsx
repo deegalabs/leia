@@ -66,7 +66,7 @@ function LawyerCard({ t }: { t: TaskSummary }) {
       <p className="mt-1 text-[0.95rem] text-ink-2">{formatDateTime(t.criada_em)}{t.cidadao ? ` · ${m.panel.detail.citizen}: ${t.cidadao.nome}` : ""}</p>
       <ul className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-[1rem]">
         <li className="inline-flex items-center gap-1.5"><ListChecks size={18} aria-hidden className="text-teal-deep" /> {answers}</li>
-        <li className="inline-flex items-center gap-1.5"><MessageSquare size={18} aria-hidden className="text-teal-deep" /> {t.duvidas_abertas > 0 ? fmt(m.panel.openDoubts, { n: t.duvidas_abertas }) : m.panel.noDoubts}</li>
+        <li className="inline-flex items-center gap-1.5"><MessageSquare size={18} aria-hidden className="text-teal-deep" /> {t.duvidas_abertas === 1 ? m.panel.openDoubtsOne : t.duvidas_abertas > 0 ? fmt(m.panel.openDoubts, { n: t.duvidas_abertas }) : m.panel.noDoubts}</li>
       </ul>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <CopyButton text={clientLinkUrl(t.link_cliente || t.hash)} label={m.panel.copyClientLink} />
