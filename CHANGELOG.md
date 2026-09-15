@@ -3,6 +3,31 @@
 Versões do produto, da mais recente para a mais antiga. As entregas do hackathon que deu origem ao projeto estão
 no fim, com as evidências em `evidence/` e o índice em [docs/DELIVERIES.md](docs/DELIVERIES.md).
 
+## Não lançado
+
+Entra aqui toda mudança que altera o que alguém percebe, no mesmo pull request que a faz. Quando o conjunto
+fecha um sentido, vira versão com tag anotada e release no GitHub.
+
+### Segurança e privacidade
+- A sessão saiu do armazenamento do navegador e virou cookie inacessível a script. Para isso o navegador
+  deixou de falar direto com o serviço: agora ele fala com a aplicação, e a aplicação fala com o serviço.
+  Quem estava com sessão aberta no pacote antigo foi deslogado uma vez.
+- O link do documento deixou de ser credencial de quem o tivesse. Ele pode vencer, pode ser cancelado e pode
+  ser endereçado a uma pessoa. Ler e perguntar seguem sem exigir conta, de propósito; o que exige identidade é
+  guardar o comprovante, porque ele afirma que uma pessoa entendeu o documento.
+
+### Infraestrutura
+- A configuração de deploy do serviço virou código em `.railway/railway.ts`, antes do corte do formato antigo
+  em 2026-12-01. O deploy passou a esperar a verificação contínua e só reconstrói quando o serviço muda.
+- O sinal de vida do serviço apontava para uma rota que não existia mais, então a verificação de saúde nunca
+  rodava. Agora aponta para `GET /health`, e um teste amarra o caminho declarado à rota servida.
+- `main` protegida: pull request obrigatório, uma aprovação, verificação verde, sem reescrita de histórico.
+
+### Por dentro
+- O serviço passou a nomear funções, classes e módulos em inglês. Nenhuma rota, campo ou coluna mudou.
+- A raiz do repositório usa pnpm, como o resto, em vez de npm.
+- Saíram do versionamento arquivos que o build gera: o service worker e o estado de execução do chat de bastidores.
+
 ## v1.0.0 · 2026-09-15 · primeira versão pública
 
 Repositório aberto sob licença MIT, em produção em https://leia-snowy.vercel.app.
