@@ -649,3 +649,28 @@ def test_no_legacy_template_survives_in_the_repo():
     assert not presentes, f"templates legados ainda no repositório: {presentes}"
     dourado = [p.name for p in base.rglob("*.html") if "c9a84c" in p.read_text(encoding="utf-8", errors="ignore")]
     assert not dourado, f"paleta do produto de origem ainda presente em: {dourado}"
+
+
+# ── Rotas de bastidor: exigem papel, não apenas estar logado ──────────────────
+# O cadastro de cidadã é aberto por desenho, então "estar logado" não é barreira.
+
+BACKSTAGE = [("get", "/api/protocolo"), ("get", "/api/help"), ("get", "/api/contexto")]
+
+
+def test_backstage_routes_require_the_supplier_role(citizen, lawyer):
+    for method, path in BACKSTAGE:
+        call = getattr(client, method)
+        assert call(path).status_code == 401, f"{path} sem credencial"
+        for quem, tok in (("cidadã", citizen["token"]), ("advogado", lawyer["token"])):
+            r = call(path, headers=bearer(tok))
+            assert r.status_code == 403, f"{path} aberta para {quem}: {r.status_code}"
+    assert client.post("/api/contexto/limpar", headers=bearer(citizen["token"])).status_code == 403
+    assert client.post("/api/protocolo", headers=bearer(citizen["token"]), json={"conteudo": "[]"}).status_code == 403
+    assert client.post("/api/chat", headers=bearer(citizen["token"]), json={"mensagem": "oi"}).status_code == 403
+
+
+def test_backstage_routes_stay_open_to_the_supplier():
+    admin = client.post("/api/auth/login", json={"email": "admin@test.local", "senha": "admin-secret-1"}).json()
+    for method, path in BACKSTAGE:
+        r = getattr(client, method)(path, headers=bearer(admin["token"]))
+        assert r.status_code == 200, f"{path} fechada para o fornecedor: {r.status_code}"

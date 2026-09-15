@@ -2,7 +2,7 @@ from __future__ import annotations
 import hashlib, hmac, secrets
 from typing import Optional
 
-from fastapi import Cookie, Depends, Header, HTTPException, status
+from fastapi import HTTPException, Cookie, Depends, Header, HTTPException, status
 from sqlmodel import Session, select
 
 from .db import Usuario, get_session
@@ -87,6 +87,14 @@ def usuario_api(
     session: Session = Depends(get_session),
 ) -> Usuario:
     return _resolver_usuario(session, sessao, authorization, sem_credencial_redireciona=False)
+
+
+# LeIA: o cadastro de cidadã é aberto por desenho, então estar logado não é barreira nenhuma.
+# As rotas de bastidor (protocolo, contexto, chat interno) exigem o papel de fornecedor.
+def usuario_admin(u: Usuario = Depends(usuario_api)) -> Usuario:
+    if u.papel != "fornecedor":
+        raise HTTPException(status_code=403, detail="Rota restrita ao fornecedor.")
+    return u
 
 
 def criar_usuario_inicial(session: Session, email: str, senha: str, nome: str, papel: str):

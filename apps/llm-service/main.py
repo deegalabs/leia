@@ -62,7 +62,7 @@ if (BASE_DIR / "static").exists():
 #  BOOTSTRAP: banco + usuário admin inicial + rotas de gestão
 # ══════════════════════════════════════════════════════════════════════════
 from core.db import init_db, engine, Usuario                  # noqa: E402
-from core.auth import criar_usuario_inicial, usuario_atual    # noqa: E402
+from core.auth import criar_usuario_inicial, usuario_admin    # noqa: E402
 from app_gestao import router as gestao_router                # noqa: E402
 
 init_db()
@@ -557,27 +557,27 @@ async def _stream_orquestrador(texto, anexos, protocolo_json, objetivo, isolar_p
 #  ROTAS — API
 # ══════════════════════════════════════════════════════════════════════════
 @app.get("/api/protocolo")
-async def api_get_protocolo(u: Usuario = Depends(usuario_atual)):
+async def api_get_protocolo(u: Usuario = Depends(usuario_admin)):
     return {"conteudo": carregar_protocolo()}
 
 
 @app.post("/api/protocolo")
-async def api_post_protocolo(payload: dict, u: Usuario = Depends(usuario_atual)):
+async def api_post_protocolo(payload: dict, u: Usuario = Depends(usuario_admin)):
     return {"message": salvar_protocolo(payload.get("conteudo", "[]"))}
 
 
 @app.get("/api/help")
-async def api_get_help(u: Usuario = Depends(usuario_atual)):
+async def api_get_help(u: Usuario = Depends(usuario_admin)):
     return {"conteudo": carregar_help()}
 
 
 @app.get("/api/contexto")
-async def api_get_contexto(u: Usuario = Depends(usuario_atual)):
+async def api_get_contexto(u: Usuario = Depends(usuario_admin)):
     return {"contexto": carregar_contexto_persistente()}
 
 
 @app.post("/api/contexto/limpar")
-async def api_post_limpar_contexto(u: Usuario = Depends(usuario_atual)):
+async def api_post_limpar_contexto(u: Usuario = Depends(usuario_admin)):
     return {"message": limpar_contexto_persistente()}
 
 
@@ -588,7 +588,7 @@ async def api_chat(
     objetivo: str = Form(""),
     protocolo_json: str = Form(""),
     anexos: List[UploadFile] = File(default=[]),
-    u: Usuario = Depends(usuario_atual),
+    u: Usuario = Depends(usuario_admin),
 ):
     # O front-end não edita mais o protocolo por requisição (o antigo painel
     # de edição foi removido do template). Se não vier nada usável aqui,
