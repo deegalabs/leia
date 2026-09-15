@@ -32,7 +32,7 @@ from app_gestao import _ler_artefato, _ler_json
 from core.auth import usuario_api
 from core.db import Duvida, Tarefa, Tentativa, Usuario, engine, get_session
 from leia.ratelimit import rate_limit
-from leia.registry import build_payload, ots_stamp, payload_hash
+from leia.registry import build_payload, ots_digest, ots_stamp, payload_hash
 
 READY_STATUSES = ("pronta", "enviada", "assinada")
 GATE_MESSAGE = "Em revisão pelo advogado"
@@ -381,9 +381,14 @@ def get_attempt(hash_imutavel: str) -> Optional[dict[str, Any]]:
 def stamp_attempt(tarefa_hash: str, numero: int, hash_imutavel: str) -> None:
     """Background task after an approved attempt: public timestamp of the payload hash."""
     attempt = get_attempt(hash_imutavel)
-    if not attempt or attempt.get("ots"):
+    if not attempt:
         return
     _, digest = payload_hash(build_payload(attempt))
+    # Uma prova só vale para o registro sobre o qual foi feita. Se o payload mudou depois do carimbo,
+    # o arquivo em disco é de um registro que não existe mais e precisa ser refeito, não preservado.
+    existente = attempt.get("ots")
+    if existente and ots_digest(existente) == digest:
+        return
     proof = ots_stamp(digest)
     if proof:
         _ots_path(tarefa_hash, numero).write_bytes(proof)

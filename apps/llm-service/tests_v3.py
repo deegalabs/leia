@@ -736,3 +736,24 @@ def test_the_cap_does_not_exist_before_it_is_reached(lawyer, monkeypatch):
     assert tn.tentativas_esgotadas(t.id) is False
     ok = tn.registrar(t, {"1": 0, "2": 1, "3": 2}, QUESTOES)
     assert ok.aprovado is True
+
+
+# ── Recarimbo: prova que não corresponde ao registro precisa ser refeita ──────
+
+def test_a_stale_proof_does_not_block_a_new_stamp(tmp_path, monkeypatch):
+    from leia import api_cliente as ac
+    from leia.registry import ots_digest
+
+    chamadas = {"n": 0}
+    monkeypatch.setattr(ac, "ots_stamp", lambda digest: chamadas.__setitem__("n", chamadas["n"] + 1) or b"prova-falsa")
+    assert ots_digest(b"prova-falsa") is None, "uma prova ilegível não pode contar como carimbo válido"
+
+    t = _tarefa_de_teste("hash-recarimbo")
+    import core.tentativas as tn
+    tent = tn.registrar(t, {"1": 0, "2": 1, "3": 2}, QUESTOES)
+    caminho = ac._ots_path(t.hash, tent.numero)
+    caminho.parent.mkdir(parents=True, exist_ok=True)
+    caminho.write_bytes(b"prova-de-um-registro-que-nao-existe-mais")
+
+    ac.stamp_attempt(t.hash, tent.numero, tent.hash_imutavel)
+    assert chamadas["n"] == 1, "a prova velha impediu o recarimbo"
