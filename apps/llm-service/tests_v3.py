@@ -1307,3 +1307,22 @@ def test_concurrent_attempts_respect_the_cap_and_never_share_a_hash(lawyer, monk
     assert len(gravadas) <= 3, f"o teto de 3 furou: {len(gravadas)} tentativas, números {numeros}"
     assert len(set(numeros)) == len(numeros), f"número de rodada repetido: {numeros}"
     assert len(set(hashes)) == len(hashes), "duas tentativas com o mesmo hash de comprovante"
+
+
+def test_undoing_a_link_does_not_hand_the_next_person_the_previous_one_s_record(lawyer, citizen):
+    """Desfazer o vínculo resolve o vínculo errado, mas a tentativa pertence à tarefa, não à pessoa.
+    Se alguém já respondeu, a próxima conta vinculada herdaria o comprovante da anterior."""
+    import core.attempts as tn
+
+    t = create_task(lawyer["token"], "Herança")
+    fake_artifacts(t["hash"])
+    client.post(f"/api/tarefas/{t['id']}/convite", json={"email": None}, headers=bearer(lawyer["token"]))
+    client.post(f"/api/t/{t['hash']}/vincular", headers=bearer(citizen["token"]))
+
+    with Session(engine) as s:
+        tarefa = s.exec(select(Tarefa).where(Tarefa.hash == t["hash"])).one()
+    questoes = json.loads((ws.folder(t["hash"]) / "questoes.json").read_text(encoding="utf-8"))["questoes"]
+    tn.record(tarefa, {"1": 1}, questoes)
+
+    r = client.delete(f"/api/tarefas/{t['id']}/cidadao", headers=bearer(lawyer["token"]))
+    assert r.status_code == 409, "desvinculou por cima de um comprovante que afirma que outra pessoa entendeu"

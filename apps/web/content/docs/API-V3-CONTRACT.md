@@ -61,7 +61,7 @@ e-mail, não para alguém coletá-lo.
 | `GET /api/t/{hash}` | | como hoje **mais** `advogado: { nome } \| null` (nulo quando o dono é `cidadao`), `tem_advogado: bool`, `cidadao_vinculado: bool`, `duvidas_enviadas: n` |
 | `POST /api/t/{hash}/duvida` | `{ texto, contexto?: [ { role: "user" \| "bot", text } ] }` | `{ id, criada_em }`; 409 se a tarefa não tem advogado; limitado por IP |
 | `POST /api/t/{hash}/vincular` | Bearer (`cidadao`) | `{ ok: true }`; define `tarefa.cidadao_id` se ainda vazio; **403 quando o documento não tem convite**, porque vincular é virar dona do documento e quem chega depois recebe 409 |
-| `DELETE /api/tarefas/{id}/cidadao` | Bearer (dono) | `{ ok: true }`; desfaz o vínculo, para que um vínculo errado não tranque a destinatária legítima |
+| `DELETE /api/tarefas/{id}/cidadao` | Bearer (dono) | `{ ok: true }`; desfaz o vínculo, para que um vínculo errado não tranque a destinatária legítima; **409 se já houver tentativa**, porque a tentativa pertence à tarefa e a próxima conta herdaria o comprovante da anterior |
 | `GET /api/t/{hash}/inferencias` | | `{ tarefa, texto (texto extraído), classes: [ { classe, rotulo, cor, itens: [ { ref, campo, valor, trecho, pos: [inicio, fim] \| null, conferido, conferencia: { metodo, score } \| ausente, cor } ] } ], sinteses: [ { classe, rotulo, texto, lastro[] } ], total, conferidos }`; 409 enquanto não está pronta |
 
 ### Quem confere o trecho

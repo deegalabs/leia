@@ -290,6 +290,9 @@ export function issueInvite(u: MockUser, id: number, input: { email?: unknown; v
 export function unbindTask(u: MockUser, id: number) {
   const t = ownedByMe(u, id);
   if (t.cidadao_id === null) throw fail(404, "Este documento não está vinculado a ninguém.");
+  /* A tentativa pertence à tarefa, não à pessoa: trocar a conta vinculada por cima de uma tentativa faria a
+     próxima cidadã herdar o comprovante da anterior, que afirma que outra pessoa entendeu o documento. */
+  if (t.tentativas.length > 0) throw fail(409, "Este documento já tem conferência registrada nesta conta. Envie o documento de novo para a outra pessoa, em vez de trocar quem está vinculado aqui.");
   t.cidadao_id = null;
   t.atualizada_em = nowIso();
   t.eventos.push({ tipo: "cidadao_desvinculado", ts: t.atualizada_em });

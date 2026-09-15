@@ -172,6 +172,13 @@ def unlink_citizen(tarefa_id: int, u: Usuario = Depends(api_user), session: Sess
     t = _owned(session, u, tarefa_id)
     if t.cidadao_id is None:
         raise HTTPException(404, "Este documento não está vinculado a ninguém.")
+    # A tentativa pertence à tarefa, não à pessoa: trocar a conta vinculada por cima de uma tentativa faria
+    # a próxima cidadã herdar o comprovante da anterior, que afirma que **outra** pessoa entendeu o documento.
+    # Desvincular serve para consertar vínculo errado, e vínculo errado se descobre antes de alguém responder.
+    from core.db import Tentativa
+    if session.exec(select(Tentativa).where(Tentativa.tarefa_id == t.id)).first() is not None:
+        raise HTTPException(409, "Este documento já tem conferência registrada nesta conta. Envie o documento "
+                                 "de novo para a outra pessoa, em vez de trocar quem está vinculado aqui.")
     t.cidadao_id = None
     session.add(t); session.commit()
     ws.record_event(t.hash, "cidadao_desvinculado")

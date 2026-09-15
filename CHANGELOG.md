@@ -25,7 +25,9 @@ fecha um sentido, vira versão com tag anotada e release no GitHub.
   propósito, porque exigir conta para ler é barreira justamente para quem o produto atende. Mas vincular define
   `cidadao_id`, e quem chega depois recebe 409: na prática o primeiro que aparecia trancava os demais, inclusive
   a pessoa para quem o documento foi mandado. Agora vincular exige convite vivo, e quem enviou pode desfazer o
-  vínculo em `DELETE /api/tarefas/{id}/cidadao`, que antes não existia.
+  vínculo em `DELETE /api/tarefas/{id}/cidadao`, que antes não existia, e que recusa quando já há
+  conferência registrada, porque a tentativa pertence à tarefa e a próxima conta herdaria o comprovante da
+  anterior, que afirma que **outra** pessoa entendeu o documento.
 - **O teto de tentativas e o hash do comprovante tinham corrida.** O número da rodada era escolhido numa sessão
   e gravado em outra, sem restrição no banco. Medido: com teto de 3 e 12 envios simultâneos, 7 tentativas
   gravadas, com números repetidos. Duas consequências, e a segunda é a grave: furava-se o teto que existe para
