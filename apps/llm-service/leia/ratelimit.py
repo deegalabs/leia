@@ -16,13 +16,30 @@ WINDOW_SECONDS = 60.0
 DETAIL = "Muitas tentativas em pouco tempo. Aguarde um minuto e tente de novo."
 
 
+def _trusted_hops() -> int:
+    """How many proxies of ours the request crossed. In production that is one, the platform's edge."""
+    try:
+        return max(0, int(os.getenv("RATE_LIMIT_PROXY_HOPS", "1")))
+    except ValueError:
+        return 1
+
+
 def client_ip(request: Request) -> str:
-    """Socket peer as seen by uvicorn (already rewritten from the proxy headers with --proxy-headers).
-    X-Forwarded-For is only honoured when RATE_LIMIT_TRUST_XFF=true (tests, or a trusted single proxy)."""
-    if os.getenv("RATE_LIMIT_TRUST_XFF", "false").lower() in ("1", "true", "yes"):
-        xff = request.headers.get("x-forwarded-for", "")
-        if xff:
-            return xff.split(",")[0].strip()
+    """Who to count this request against.
+
+    X-Forwarded-For is written left to right: whatever the caller chose to put there, then one entry appended
+    by each proxy it crossed. Only the entries our own proxies appended are trustworthy, and they are at the
+    right. Keying the limit on the leftmost entry, which is what the caller wrote, hands every visitor an
+    unlimited supply of identities and the bucket never fills.
+
+    The socket peer is not a fallback we can trust either: uvicorn runs with --forwarded-allow-ips=*, so it
+    already rewrote it from the same header. It is only used when the header is absent, which means nobody
+    is in front of us."""
+    hops = _trusted_hops()
+    if hops:
+        parts = [p.strip() for p in request.headers.get("x-forwarded-for", "").split(",") if p.strip()]
+        if parts:
+            return parts[max(0, len(parts) - hops)]
     return request.client.host if request.client else "?"
 
 

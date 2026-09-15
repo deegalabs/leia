@@ -41,6 +41,8 @@ Repositório aberto sob licença MIT, em produção em https://leia-snowy.vercel
 - Aplicação instalável, responsiva do celular ao computador.
 
 ### Segurança e privacidade
+- O limite por requisição deixou de ser contornável. Ele era calculado a partir do começo de `X-Forwarded-For`,
+  que é o pedaço que quem chama escreve, então bastava variar esse valor para nunca encher o balde.
 - O registro público deixou de carregar o link do documento do cidadão. Passou a identificá-lo por um hash
   (`documentRef`), sem o `salt` decorativo que não protegia nada.
 - O hash da tentativa virou reprodutível a partir do que fica gravado, sem endereço de rede nem navegador.
