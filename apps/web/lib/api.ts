@@ -1,8 +1,7 @@
-/* Client for the cognitive service. Routes follow the service (see docs/LLM-API-CONTRACT.md).
-   NEXT_PUBLIC_API_BASE empty = the in-app mock (app/api/*), used on the hosted demo. */
-import { authHeaders } from "./auth"; /* LeIA: v3 Bearer session (lib/auth.ts) */
-export const API_BASE = (process.env.NEXT_PUBLIC_API_BASE ?? "").replace(/\/$/, "");
-export const usingInternalMock = API_BASE === "";
+/* Client for the cognitive service, reached through this app and never directly.
+   Every call is same origin, so the session cookie travels on its own and the browser never holds a token.
+   The route handlers in app/api/* either forward to the service (SERVICE_URL) or answer from the in-app mock,
+   which is what the hosted demo uses. */
 
 /* LeIA: score (0..1 or 0..100) only on topics from the external "Resumo estruturado" flow */
 export type Topic = { id: number; titulo: string; explicacao?: string; explicacao_md?: string; trecho?: string; clausula?: string; score?: number };
@@ -42,12 +41,12 @@ async function check(r: Response) {
 }
 
 export async function getTask(hash: string): Promise<Task> {
-  const r = await check(await fetch(`${API_BASE}/api/t/${hash}`, { headers: { Accept: "application/json" }, cache: "no-store" }));
+  const r = await check(await fetch(`/api/t/${hash}`, { headers: { Accept: "application/json" }, cache: "no-store" }));
   return r.json();
 }
 
 export async function submitQuiz(hash: string, respostas: Record<string, number>): Promise<QuizResult> {
-  const r = await check(await fetch(`${API_BASE}/api/t/${hash}/quiz`, {
+  const r = await check(await fetch(`/api/t/${hash}/quiz`, {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ respostas }),
   }));
   return r.json();
@@ -55,7 +54,7 @@ export async function submitQuiz(hash: string, respostas: Record<string, number>
 
 /* SSE over fetch: "data: {t: '...'}" per token, "data: {error: '...'}" on failure. */
 export async function chat(hash: string, mensagem: string, onText: (acc: string) => void): Promise<string> {
-  const r = await check(await fetch(`${API_BASE}/api/t/${hash}/chat`, {
+  const r = await check(await fetch(`/api/t/${hash}/chat`, {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mensagem }),
   }));
   if (!r.body) throw new Error("sem corpo");
@@ -81,14 +80,11 @@ export async function chat(hash: string, mensagem: string, onText: (acc: string)
 }
 
 export async function getVerify(attempt: string): Promise<VerifyResult> {
-  const url = usingInternalMock ? `/api/verify/${attempt}` : `${API_BASE}/verify/${attempt}?format=json`;
-  const r = await check(await fetch(url, { cache: "no-store" }));
+  const r = await check(await fetch(`/api/verify/${attempt}`, { cache: "no-store" }));
   return r.json();
 }
 
-export const proofUrl = (attempt: string) => `${API_BASE}/verify/${attempt}/proof.ots`;
-/* The professional's panel lives in the service; without a service there is no panel to link. */
-export const panelUrl = (): string | null => (usingInternalMock ? null : `${API_BASE}/`);
+export const proofUrl = (attempt: string) => `/api/verify/${attempt}/proof`;
 
 /* Topics: structured list from the service, or sections split from the markdown summary. */
 export function topicsOf(task: Task): Topic[] {
@@ -109,7 +105,7 @@ export function formatDateTime(iso: string): string {
 }
 
 /* ------------------------------------------------------------------------------------------------
-   LeIA: v3 accounts and panels (docs/API-V3-CONTRACT.md). Every call sends the Bearer token when there is one. */
+   LeIA: v3 accounts and panels (docs/API-V3-CONTRACT.md). The session travels as the cookie of this origin. */
 /* LeIA: review flow (docs/API-V3-CONTRACT.md, "Revisão do advogado"): pronta = waiting for the lawyer, enviada = released to
    the citizen; the public route answers "revisao" while a lawyer-owned task waits. */
 export type TaskStatus = "criada" | "processando" | "pronta" | "enviada" | "assinada" | "falhou" | "revisao" | string;
@@ -128,10 +124,10 @@ export type TaskDetail = {
   duvidas: Doubt[]; cidadao: { nome: string } | null; advogado: { nome: string } | null;
 };
 
-const jsonHeaders = () => ({ "Content-Type": "application/json", Accept: "application/json", ...authHeaders() });
+const jsonHeaders = () => ({ "Content-Type": "application/json", Accept: "application/json" });
 
 export async function listTasks(): Promise<TaskSummary[]> {
-  const r = await check(await fetch(`${API_BASE}/api/tarefas`, { headers: { Accept: "application/json", ...authHeaders() }, cache: "no-store" }));
+  const r = await check(await fetch(`/api/tarefas`, { headers: { Accept: "application/json" }, cache: "no-store" }));
   const { tarefas } = (await r.json()) as { tarefas: TaskSummary[] };
   return tarefas;
 }
@@ -139,23 +135,23 @@ export async function createTask(titulo: string, pdf: File): Promise<{ id: numbe
   const form = new FormData();
   form.append("titulo", titulo);
   form.append("pdf", pdf, pdf.name);
-  const r = await check(await fetch(`${API_BASE}/api/tarefas`, { method: "POST", headers: { Accept: "application/json", ...authHeaders() }, body: form }));
+  const r = await check(await fetch(`/api/tarefas`, { method: "POST", headers: { Accept: "application/json" }, body: form }));
   return r.json();
 }
 export async function getTaskDetail(id: string | number): Promise<TaskDetail> {
-  const r = await check(await fetch(`${API_BASE}/api/tarefas/${id}`, { headers: { Accept: "application/json", ...authHeaders() }, cache: "no-store" }));
+  const r = await check(await fetch(`/api/tarefas/${id}`, { headers: { Accept: "application/json" }, cache: "no-store" }));
   return r.json();
 }
 export async function answerDoubt(id: string | number, duvidaId: number, resposta: string): Promise<{ ok: boolean }> {
-  const r = await check(await fetch(`${API_BASE}/api/tarefas/${id}/duvidas/${duvidaId}/responder`, { method: "POST", headers: jsonHeaders(), body: JSON.stringify({ resposta }) }));
+  const r = await check(await fetch(`/api/tarefas/${id}/duvidas/${duvidaId}/responder`, { method: "POST", headers: jsonHeaders(), body: JSON.stringify({ resposta }) }));
   return r.json();
 }
 export async function sendDoubt(hash: string, texto: string, contexto: ChatTurn[] = []): Promise<{ id: number; criada_em: string }> {
-  const r = await check(await fetch(`${API_BASE}/api/t/${hash}/duvida`, { method: "POST", headers: jsonHeaders(), body: JSON.stringify({ texto, contexto }) }));
+  const r = await check(await fetch(`/api/t/${hash}/duvida`, { method: "POST", headers: jsonHeaders(), body: JSON.stringify({ texto, contexto }) }));
   return r.json();
 }
 export async function bindTask(hash: string): Promise<{ ok: boolean }> {
-  const r = await check(await fetch(`${API_BASE}/api/t/${hash}/vincular`, { method: "POST", headers: jsonHeaders(), body: "{}" }));
+  const r = await check(await fetch(`/api/t/${hash}/vincular`, { method: "POST", headers: jsonHeaders(), body: "{}" }));
   return r.json();
 }
 /* The citizen link is always a page of this app; the service may send it relative or absolute. */
@@ -170,7 +166,7 @@ export function clientLinkUrl(linkOrHash: string): string {
    409 only while the lawyer reviews, 404 when the hash is unknown. */
 import type { Inferences } from "./inferences";
 export async function getInferences(hash: string): Promise<Inferences> {
-  const r = await check(await fetch(`${API_BASE}/api/t/${hash}/inferencias`, { cache: "no-store" }));
+  const r = await check(await fetch(`/api/t/${hash}/inferencias`, { cache: "no-store" }));
   const data = (await r.json()) as Inferences;
   return { ...data, texto: data.texto ?? "", classes: data.classes ?? [], sinteses: data.sinteses ?? [], total: data.total ?? 0, conferidos: data.conferidos ?? 0 };
 }
@@ -187,10 +183,10 @@ export type Review = {
   inferencias: Inferences; resumo_md: string; questoes: ReviewQuestion[]; link_cliente: string;
 };
 export async function getReview(id: string | number): Promise<Review> {
-  const r = await check(await fetch(`${API_BASE}/api/tarefas/${id}/revisao`, { headers: { Accept: "application/json", ...authHeaders() }, cache: "no-store" }));
+  const r = await check(await fetch(`/api/tarefas/${id}/revisao`, { headers: { Accept: "application/json" }, cache: "no-store" }));
   return r.json();
 }
 export async function approveTask(id: string | number): Promise<{ ok: boolean; status: TaskStatus }> {
-  const r = await check(await fetch(`${API_BASE}/api/tarefas/${id}/aprovar`, { method: "POST", headers: jsonHeaders(), body: "{}" }));
+  const r = await check(await fetch(`/api/tarefas/${id}/aprovar`, { method: "POST", headers: jsonHeaders(), body: "{}" }));
   return r.json();
 }

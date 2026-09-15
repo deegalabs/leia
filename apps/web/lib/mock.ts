@@ -3,6 +3,7 @@
 import fixture from "@/data/fixture-honorarios.json";
 import externalFixture from "@/data/fixture-externo.json"; /* LeIA: external "Resumo estruturado" flow: topics with score, no questions */
 import { attemptHash, buildPayload, canonical, encodeToken, newSalt, nowIso, sha256, type AttemptRecord } from "./registry";
+import { tokenFromRequest } from "./server/session";
 import { findSpan, type InferenceClass, type Inferences } from "./inferences"; /* LeIA: review flow shares the inferences with the public route */
 import type { Stage } from "./api";
 
@@ -190,8 +191,10 @@ export function login(input: { email?: unknown; senha?: unknown }) {
   throw fail(401, "e-mail ou senha inválidos");
 }
 export function userFromRequest(req: Request): MockUser | null {
+  /* The session lives in an HttpOnly cookie (lib/server/session.ts). Bearer stays accepted so a request
+     made by hand, or a page still running an old bundle, keeps working. */
   const h = req.headers.get("authorization") ?? "";
-  const token = h.toLowerCase().startsWith("bearer ") ? h.slice(7).trim() : "";
+  const token = h.toLowerCase().startsWith("bearer ") ? h.slice(7).trim() : tokenFromRequest(req) ?? "";
   if (!token) return null;
   for (const u of store().users.values()) if (u.token === token) return u;
   return null;

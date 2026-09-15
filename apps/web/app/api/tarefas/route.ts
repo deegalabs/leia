@@ -1,6 +1,9 @@
 import { createTask, listTasks, userFromRequest } from "@/lib/mock";
+import { viaService } from "@/lib/server/service";
 
 export async function GET(req: Request) {
+  const up = await viaService(req);
+  if (up) return up;
   const u = userFromRequest(req);
   if (!u) return Response.json({ detail: "não autenticado" }, { status: 401 });
   return Response.json(listTasks(u));
@@ -8,6 +11,8 @@ export async function GET(req: Request) {
 
 /* multipart: titulo + pdf. The mock does not read the PDF; every task reuses the fixture content. */
 export async function POST(req: Request) {
+  const up = await viaService(req);
+  if (up) return up;
   const u = userFromRequest(req);
   if (!u) return Response.json({ detail: "não autenticado" }, { status: 401 });
   const form = await req.formData().catch(() => null);

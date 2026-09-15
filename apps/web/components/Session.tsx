@@ -25,9 +25,9 @@ export function AuthNav({ dark = true }: { dark?: boolean }) {
 
 /* Sends visitors to /entrar?next=... once the stored session has been read. */
 export function RequireAuth({ next, children }: { next: string; children: ReactNode }) {
-  const { auth, ready } = useAuth();
+  const { usuario, ready } = useAuth();
   const router = useRouter();
-  useEffect(() => { if (ready && !auth) router.replace(`/entrar?next=${encodeURIComponent(next)}`); }, [ready, auth, next, router]);
-  if (!ready || !auth) return <p role="status" className="text-ink-2">{m.common.loading}</p>;
+  useEffect(() => { if (ready && !usuario) router.replace(`/entrar?next=${encodeURIComponent(next)}`); }, [ready, usuario, next, router]);
+  if (!ready || !usuario) return <p role="status" className="text-ink-2">{m.common.loading}</p>;
   return <>{children}</>;
 }

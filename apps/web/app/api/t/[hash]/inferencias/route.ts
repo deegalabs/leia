@@ -1,9 +1,12 @@
 import { buildInferences, inReview, isProcessing, storeTask } from "@/lib/mock";
+import { viaService } from "@/lib/server/service";
 
 /* Mock: the fixture's clauses become tagged items over the extracted text.
    LeIA: 409 while the lawyer reviews; while the pipeline runs, 200 with parcial: true and what exists so far
    (docs/API-V3-CONTRACT.md, "Preparação visível e tarefas do fluxo externo"). */
-export async function GET(_req: Request, { params }: RouteContext<"/api/t/[hash]/inferencias">) {
+export async function GET(req: Request, { params }: RouteContext<"/api/t/[hash]/inferencias">) {
+  const up = await viaService(req);
+  if (up) return up;
   const { hash } = await params;
   const t = storeTask(hash);
   if (!t) return Response.json({ detail: "não encontrado" }, { status: 404 });
