@@ -39,9 +39,9 @@ jobs:
         working-directory: apps/web
     steps:
       - uses: actions/checkout@v4
+      # A versão vem do "packageManager" do package.json da raiz. Declarar aqui também faz a action
+      # abortar com "Multiple versions of pnpm specified".
       - uses: pnpm/action-setup@v4
-        with:
-          version: 9
       - uses: actions/setup-node@v4
         with:
           node-version: 24
