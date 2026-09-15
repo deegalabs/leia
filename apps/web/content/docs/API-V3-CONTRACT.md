@@ -76,6 +76,18 @@ A busca tem três estágios, e o item diz qual deles achou:
 
 Sem nenhum dos três, `conferido` é falso, `pos` é nulo e `conferencia` não vem.
 
+### O registro de consentimento é congelado, não remontado
+
+Quando a tentativa é aprovada, o serviço grava o JSON canônico publicado, o hash dele, o SHA-256 do PDF que a
+pessoa recebeu e o SHA-256 da explicação que ela leu. A verificação serve o que foi gravado.
+
+Isso resolve duas coisas ao mesmo tempo. O comprovante passa a dizer **a que documento** se refere, em vez de
+provar apenas que houve uma tentativa com N acertos. E a prova para de mudar quando o banco muda: antes o payload
+era remontado a cada visita, então alterar uma linha alterava o registro publicado e o carimbo de tempo passava a
+vouchar por algo que não existia mais.
+
+Comprovante emitido antes disso não tem registro gravado e continua sendo remontado, para não parar de abrir.
+
 ### O contrato de cada etapa do pipeline
 
 Etapa que declara `tipo_saida: json` e devolve algo que não é JSON **falha**, e o documento falha com ela. Antes o

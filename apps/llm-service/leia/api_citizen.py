@@ -32,7 +32,8 @@ import core.workspace as ws
 from app_gestao import _read_artifact, _read_json
 from core.auth import api_user, optional_api_user
 from leia import invites  # LeIA: the invite that governs the document link
-from core.db import Duvida, Tarefa, Tentativa, Usuario, engine, get_session
+from leia.registry import sha256_hex
+from core.db import ConsentRecord, Duvida, Tarefa, Tentativa, Usuario, engine, get_session
 from leia.ratelimit import rate_limit
 from leia.registry import build_payload, ots_digest, ots_stamp, payload_hash
 
@@ -441,6 +442,52 @@ def _ots_path(tarefa_hash: str, numero: int):
     return ws.folder(tarefa_hash) / f"tentativa_{numero}.ots"
 
 
+def _document_sha(tarefa_hash: str) -> str:
+    """The PDF the person actually received, as it was stored."""
+    caminho = ws.folder(tarefa_hash) / "original.pdf"
+    return sha256_hex(caminho.read_bytes()) if caminho.exists() else ""
+
+
+def _summary_sha(tarefa_hash: str) -> str:
+    """The explanation the person actually read, in the form the screen rendered it."""
+    resumo = _read_artifact(tarefa_hash, "resumo_humanizado.md")
+    if resumo is None:
+        externo = _read_json(tarefa_hash, EXTERNAL_RESULT_FILE)
+        resumo = external_summary(externo)[0] if externo is not None else None
+    return sha256_hex(resumo) if resumo else ""
+
+
+def freeze_record(tarefa_hash: str, numero: int, hash_imutavel: str) -> None:
+    """Writes down the consent record at the moment it was earned, and never touches it again.
+
+    Until now the record was rebuilt from the database on every visit, so changing a row changed the published
+    proof, and the public timestamp then vouched for a record that no longer existed. Freezing it here is also
+    what lets the payload say **which** document and **which** explanation were understood: those hashes exist
+    now, while the artifacts are on disk, and asking for them later would be asking after the fact."""
+    from leia.registry import build_payload, payload_hash
+
+    base = get_attempt(hash_imutavel)
+    if base is None:
+        return
+    base = {**base, "pdf_sha256": _document_sha(tarefa_hash), "resumo_sha256": _summary_sha(tarefa_hash)}
+    canonical, digest = payload_hash(build_payload(base))
+    with Session(engine) as s:
+        if s.exec(select(ConsentRecord).where(ConsentRecord.attempt_hash == hash_imutavel)).first():
+            return  # já gravado: registro não se reescreve
+        s.add(ConsentRecord(attempt_hash=hash_imutavel, document_sha256=base["pdf_sha256"],
+                            summary_sha256=base["resumo_sha256"], canonical=canonical, payload_sha256=digest))
+        s.commit()
+
+
+def stored_record(hash_imutavel: str) -> Optional[dict[str, str]]:
+    with Session(engine) as s:
+        rec = s.exec(select(ConsentRecord).where(ConsentRecord.attempt_hash == hash_imutavel)).first()
+    if not rec:
+        return None
+    return {"canonical": rec.canonical, "payload_sha256": rec.payload_sha256,
+            "pdf_sha256": rec.document_sha256, "resumo_sha256": rec.summary_sha256}
+
+
 def get_attempt(hash_imutavel: str) -> Optional[dict[str, Any]]:
     """Adapter for leia.registry.build_router. Nothing personal reaches the published payload."""
     with Session(engine) as s:
@@ -450,8 +497,11 @@ def get_attempt(hash_imutavel: str) -> Optional[dict[str, Any]]:
         t = s.get(Tarefa, tent.tarefa_id)
     created = tent.criada_em.replace(tzinfo=timezone.utc) if tent.criada_em.tzinfo is None else tent.criada_em
     p = _ots_path(t.hash, tent.numero)
+    gravado = stored_record(hash_imutavel) or {}
     return {"hash_imutavel": tent.hash_imutavel, "tarefa_hash": t.hash, "numero": tent.numero, "acertos": tent.acertos,
             "total": tent.total, "aprovado": tent.aprovado, "criada_em": created,
+            "pdf_sha256": gravado.get("pdf_sha256", ""), "resumo_sha256": gravado.get("resumo_sha256", ""),
+            "registro": gravado or None,
             "ots": p.read_bytes() if p.exists() else None}
 
 
