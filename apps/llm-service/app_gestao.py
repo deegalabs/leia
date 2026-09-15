@@ -61,6 +61,15 @@ def _read_json(hash_: str, nome: str):
         return None
 
 
+def _e_dono(u: Usuario, t: Tarefa) -> bool:
+    """Quem enviou o documento, ou o fornecedor.
+
+    Diferente de ``_permite_ver``, que inclui a cidadã vinculada. A distinção existe porque ver o documento
+    e mandar nele são coisas diferentes: o gabarito das perguntas, apagar artefato e criar rodada nova
+    respondem a esta, nunca àquela."""
+    return u.papel == "fornecedor" or t.advogado_id == u.id
+
+
 def _permite_ver(u: Usuario, t: Tarefa) -> bool:
     # LeIA: fornecedor sees everything; anyone else sees what they sent or, as a citizen, what is linked to them
     if u.papel == "fornecedor":
@@ -114,7 +123,7 @@ async def create_pdf_task(
     ws.save_meta(h, {
         "hash": h,
         "titulo": t.titulo,
-        "advogado": {"id": u.id, "email": u.email, "nome": u.nome},
+        "advogado": {"id": u.id, "nome": u.nome},   # LeIA: sem e-mail, o meta.json é baixável
         "pdf_nome": pdf.filename,
         "pdf_bytes": len(conteudo),
         "criada_em": t.criada_em.isoformat(),
@@ -181,7 +190,7 @@ async def api_pdf_destilar(
     ws.save_meta(h, {
         "hash": h,
         "titulo": t.titulo,
-        "advogado": {"id": u.id, "email": u.email, "nome": u.nome},
+        "advogado": {"id": u.id, "nome": u.nome},   # LeIA: sem e-mail, o meta.json é baixável
         "pdf_nome": pdf.filename,
         "pdf_bytes": len(conteudo),
         "criada_em": t.criada_em.isoformat(),
@@ -221,6 +230,10 @@ async def api_pdf_destilado(
     t = session.exec(select(Tarefa).where(Tarefa.hash == hash_)).first()
     if not t or not _permite_ver(u, t):
         raise HTTPException(404)
+
+    from leia.api_citizen import GATE_MESSAGE, is_gated   # LeIA: local import (leia.api_citizen imports this module)
+    if is_gated(t) and not _e_dono(u, t):   # LeIA: é a explicação que o advogado ainda não conferiu
+        raise HTTPException(409, GATE_MESSAGE)
 
     return {
         "status": t.status,
@@ -306,7 +319,7 @@ async def api_resumo_estruturado_submit(
     ws.save_meta(h, {
         "hash": h,
         "titulo": t.titulo,
-        "advogado": {"id": u.id, "email": u.email, "nome": u.nome},
+        "advogado": {"id": u.id, "nome": u.nome},   # LeIA: sem e-mail, o meta.json é baixável
         "pdf_nome": nome_pdf,
         "criada_em": t.criada_em.isoformat(),
         "origem": "resumo_estruturado_api_externa",
@@ -437,7 +450,7 @@ async def api_jurisprudencia_submit(
     ws.save_meta(h, {
         "hash": h,
         "titulo": t.titulo,
-        "advogado": {"id": u.id, "email": u.email, "nome": u.nome},
+        "advogado": {"id": u.id, "nome": u.nome},   # LeIA: sem e-mail, o meta.json é baixável
         "pdf_nome": nome_pdf,
         "consulta": consulta,
         "criada_em": t.criada_em.isoformat(),
@@ -545,7 +558,7 @@ async def reprocess(
     t = session.get(Tarefa, tarefa_id)
     if not t:
         raise HTTPException(404, "Tarefa não encontrada")
-    if not _permite_ver(u, t):
+    if not _e_dono(u, t):   # LeIA: apaga artefato e gasta modelo, então responde só a quem enviou
         raise HTTPException(403, "Sem acesso")
     if t.status == "processando":
         raise HTTPException(409, "Já está processando")
@@ -589,7 +602,7 @@ async def nova_rodada(
     t = session.get(Tarefa, tarefa_id)
     if not t:
         raise HTTPException(404)
-    if not _permite_ver(u, t):
+    if not _e_dono(u, t):   # LeIA: cria tarefa nova na conta de quem enviou, então só ele decide
         raise HTTPException(403)
 
     rodada_anterior = t.rodada or 1
@@ -649,7 +662,9 @@ async def baixar_artefato(
     t = session.get(Tarefa, tarefa_id)
     if not t:
         raise HTTPException(404)
-    if not _permite_ver(u, t):
+    # LeIA: `questoes.json` carrega `correta` e `justificativa`, e a cidadã vinculada é justamente quem vai
+    # responder essas perguntas. Artefato é material de quem enviou o documento.
+    if not _e_dono(u, t):
         raise HTTPException(403)
 
     permitidos = {
@@ -679,7 +694,10 @@ async def api_status(
     if not t or not _permite_ver(u, t):
         raise HTTPException(404)
 
+    from leia.api_citizen import public_events   # LeIA: local import (leia.api_citizen imports this module)
     eventos = ws.read_events(t.hash)
+    if not _e_dono(u, t):   # LeIA: o evento cru carrega advogado_id e cidadao_id
+        eventos = public_events(eventos)
     return {
         "status": t.status,
         "atualizada_em": t.atualizada_em.isoformat(),

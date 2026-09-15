@@ -287,6 +287,15 @@ export function issueInvite(u: MockUser, id: number, input: { email?: unknown; v
   return t.convite;
 }
 
+export function unbindTask(u: MockUser, id: number) {
+  const t = ownedByMe(u, id);
+  if (t.cidadao_id === null) throw fail(404, "Este documento não está vinculado a ninguém.");
+  t.cidadao_id = null;
+  t.atualizada_em = nowIso();
+  t.eventos.push({ tipo: "cidadao_desvinculado", ts: t.atualizada_em });
+  return { ok: true };
+}
+
 export function revokeInvite(u: MockUser, id: number): MockInvite {
   const t = ownedByMe(u, id);
   if (!t.convite) throw fail(404, "Este documento não tem convite para cancelar.");
@@ -440,6 +449,9 @@ export function bindTask(u: MockUser, hash: string) {
   const t = storeTask(hash);
   if (!t) throw fail(404, "não encontrado");
   if (u.papel !== "cidadao") throw fail(403, "só a cidadã pode se vincular");
+  /* Ler segue aberto a quem tem o link. Vincular é virar dona do documento, e quem chega depois recebe
+     409, então o primeiro que aparece trancaria os demais: exige convite vivo, como no serviço. */
+  if (!mine(t, u) && !t.convite) throw fail(403, "Este documento ainda não tem convite. Peça um link novo a quem enviou.");
   if (t.cidadao_id === null) { t.cidadao_id = u.id; t.atualizada_em = nowIso(); t.eventos.push({ tipo: "cidadao_vinculado", ts: t.atualizada_em }); }
   return { ok: true };
 }

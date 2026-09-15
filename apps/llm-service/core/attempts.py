@@ -4,7 +4,9 @@ import hashlib, json, os
 from datetime import datetime
 from typing import Optional
 
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
+
 from core.db import engine, Tentativa, Tarefa
 
 
@@ -72,9 +74,6 @@ def record(
     Valida as respostas contra o gabarito das questões, grava a tentativa
     e retorna a linha persistida com hash imutável.
     """
-    if attempts_exhausted(tarefa.id):
-        raise AttemptsExhausted()
-
     total = len(questoes)
     acertos = 0
     for q in questoes:
@@ -86,27 +85,47 @@ def record(
 
     aprovado = acertos >= max(1, int(total * float(os.getenv("QUIZ_PASS_RATIO", "0.83"))))   # ≥ 83% (10/12)
 
-    numero = _next_round(tarefa.id)
     respostas_json = json.dumps(respostas, ensure_ascii=False, sort_keys=True)
     criada_em = datetime.utcnow().replace(microsecond=0)
+    cap = _cap()
 
-    h = attempt_hash(tarefa.hash, numero, respostas_json, criada_em)
+    # Escolher o número da rodada numa sessão e gravar em outra é checar-depois-gravar: entre as duas coisas
+    # cabe outro envio. O número passa a ser decidido pelo banco, pela restrição única em (tarefa_id, numero):
+    # quem perder a disputa recebe IntegrityError, lê de novo e tenta o número seguinte. O teto sai da
+    # contagem e passa a ser o próprio número da rodada, então furar o teto exigiria furar a restrição.
+    for _ in range(cap + 5):
+        with Session(engine) as s:
+            feitas = list(s.exec(select(Tentativa).where(Tentativa.tarefa_id == tarefa.id)))
+        if not any(x.aprovado for x in feitas) and len(feitas) >= cap:
+            raise AttemptsExhausted()
+        numero = max((x.numero for x in feitas), default=0) + 1
+        if not any(x.aprovado for x in feitas) and numero > cap:
+            raise AttemptsExhausted()
 
-    # IP e navegador não são gravados: não entram na prova, não são necessários ao produto,
-    # e estavam impressos no comprovante que a cidadã mostra a terceiros.
-    t = Tentativa(
-        tarefa_id=tarefa.id,
-        numero=numero,
-        respostas=respostas_json,
-        acertos=acertos,
-        total=total,
-        aprovado=aprovado,
-        hash_imutavel=h,
-        criada_em=criada_em,
-    )
-    with Session(engine) as s:
-        s.add(t); s.commit(); s.refresh(t)
-    return t
+        h = attempt_hash(tarefa.hash, numero, respostas_json, criada_em)
+
+        # IP e navegador não são gravados: não entram na prova, não são necessários ao produto,
+        # e estavam impressos no comprovante que a cidadã mostra a terceiros.
+        t = Tentativa(
+            tarefa_id=tarefa.id,
+            numero=numero,
+            respostas=respostas_json,
+            acertos=acertos,
+            total=total,
+            aprovado=aprovado,
+            hash_imutavel=h,
+            criada_em=criada_em,
+        )
+        try:
+            with Session(engine) as s:
+                s.add(t); s.commit(); s.refresh(t)
+            return t
+        except IntegrityError:
+            # Outro envio ficou com esta rodada. O segundo não pode virar a mesma linha nem o mesmo hash,
+            # então recomeça: ou acha o número seguinte, ou descobre que o teto acabou.
+            continue
+
+    raise AttemptsExhausted()
 
 
 def list_all(tarefa_id: int) -> list[Tentativa]:

@@ -9,6 +9,29 @@ Entra aqui toda mudança que altera o que alguém percebe, no mesmo pull request
 fecha um sentido, vira versão com tag anotada e release no GitHub.
 
 ### Segurança e privacidade
+- **Quem vê o documento deixou de mandar nele.** A autorização de várias rotas perguntava se a pessoa enxerga o
+  documento, e a cidadã vinculada enxerga. Com isso ela baixava `questoes.json`, que carrega `correta` e
+  `justificativa`, ou seja, o gabarito das perguntas que ela mesma ia responder, o que devolvia o produto ao
+  "li e aceito" passivo que ele existe para não ter. Pelo mesmo caminho saíam os artefatos intermediários, e
+  `reprocess` e `nova-rodada` obedeciam: a primeira apaga o resumo que lastreia um comprovante já congelado, a
+  segunda cria documento na conta de quem enviou. Agora essas rotas respondem só a quem enviou o documento.
+- O e-mail do advogado saiu do `meta.json`, que é gravado no workspace e era baixável. O `advogado_id` já está
+  no banco, então o endereço estava ali sem necessidade, enquanto o convite tem o cuidado de mascará-lo.
+- **O portão de revisão do advogado valia em algumas rotas e não em outras.** `GET /api/t/{hash}` escondia a
+  explicação durante a revisão, e `GET /api/pdf/{hash}/destilado` entregava a mesma explicação ao lado. Agora o
+  portão vale nas duas, e quem revisa continua vendo. Os eventos de `GET /api/tarefas/{id}/status` deixaram de
+  sair crus para quem não é dono.
+- **Vincular deixou de ser por ordem de chegada.** Ler e perguntar seguem abertos a quem tem o link, de
+  propósito, porque exigir conta para ler é barreira justamente para quem o produto atende. Mas vincular define
+  `cidadao_id`, e quem chega depois recebe 409: na prática o primeiro que aparecia trancava os demais, inclusive
+  a pessoa para quem o documento foi mandado. Agora vincular exige convite vivo, e quem enviou pode desfazer o
+  vínculo em `DELETE /api/tarefas/{id}/cidadao`, que antes não existia.
+- **O teto de tentativas e o hash do comprovante tinham corrida.** O número da rodada era escolhido numa sessão
+  e gravado em outra, sem restrição no banco. Medido: com teto de 3 e 12 envios simultâneos, 7 tentativas
+  gravadas, com números repetidos. Duas consequências, e a segunda é a grave: furava-se o teto que existe para
+  impedir o gabarito por tentativa e erro, e duas tentativas diferentes saíam com o mesmo `hash_imutavel`, que é
+  o identificador público do comprovante, então `/verify/{hash}` podia atestar um registro que não era o dela.
+  O número passou a ser decidido pelo banco, por restrição única, com nova tentativa quando dois envios disputam.
 - O trecho literal deixou de ser conferido pelo modelo e passou a ser localizado pelo serviço. A posição que o
   modelo escrevia era aceita se parecesse válida, então o selo de "trecho conferido" podia apontar para a
   cláusula errada, ou aparecer para um trecho inventado. Agora a busca é do servidor, em três estágios, e o

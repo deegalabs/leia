@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Optional
 
 from sqlmodel import SQLModel, Field, Session, create_engine
-from sqlalchemy import text
+from sqlalchemy import UniqueConstraint, text
 
 DB_PATH = Path(os.getenv("DB_PATH", str(Path(os.getenv("DATA_DIR", ".")) / "gestao.db")))
 
@@ -68,6 +68,12 @@ class LogEvento(SQLModel, table=True):
 
 
 class Tentativa(SQLModel, table=True):
+    # LeIA: as duas restrições abaixo são o que impede a corrida em ``core.attempts.record``. Sem elas o
+    # número da rodada era escolhido numa sessão e gravado em outra, então dois envios simultâneos ficavam
+    # com o mesmo número, furavam o teto de tentativas e produziam o mesmo ``hash_imutavel``, que é o
+    # identificador público do comprovante. O banco é o único lugar onde isso se decide sem corrida.
+    __table_args__ = (UniqueConstraint("tarefa_id", "numero", name="uq_tentativa_rodada"),)
+
     id: Optional[int] = Field(default=None, primary_key=True)
     tarefa_id: int = Field(foreign_key="tarefa.id", index=True)
     numero: int = 1
@@ -75,7 +81,7 @@ class Tentativa(SQLModel, table=True):
     acertos: int
     total: int
     aprovado: bool
-    hash_imutavel: str
+    hash_imutavel: str = Field(unique=True)
     ip: Optional[str] = None
     user_agent: Optional[str] = None
     criada_em: datetime = Field(default_factory=datetime.utcnow)
@@ -181,10 +187,31 @@ def _aplicar_migracoes() -> None:
         # (nenhuma migração de tentativa por enquanto — tabela é nova)
 
 
+# LeIA: ``create_all`` cria tabela que falta, nunca restrição em tabela que já existe. Um índice único
+# criado à mão vale nos dois bancos e alcança o banco que já está em produção, que é onde a corrida mora.
+UNIQUE_INDEXES = (
+    ("uq_tentativa_rodada", "tentativa", "tarefa_id, numero"),
+    ("uq_tentativa_hash", "tentativa", "hash_imutavel"),
+)
+
+
+def _garantir_indices_unicos() -> None:
+    for nome, tabela, colunas in UNIQUE_INDEXES:
+        try:
+            with engine.begin() as conn:
+                conn.execute(text(f"CREATE UNIQUE INDEX IF NOT EXISTS {nome} ON {tabela} ({colunas})"))
+        except Exception as e:
+            # Falha aqui quase sempre significa que o banco já tem duplicata, e recusar o boot por isso
+            # seria pior que seguir. Mas o defeito precisa aparecer inteiro, não virar silêncio.
+            print(f"⚠️  índice único {nome} em {tabela}({colunas}) não pôde ser criado: {e}. "
+                  f"Enquanto ele não existir, duas tentativas simultâneas podem repetir rodada e hash.")
+
+
 def init_db() -> None:
     """Cria tabelas novas + aplica migrações em tabelas existentes."""
     SQLModel.metadata.create_all(engine)
     _aplicar_migracoes()
+    _garantir_indices_unicos()
 
 
 def get_session():

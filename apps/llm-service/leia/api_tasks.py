@@ -165,6 +165,19 @@ def issue_invite(tarefa_id: int, body: ConviteIn, u: Usuario = Depends(api_user)
     return invites.to_json(inv)
 
 
+@router.delete("/api/tarefas/{tarefa_id}/cidadao")
+def unlink_citizen(tarefa_id: int, u: Usuario = Depends(api_user), session: Session = Depends(get_session)):
+    """Desfaz o vínculo. Sem isto, uma conta errada ficava com o documento para sempre e a destinatária
+    legítima recebia 409 no próprio documento dela."""
+    t = _owned(session, u, tarefa_id)
+    if t.cidadao_id is None:
+        raise HTTPException(404, "Este documento não está vinculado a ninguém.")
+    t.cidadao_id = None
+    session.add(t); session.commit()
+    ws.record_event(t.hash, "cidadao_desvinculado")
+    return {"ok": True}
+
+
 @router.delete("/api/tarefas/{tarefa_id}/convite")
 def revoke_invite(tarefa_id: int, u: Usuario = Depends(api_user), session: Session = Depends(get_session)):
     t = _owned(session, u, tarefa_id)

@@ -72,7 +72,7 @@ EXTERNAL_TEXT_FILE = "resumo_estruturado_texto.txt"
 
 def public_events(events: list[dict[str, Any]], limit: int = PUBLIC_EVENT_LIMIT) -> list[dict[str, Any]]:
     """Pipeline events only, without the visitor's IP or user agent; the last ``limit`` ones."""
-    out = [{k: v for k, v in e.items() if k not in ("ip", "ua", "user_agent", "advogado_id", "usuario_id")} for e in events if e.get("tipo") in PUBLIC_EVENT_TYPES]
+    out = [{k: v for k, v in e.items() if k not in ("ip", "ua", "user_agent", "advogado_id", "cidadao_id", "usuario_id")} for e in events if e.get("tipo") in PUBLIC_EVENT_TYPES]
     return out[-limit:]
 
 
@@ -428,7 +428,7 @@ async def api_cliente_vincular(hash_: str, u: Usuario = Depends(api_user), sessi
     if u.papel != "cidadao":
         raise HTTPException(403, "Só uma conta de cidadã pode se vincular a um documento.")
     t = _task_or_404(session, hash_)
-    invites.ensure_recipient(session, t, u)
+    invites.ensure_linkable(session, t, u)
     if t.cidadao_id is None:
         t.cidadao_id = u.id
         session.add(t); session.commit()
