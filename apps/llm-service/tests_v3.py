@@ -711,3 +711,28 @@ def test_attempt_hash_does_not_depend_on_the_client(lawyer):
     b = tn.hash_da_tentativa(t.hash, a.numero, a.respostas, a.criada_em)
     assert a.hash_imutavel == b
     assert "PARA.AI" not in tn.PREIMAGE_SCHEMA, "a marca do produto de origem ainda está no hash"
+
+
+# ── Teto de tentativas: o registro não pode ser obtido por tentativa e erro ───
+
+def test_attempts_are_capped_so_the_record_cannot_be_brute_forced(lawyer, monkeypatch):
+    import core.tentativas as tn
+    monkeypatch.setenv("QUIZ_MAX_ATTEMPTS", "3")
+    t = _tarefa_de_teste("hash-teto")
+    erradas = {"1": 9, "2": 9, "3": 9}
+    for n in range(3):
+        tent = tn.registrar(t, erradas, QUESTOES)
+        assert tent.numero == n + 1 and not tent.aprovado
+    assert tn.tentativas_esgotadas(t.id) is True
+    with pytest.raises(tn.TentativasEsgotadas):
+        tn.registrar(t, {"1": 0, "2": 1, "3": 2}, QUESTOES)
+
+
+def test_the_cap_does_not_exist_before_it_is_reached(lawyer, monkeypatch):
+    import core.tentativas as tn
+    monkeypatch.setenv("QUIZ_MAX_ATTEMPTS", "3")
+    t = _tarefa_de_teste("hash-teto-2")
+    tn.registrar(t, {"1": 9, "2": 9, "3": 9}, QUESTOES)
+    assert tn.tentativas_esgotadas(t.id) is False
+    ok = tn.registrar(t, {"1": 0, "2": 1, "3": 2}, QUESTOES)
+    assert ok.aprovado is True

@@ -39,6 +39,28 @@ def hash_da_tentativa(tarefa_hash: str, numero: int, respostas_json: str, criada
     return hashlib.sha256(preimage.encode("utf-8")).hexdigest()
 
 
+class TentativasEsgotadas(Exception):
+    """A pessoa usou o número máximo de tentativas de conferência deste documento."""
+
+
+def _teto() -> int:
+    return max(1, int(os.getenv("QUIZ_MAX_ATTEMPTS", "3")))
+
+
+def tentativas_esgotadas(tarefa_id: int) -> bool:
+    """Verdadeiro quando não cabe mais tentativa sem que alguém já tenha sido aprovado.
+
+    O teto existe porque cada envio devolve quais perguntas foram erradas, e sem limite o registro
+    de compreensão é obtido por tentativa e erro, sem ler nada. Ele não reprova a pessoa: quem chega
+    ao fim da conta continua com a explicação aberta e é levada a falar com quem enviou o documento.
+    """
+    with Session(engine) as s:
+        feitas = list(s.exec(select(Tentativa).where(Tentativa.tarefa_id == tarefa_id)))
+    if any(t.aprovado for t in feitas):
+        return False
+    return len(feitas) >= _teto()
+
+
 def registrar(
     tarefa: Tarefa,
     respostas: dict[int | str, int],
@@ -50,6 +72,9 @@ def registrar(
     Valida as respostas contra o gabarito das questões, grava a tentativa
     e retorna a linha persistida com hash imutável.
     """
+    if tentativas_esgotadas(tarefa.id):
+        raise TentativasEsgotadas()
+
     total = len(questoes)
     acertos = 0
     for q in questoes:

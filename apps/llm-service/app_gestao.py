@@ -712,7 +712,13 @@ async def api_quiz(
         raise HTTPException(409, "Questões não disponíveis")
 
     respostas = payload.get("respostas") or {}
-    tent = tn.registrar(t, respostas, questoes)
+    try:
+        tent = tn.registrar(t, respostas, questoes)
+    except tn.TentativasEsgotadas:
+        # Não é reprovação: a explicação continua aberta. O que não acontece mais é gerar
+        # registro de compreensão por tentativa e erro.
+        raise HTTPException(429, "Você já conferiu algumas vezes. Para não registrar algo que talvez "
+                                 "ainda não esteja claro, fale com quem enviou o documento.")
     erros = tn.analisar_erros(tent, questoes)
     erros = [{"id": e.get("id"), "area": e.get("area"), "enunciado": e.get("enunciado"), "escolhida": e.get("escolhida")} for e in erros]  # LeIA: no answer key to the browser
 
