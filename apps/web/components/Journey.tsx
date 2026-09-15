@@ -4,6 +4,7 @@ import { Check, MessageCircle } from "lucide-react";
 import { bindTask, getTask, submitQuiz, topicsOf, type QuizResult, type Task } from "@/lib/api";
 import { isReady } from "@/lib/status";
 import { useAuth } from "@/lib/auth"; /* LeIA: v3 accounts */
+import { anchorClaim } from "@/lib/inferences";
 import { AssistantBanner, BottomActionBar, Button, Card, LinkButton, Page, ProgressSteps, SpeakButton, StatusChip } from "./ui";
 import { ChatSheet } from "./ChatSheet";
 import { Paragraphs, cleanTitle } from "./Inline"; /* LeIA: Paragraphs moved to Inline.tsx, shared with the lawyer review */
@@ -185,7 +186,9 @@ export function Journey({ hash }: { hash: string }) {
                     {t.clausula && <small className="mb-1 block text-ink-2">Cláusula {t.clausula}</small>}
                     <mark aria-label="trecho destacado">&ldquo;{t.trecho}&rdquo;</mark>
                   </blockquote>
-                  <p className="mt-1 flex flex-wrap items-center gap-2 text-[0.9rem] text-ok"><span>Trecho conferido: copiado exatamente do seu documento.</span>{t.score !== undefined && <ScoreChip score={t.score} />}</p>
+                  {anchorClaim(t.conferencia) && (
+                    <p className="mt-1 flex flex-wrap items-center gap-2 text-[0.9rem] text-ok"><span>{anchorClaim(t.conferencia)}</span>{t.score !== undefined && <ScoreChip score={t.score} />}</p>
+                  )}
                 </details>
               )}
             </Card>

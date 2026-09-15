@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import re
 import unicodedata
+from difflib import SequenceMatcher
 from datetime import timezone
 from pathlib import Path
 from typing import Any, Optional
@@ -145,25 +146,34 @@ def _quotes(obj: Any, out: list[str]) -> list[str]:
     return out
 
 
-def topics_from_summary(resumo_md: str, memoria: Any) -> Optional[list[dict[str, Any]]]:
-    """Sections of the plain-language summary, each with the literal quote from the memory that best matches it."""
+def topics_from_summary(resumo_md: str, memoria: Any, documento: str = "") -> Optional[list[dict[str, Any]]]:
+    """Sections of the plain-language summary, each with a literal quote from the memory.
+
+    The quote is what the citizen reads beside the explanation, presented as copied from the document, so it has
+    to survive two checks and not one. Word overlap only says which quote is about this topic; whether the quote
+    exists at all is decided by ``locate`` over the extracted text. Without the document there is nothing to
+    check against, and then no quote is shown."""
     parts = [p.strip() for p in re.split(r"\n(?=##? )", resumo_md or "") if p.strip()]
     if not parts:
         return None
     quotes = _quotes(memoria, [])
+    text_norm, idx = _norm_map(documento or "")
     topics = []
     for i, part in enumerate(parts, 1):
         m = re.match(r"^##? (.+)\n?([\s\S]*)$", part)
         titulo, texto = (m.group(1).strip(), m.group(2).strip()) if m else (f"Ponto {i}", part)
         words = {w for w in _norm(texto).split() if len(w) > 4}
-        best, score = None, 0
-        for q in quotes:
-            s = len(words & {w for w in _norm(q).split() if len(w) > 4})
-            if s > score:
-                best, score = q, s
+        ranked = sorted(((len(words & {w for w in _norm(q).split() if len(w) > 4}), q) for q in quotes),
+                        key=lambda pair: pair[0], reverse=True)
         topic = {"id": i, "titulo": titulo, "explicacao_md": texto}
-        if best and score >= 3:
-            topic["trecho"] = best
+        for overlap, q in ranked:
+            if overlap < 3:
+                break
+            found = locate(documento or "", text_norm, idx, q) if documento else None
+            if found:
+                topic["trecho"] = q
+                topic["conferencia"] = {"metodo": found["metodo"], "score": found["score"]}
+                break
         topics.append(topic)
     return topics
 
@@ -327,7 +337,8 @@ async def api_cliente_json(hash_: str, visitante: Optional[Usuario] = Depends(op
         resumo_md = ""
     questoes = _public_questions(_read_json(t.hash, "questoes.json") or {})
     memoria = _read_json(t.hash, "memoria_persistente.json")
-    return {**base, "resumo_md": resumo_md, "topicos": topics_from_summary(resumo_md, memoria),
+    documento = _read_artifact(t.hash, "texto_extraido.txt") or ""
+    return {**base, "resumo_md": resumo_md, "topicos": topics_from_summary(resumo_md, memoria, documento),
             "questoes": questoes, "sem_perguntas": not questoes, "ultima_tentativa": ultima}
 
 
@@ -435,6 +446,10 @@ def _norm_map(text: str) -> tuple[str, list[int]]:
     return "".join(out), idx
 
 
+MIN_QUOTE_CHARS = 12
+ANCHOR_MIN_SCORE = 0.82
+
+
 def find_span(text_norm: str, idx: list[int], quote: str) -> Optional[list[int]]:
     q = " ".join((quote or "").split())
     if len(q) < 3:
@@ -447,30 +462,70 @@ def find_span(text_norm: str, idx: list[int], quote: str) -> Optional[list[int]]
     return [idx[pos], idx[pos + len(q) - 1] + 1]
 
 
-def parse_pos(pos: Any, text_len: int) -> Optional[list[int]]:
-    """First valid ``inicio:fim`` of a ``_ui`` position (one range, or several separated by comma or semicolon,
-    with or without brackets). ``0:0`` and ranges outside the text are not valid."""
-    if not isinstance(pos, str):
+def _approximate(text_norm: str, q: str) -> tuple[float, Optional[tuple[int, int]]]:
+    """Best window of the text that resembles the quote, anchored on pieces of the quote itself.
+
+    Bounded on purpose: a handful of seeds, and only where a seed actually occurs. Comparing the quote against
+    every offset of a long document would cost more than the whole pipeline."""
+    if len(q) < 24:
+        return 0.0, None
+    best_score, best_span = 0.0, None
+    step = max(8, len(q) // 6)
+    for off in range(0, len(q) - 12, step):
+        seed = q[off:off + 12]
+        pos = text_norm.find(seed)
+        while pos >= 0:
+            ini = max(0, pos - off)
+            fim = min(len(text_norm), ini + len(q))
+            score = SequenceMatcher(None, text_norm[ini:fim], q, autojunk=False).ratio()
+            if score > best_score:
+                best_score, best_span = score, (ini, fim)
+            pos = text_norm.find(seed, pos + 1)
+    return best_score, best_span
+
+
+def locate(texto: str, text_norm: str, idx: list[int], quote: str) -> Optional[dict[str, Any]]:
+    """Where the quote really is in the document, found here and never taken from the model.
+
+    A language model does not count characters, so the position it writes is a guess dressed as a fact. It can
+    look perfectly valid and point at the wrong clause, or at a clause for a quote that was invented outright.
+    Believing it turns the "checked excerpt" seal, which is the promise this product is built on, into
+    decoration. So the three stages below are the only source of a position: exact, then with whitespace and
+    case collapsed, then approximate above a threshold.
+    """
+    q_raw = (quote or "").strip()
+    if len(q_raw) < MIN_QUOTE_CHARS:
         return None
-    for part in re.split(r"[,;]", pos.strip().strip("[]")):
-        m = re.fullmatch(r"\s*(\d+)\s*:\s*(\d+)\s*", part)
-        if not m:
-            continue
-        a, b = int(m.group(1)), int(m.group(2))
-        if 0 <= a < b <= text_len:
-            return [a, b]
+
+    pos = (texto or "").find(q_raw)
+    if pos >= 0:
+        return {"pos": [pos, pos + len(q_raw)], "score": 1.0, "metodo": "exato"}
+
+    q = " ".join(q_raw.split())
+    span = find_span(text_norm, idx, q)
+    if span:
+        return {"pos": span, "score": 1.0, "metodo": "normalizado"}
+
+    score, window = _approximate(text_norm, q)
+    if window and score >= ANCHOR_MIN_SCORE:
+        a, b = window
+        b = min(b, len(idx))
+        if b > a:
+            return {"pos": [idx[a], idx[b - 1] + 1], "score": round(score, 3), "metodo": "aproximado"}
     return None
 
 
 def _item(cls: str, n: int, it: dict[str, Any], texto: str, text_norm: str, idx: list[int], cor: str,
           ui_entry: Optional[dict[str, Any]] = None) -> dict[str, Any]:
-    """One tagged item verified over the text: the ``_ui`` position when valid, else the substring search."""
+    """One tagged item, with its position found here over the text. The ``_ui`` position the model writes is
+    ignored on purpose (see ``locate``); what still comes from ``_ui`` is the relevance score, which is the
+    model's opinion about the item and is labelled as such."""
     quote = it.get("trecho_verbatim") or ""
-    span = parse_pos((ui_entry or {}).get("pos_trecho_verbatim"), len(texto)) if ui_entry else None
-    if span is None:
-        span = find_span(text_norm, idx, quote)
+    found = locate(texto, text_norm, idx, quote)
     out = {"ref": f"{cls}[{n}]", "campo": it.get("campo"), "valor": it.get("valor"), "trecho": quote,
-           "pos": span, "conferido": bool(span), "cor": cor}
+           "pos": found["pos"] if found else None, "conferido": bool(found), "cor": cor}
+    if found:
+        out["conferencia"] = {"metodo": found["metodo"], "score": found["score"]}
     score = _score(ui_entry) if ui_entry else None
     if score is not None:
         out["score"] = score

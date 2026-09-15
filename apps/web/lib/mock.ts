@@ -4,7 +4,7 @@ import fixture from "@/data/fixture-honorarios.json";
 import externalFixture from "@/data/fixture-externo.json"; /* LeIA: external "Resumo estruturado" flow: topics with score, no questions */
 import { attemptHash, buildPayload, canonical, encodeToken, newSalt, nowIso, sha256, type AttemptRecord } from "./registry";
 import { tokenFromRequest } from "./server/session";
-import { findSpan, type InferenceClass, type Inferences } from "./inferences"; /* LeIA: review flow shares the inferences with the public route */
+import { findSpan, type Anchor, type InferenceClass, type Inferences } from "./inferences"; /* LeIA: review flow shares the inferences with the public route */
 import type { Stage } from "./api";
 
 type FixtureQuestion = { id: number; area: string; dificuldade: string; enunciado: string; alternativas: string[]; correta: number; justificativa: string };
@@ -25,9 +25,21 @@ export function findTask(hash: string) {
   return { ...c, tarefa: { ...c.tarefa, id: t.id, hash: t.hash, titulo: t.titulo, status: t.status } } as Fixture;
 }
 
+/* LeIA: mesma regra do serviço (leia/api_citizen.py, locate). O trecho só é mostrado como copiado do
+   documento depois de ser encontrado nele, e a tela diz como foi encontrado. */
+function checkedTopics(f: Fixture) {
+  const texto = f.documento_texto.map((c) => c.texto).join("\n\n");
+  return f.topicos.map((tp) => {
+    const pos = tp.trecho ? findSpan(texto, tp.trecho) : null;
+    if (!pos) return { ...tp, trecho: undefined };   // não achou no documento, então não há trecho a mostrar
+    const exato = texto.slice(pos[0], pos[1]) === tp.trecho;
+    return { ...tp, conferencia: { metodo: exato ? "exato" : "normalizado", score: 1 } as Anchor };
+  });
+}
+
 export function publicTask(f: Fixture) {
   return {
-    tarefa: f.tarefa, resumo_md: f.resumo_md, topicos: f.topicos,
+    tarefa: f.tarefa, resumo_md: f.resumo_md, topicos: checkedTopics(f),
     questoes: (f.questoes.questoes as FixtureQuestion[]).map((q) => ({ id: q.id, enunciado: q.enunciado, alternativas: q.alternativas, area: q.area })),
     ultima_tentativa: null,
     sem_perguntas: Boolean(f.sem_perguntas), /* LeIA: external flow ends the journey without questions */
@@ -353,7 +365,8 @@ export function buildInferences(t: MockTask, partial = false): Inferences {
     const c = classFor(key, meta.rotulo, meta.cor);
     const ref = `${key}[${c.itens.length}]`; refs.push(ref);
     const pos = texto ? findSpan(texto, tp.trecho) : null;
-    const item = { ref, campo: t.externa ? tp.titulo : `cláusula ${tp.clausula}`, valor: t.externa ? tp.explicacao : tp.titulo, trecho: tp.trecho, pos, conferido: !!pos, cor: meta.cor };
+    const item = { ref, campo: t.externa ? tp.titulo : `cláusula ${tp.clausula}`, valor: t.externa ? tp.explicacao : tp.titulo, trecho: tp.trecho, pos, conferido: !!pos, cor: meta.cor,
+                   ...(pos ? { conferencia: { metodo: texto.slice(pos[0], pos[1]) === tp.trecho ? "exato" : "normalizado", score: 1 } as Anchor } : {}) };
     c.itens.push(tp.score !== undefined ? { ...item, score: tp.score } : item);
   });
   const itens = classes.flatMap((c) => c.itens);

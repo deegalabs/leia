@@ -60,7 +60,21 @@ e-mail, não para alguém coletá-lo.
 | `GET /api/t/{hash}` | | como hoje **mais** `advogado: { nome } \| null` (nulo quando o dono é `cidadao`), `tem_advogado: bool`, `cidadao_vinculado: bool`, `duvidas_enviadas: n` |
 | `POST /api/t/{hash}/duvida` | `{ texto, contexto?: [ { role: "user" \| "bot", text } ] }` | `{ id, criada_em }`; 409 se a tarefa não tem advogado; limitado por IP |
 | `POST /api/t/{hash}/vincular` | Bearer (`cidadao`) | `{ ok: true }`; define `tarefa.cidadao_id` se ainda vazio |
-| `GET /api/t/{hash}/inferencias` | | `{ tarefa, texto (texto extraído), classes: [ { classe, rotulo, cor, itens: [ { ref, campo, valor, trecho, pos: [inicio, fim] \| null, conferido, cor } ] } ], sinteses: [ { classe, rotulo, texto, lastro[] } ], total, conferidos }`. `pos` vem de busca do `trecho_verbatim` no texto (ignorando espaços), pois o workflow devolve posições `0:0`; 409 enquanto não está pronta |
+| `GET /api/t/{hash}/inferencias` | | `{ tarefa, texto (texto extraído), classes: [ { classe, rotulo, cor, itens: [ { ref, campo, valor, trecho, pos: [inicio, fim] \| null, conferido, conferencia: { metodo, score } \| ausente, cor } ] } ], sinteses: [ { classe, rotulo, texto, lastro[] } ], total, conferidos }`; 409 enquanto não está pronta |
+
+### Quem confere o trecho
+
+A posição do trecho é **sempre** encontrada pelo serviço, nunca lida do que o modelo escreveu. Modelo de linguagem não conta caractere, então a posição que ele devolve é palpite com cara de fato: pode parecer válida e apontar para a cláusula errada, ou para uma cláusula qualquer quando o trecho foi inventado. Acreditar nela transforma o selo de trecho conferido, que é a promessa central do produto, em decoração.
+
+A busca tem três estágios, e o item diz qual deles achou:
+
+| `metodo` | Como achou | `score` |
+|---|---|---|
+| `exato` | o trecho está no texto, caractere por caractere | 1.0 |
+| `normalizado` | igual, ignorando espaços e maiúsculas | 1.0 |
+| `aproximado` | semelhança acima de 0,82 numa janela do texto | a semelhança medida |
+
+Sem nenhum dos três, `conferido` é falso, `pos` é nulo e `conferencia` não vem. Na jornada, o tópico só recebe `trecho` quando ele foi encontrado, e a frase que a tela exibe muda conforme o método: cópia exata só é afirmada quando foi exata.
 
 ## Banco e escala
 - `DATABASE_URL` (Postgres, `postgresql+psycopg://...`) quando definido; senão SQLite em `DB_PATH`. Tabelas via

@@ -4,7 +4,7 @@
    which is what the hosted demo uses. */
 
 /* LeIA: score (0..1 or 0..100) only on topics from the external "Resumo estruturado" flow */
-export type Topic = { id: number; titulo: string; explicacao?: string; explicacao_md?: string; trecho?: string; clausula?: string; score?: number };
+export type Topic = { id: number; titulo: string; explicacao?: string; explicacao_md?: string; trecho?: string; clausula?: string; score?: number; conferencia?: import("./inferences").Anchor };
 /* LeIA: one of the 14 workflow steps as the public route reports it (docs/API-V3-CONTRACT.md, "Preparação visível") */
 export type StageState = "pendente" | "em_andamento" | "concluida" | "erro";
 export type Stage = { id: string; nome: string; estado: StageState; tempo?: number | null };

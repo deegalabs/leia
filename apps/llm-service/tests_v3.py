@@ -12,6 +12,7 @@ import io
 import json
 import os
 import tempfile
+from pathlib import Path
 
 TMP = tempfile.mkdtemp(prefix="leia-v3-")
 os.environ.update({
@@ -597,10 +598,18 @@ def test_external_flow_fallback(citizen):
     assert r.status_code == 200 and r.json()["inferencias"]["classes"][1]["itens"][0]["pos"] == [a, a + 30]
 
 
-def test_parse_pos_and_value_text():
-    from leia.api_citizen import parse_pos, value_text
-    assert parse_pos("0:0", 100) is None and parse_pos("[0:0;12:20]", 100) == [12, 20] and parse_pos("5:9, 12:20", 100) == [5, 9]
-    assert parse_pos("5:200", 100) is None and parse_pos("7:7", 100) is None and parse_pos(None, 100) is None and parse_pos("a:b", 100) is None
+def test_the_model_position_is_not_read_at_all():
+    """Não basta preferir a busca do servidor: enquanto existir código que lê a posição escrita pelo modelo,
+    alguém vai religá-lo achando que é um atalho inofensivo."""
+    import leia.api_citizen as ac
+
+    assert not hasattr(ac, "parse_pos"), "ainda existe leitor da posição escrita pelo modelo"
+    assert "pos_trecho_verbatim" not in Path(ac.__file__).read_text(encoding="utf-8"), \
+        "o campo de posição do modelo ainda é lido em algum lugar"
+
+
+def test_value_text():
+    from leia.api_citizen import value_text
     assert value_text('{"tipo": "lei", "norma": "CPC", "artigo": null}') == "lei, CPC"
     assert value_text({"a": {"b": "X"}, "c": ["Y", "X"]}) == "X, Y" and value_text("plain") == "plain" and value_text(None) == ""
     assert value_text("{não é json}") == "{não é json}"
@@ -907,3 +916,67 @@ def test_a_forged_forwarded_header_does_not_buy_a_new_identity():
     finally:
         os.environ["RATE_LIMIT_PER_MINUTE"] = "200"
         limiter.reset()
+
+
+# ── Âncora literal: quem confere é o servidor, nunca o modelo ─────────────────
+
+DOC_TEXT = ("CLÁUSULA 3. O CONTRATANTE pagará honorários de vinte por cento sobre o proveito econômico,\n"
+            "somente em caso de êxito. CLÁUSULA 4. As custas processuais correm por conta do CONTRATANTE.")
+
+
+def test_the_server_locates_the_quote_instead_of_believing_the_model():
+    """O modelo escreve a posição que quiser, e não conta caractere. Se o servidor acreditar nela, o selo de
+    conferido aparece apontando para o lugar errado, e a promessa central do produto vira decoração."""
+    from leia.api_citizen import build_external_inferences
+
+    doc = {"processo": {"classe_fatos": [{"campo": "honorarios", "valor": "20%",
+                                          "trecho_verbatim": "honorários de vinte por cento"}]},
+           "_ui": {"classe_fatos": [{"pos_trecho_verbatim": "0:11"}]}}   # mentira plausível: aponta para "CLÁUSULA 3."
+    item = build_external_inferences(DOC_TEXT, doc)["classes"][0]["itens"][0]
+    assert item["conferido"], "não achou o trecho que está no documento"
+    achado = DOC_TEXT[item["pos"][0]:item["pos"][1]]
+    assert achado == "honorários de vinte por cento", f"seguiu a posição do modelo e marcou {achado!r}"
+
+
+def test_a_quote_that_is_not_in_the_document_is_never_sealed():
+    from leia.api_citizen import build_external_inferences
+
+    doc = {"processo": {"classe_fatos": [{"campo": "multa", "valor": "R$ 5.000",
+                                          "trecho_verbatim": "multa de cinco mil reais por descumprimento"}]},
+           "_ui": {"classe_fatos": [{"pos_trecho_verbatim": "12:40"}]}}
+    item = build_external_inferences(DOC_TEXT, doc)["classes"][0]["itens"][0]
+    assert not item["conferido"] and item["pos"] is None, "trecho inventado recebeu selo de conferido"
+
+
+def test_a_quote_with_small_differences_is_found_and_says_how():
+    """O modelo devolve o trecho com pequenas diferenças de digitação. Achar é bom; dizer como achou é o que
+    permite alguém decidir se confia."""
+    from leia.api_citizen import build_inferences
+
+    memoria = {"memoria_persistente": {"datas_valores": [
+        {"campo": "honorarios", "valor": "20%", "trecho_verbatim": "honorarios de vinte por cento sobre o proveito economico"}]}}
+    item = build_inferences(DOC_TEXT, memoria, None, [])["classes"][0]["itens"][0]
+    assert item["conferido"], "não achou um trecho que está lá com diferenças pequenas"
+    assert item["conferencia"]["metodo"] == "aproximado"
+    assert 0.8 <= item["conferencia"]["score"] <= 1.0
+
+
+def test_an_exact_quote_says_it_was_exact():
+    from leia.api_citizen import build_inferences
+
+    memoria = {"memoria_persistente": {"datas_valores": [
+        {"campo": "custas", "valor": "x", "trecho_verbatim": "As custas processuais correm por conta do CONTRATANTE"}]}}
+    item = build_inferences(DOC_TEXT, memoria, None, [])["classes"][0]["itens"][0]
+    assert item["conferencia"]["metodo"] in ("exato", "normalizado") and item["conferencia"]["score"] == 1.0
+
+
+def test_the_citizen_never_reads_a_quote_that_is_not_in_the_document():
+    """Na jornada o trecho aparece ao lado da explicação como se fosse copiado do documento.
+    Se ele foi inventado, ou se pertence a outro ponto, a pessoa está lendo uma citação falsa."""
+    from leia.api_citizen import topics_from_summary
+
+    resumo = "## Quanto você paga\n\nVocê paga vinte por cento do que ganhar, e só se ganhar."
+    memoria = {"memoria_persistente": {"datas_valores": [
+        {"campo": "x", "valor": "y", "trecho_verbatim": "o CONTRATANTE pagará multa de vinte por cento ao mês por atraso"}]}}
+    topico = topics_from_summary(resumo, memoria, DOC_TEXT)[0]
+    assert "trecho" not in topico, f"mostrou à cidadã um trecho que não está no documento: {topico.get('trecho')!r}"

@@ -1,7 +1,20 @@
 /* Inferences over the original text: quote positions found by whitespace-insensitive substring search.
    Mirrors leia/api_cliente.py (build_inferences) so the in-app mock and the service agree. */
+/* LeIA: como o servidor achou o trecho no documento. O modelo não conta caractere, então a posição que ele
+   escreve é palpite com cara de fato; quem localiza é o serviço (leia/api_citizen.py, locate). */
+export type AnchorMethod = "exato" | "normalizado" | "aproximado";
+export type Anchor = { metodo: AnchorMethod; score: number };
+
+/* O que a tela pode afirmar sobre o trecho. Sem conferência, nada: afirmar cópia exata de algo que não foi
+   procurado no documento é justamente a mentira que este produto não pode contar. */
+export function anchorClaim(anchor?: Anchor | null): string | null {
+  if (!anchor) return null;
+  if (anchor.metodo === "aproximado") return "Trecho conferido no seu documento, com pequenas diferenças de digitação.";
+  return "Trecho conferido: copiado exatamente do seu documento.";
+}
+
 /* LeIA: score comes from the external flow ("_ui.score_trecho_verbatim"), 0..1 or 0..100; absent on the local pipeline */
-export type InferenceItem = { ref: string; campo: string | null; valor: string | null; trecho: string; pos: [number, number] | null; conferido: boolean; cor: string; score?: number };
+export type InferenceItem = { ref: string; campo: string | null; valor: string | null; trecho: string; pos: [number, number] | null; conferido: boolean; cor: string; score?: number; conferencia?: Anchor };
 export type InferenceClass = { classe: string; rotulo: string; cor: string; itens: InferenceItem[] };
 export type Synthesis = { classe: string; rotulo: string; texto: string; lastro: string[] };
 /* LeIA: parcial = answered while the pipeline runs (docs/API-V3-CONTRACT.md, "Preparação visível"): texto may still be empty
