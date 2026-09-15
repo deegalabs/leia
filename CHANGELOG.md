@@ -20,6 +20,10 @@ fecha um sentido, vira versão com tag anotada e release no GitHub.
   aquele com mais palavras em comum com a explicação, o que colocava um trecho sobre os fatos embaixo de "quem
   está nesta história". Agora cada seção declara no protocolo qual parte do documento ela explica, e o trecho vem
   do que a própria síntese diz ter usado. Sem fonte declarada, ou sem achar no documento, nenhum trecho aparece.
+- Uma etapa do pipeline que prometia JSON e devolvia outra coisa seguia como sucesso: o texto cru virava a saída
+  dela, era gravado no arquivo da etapa e entrava no contexto da seguinte. Agora ela falha, e o documento inteiro
+  falha com ela, o que é melhor que uma explicação construída sobre lixo. Sete etapas passaram a declarar no
+  protocolo quais campos precisam existir, e a saída é conferida contra isso.
 
 ## v1.1.0 · 2026-09-15 · a sessão e o link deixam de ser credenciais soltas
 

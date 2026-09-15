@@ -1045,3 +1045,75 @@ def test_a_section_with_no_declared_source_shows_no_quote():
 
     topicos = topics_from_summary(RESUMO_ESTRUTURADO, MEMORIA_ESTRUTURADA, DOC_TEXT, SINTESES_ESTRUTURADAS)
     assert "trecho" not in topicos[0] and topicos[0]["titulo"] == "Resumo em uma linha"
+
+
+# ── Uma etapa que devolve lixo não pode seguir como sucesso ───────────────────
+
+class _FakeStream:
+    """Cliente de modelo que devolve o texto pedido, em pedaços, como a SDK faz."""
+
+    def __init__(self, texto: str):
+        self.texto = texto
+
+    async def create(self, **kwargs):
+        texto = self.texto
+
+        class _Delta:
+            def __init__(self, c): self.content = c
+
+        class _Choice:
+            def __init__(self, c): self.delta = _Delta(c)
+
+        class _Chunk:
+            def __init__(self, c): self.choices = [_Choice(c)]
+
+        async def gen():
+            for i in range(0, len(texto), 16):
+                yield _Chunk(texto[i:i + 16])
+
+        return gen()
+
+
+def _fake_groq(texto: str):
+    class _Groq:
+        class chat:  # noqa: N801
+            completions = _FakeStream(texto)
+    return _Groq()
+
+
+def _rodar(task: dict, saida: str) -> dict:
+    import asyncio
+
+    from core.pipeline_pdf import _run_task
+    return asyncio.get_event_loop().run_until_complete(_run_task(task, "", _fake_groq(saida)))
+
+
+def test_a_task_that_returns_invalid_json_fails_instead_of_passing_text_along():
+    """Hoje o texto cru vira o 'parsed' da etapa, é gravado no arquivo dela e entra no contexto da etapa
+    seguinte, tudo com ok=True. Uma etapa que não entregou o que prometeu contamina todas as outras."""
+    res = _rodar({"id": "T1_TESTE", "tipo_saida": "json", "missao": "x"}, "desculpe, não consegui responder")
+    assert res["ok"] is False, "etapa com JSON inválido seguiu como sucesso"
+    assert "json" in str(res.get("erro", "")).lower()
+
+
+def test_a_task_that_misses_a_field_the_protocol_requires_fails():
+    task = {"id": "T7_TESTE", "tipo_saida": "json", "missao": "x",
+            "schema": {"campos": {"sintese_fatos": {"tipo": "objeto", "obrigatorios": ["campo", "valor", "lastro"]}}}}
+    assert _rodar(task, '{"sintese_fatos": {"campo": "sintese_fatos", "valor": "ok", "lastro": []}}')["ok"] is True
+    ruim = _rodar(task, '{"sintese_fatos": {"campo": "sintese_fatos", "valor": "ok"}}')
+    assert ruim["ok"] is False and "lastro" in str(ruim.get("erro", ""))
+
+
+def test_a_list_field_checks_the_shape_of_each_item():
+    task = {"id": "T1_TESTE", "tipo_saida": "json", "missao": "x",
+            "schema": {"campos": {"identificacao": {"tipo": "lista", "itens": ["campo", "valor", "trecho_verbatim"]}}}}
+    bom = '{"identificacao": [{"campo": "autor", "valor": "Maria", "trecho_verbatim": "Maria da Silva"}]}'
+    assert _rodar(task, bom)["ok"] is True
+    ruim = _rodar(task, '{"identificacao": [{"campo": "autor", "valor": "Maria"}]}')
+    assert ruim["ok"] is False and "trecho_verbatim" in str(ruim.get("erro", ""))
+
+
+def test_a_text_task_is_not_judged_as_json():
+    """T13 devolve markdown. Exigir JSON dela quebraria o resumo inteiro."""
+    res = _rodar({"id": "T13_TESTE", "tipo_saida": "texto", "missao": "x"}, "# Resumo\n\nUma frase.")
+    assert res["ok"] is True and res["parsed"].startswith("# Resumo")
