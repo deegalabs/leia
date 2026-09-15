@@ -20,6 +20,7 @@ Closes #
 - [ ] `pytest -q tests_leia.py tests_v3.py` passa, quando o serviço mudou.
 - [ ] `pnpm test && pnpm lint && pnpm build` passa, quando a aplicação mudou.
 - [ ] Nenhuma chave, senha, token ou documento de pessoa real entrou no diff.
+- [ ] O CHANGELOG foi atualizado em "Não lançado", ou a mudança não altera nada que alguém perceba.
 - [ ] Texto de interface em português simples, sem juridiquês e sem travessão.
 - [ ] Nenhuma afirmação nova sobre o documento sem o trecho literal que a sustenta.
 
