@@ -40,4 +40,15 @@ lado de todo número que ele produzir. Um juiz sem essa calibragem produz númer
 Toda falha vista em uso entra como caso no mesmo commit que a corrige. É assim que a bateria continua informando:
 se ela ficar perfeita por muito tempo, parou de medir e precisa de casos mais difíceis.
 
-Nada de documento de pessoa real aqui. Os casos saem de documentos fictícios, como o de `examples/`.
+Nada de documento de pessoa real aqui. Os casos deste diretório saem de documentos fictícios, como o de
+`examples/`.
+
+Documento de verdade fica **fora do repositório**, e a bateria o lê por uma pasta indicada em `LEIA_EVAL_CASES`:
+
+```bash
+LEIA_EVAL_CASES=~/leia-corpus python -m evals.run
+```
+
+A consequência é real: o que roda na integração contínua é só o corpus público. O privado pega o que o público
+não pega e só roda quando alguém o roda. A estrutura de cada tipo de peça, que é o conhecimento durável, fica
+escrita em [docs/DOCUMENT-TYPES.md](../../../docs/DOCUMENT-TYPES.md).
