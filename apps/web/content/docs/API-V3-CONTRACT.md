@@ -76,6 +76,21 @@ A busca tem três estágios, e o item diz qual deles achou:
 
 Sem nenhum dos três, `conferido` é falso, `pos` é nulo e `conferencia` não vem.
 
+### O contrato de cada etapa do pipeline
+
+Etapa que declara `tipo_saida: json` e devolve algo que não é JSON **falha**, e o documento falha com ela. Antes o
+texto cru virava a saída da etapa, era gravado e entrava no contexto da próxima, tudo reportado como sucesso: um
+resumo construído sobre lixo é pior que um erro honesto.
+
+Sete etapas declaram também quais campos precisam existir, no campo `schema` do protocolo:
+
+```json
+"schema": { "campos": { "sintese_fatos": { "tipo": "objeto", "obrigatorios": ["valor", "lastro"] } } }
+```
+
+A verificação é pequena de propósito, e exige só o que o produto consome. Etapa sem `schema` declarado passa
+apenas pela checagem de JSON válido.
+
 ### De onde vem o trecho de cada tópico
 
 Os títulos das seções do resumo são fixos: quem os define é a tarefa que escreve o resumo, em `protocolo_pdf.json`.

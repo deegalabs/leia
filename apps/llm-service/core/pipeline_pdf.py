@@ -26,7 +26,7 @@ import os
 import json, logging, time
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 from sqlmodel import Session
 
@@ -79,6 +79,40 @@ def _extract_json_lenient(texto: str) -> str:
     return t
 
 
+def _schema_problem(schema: Any, parsed: Any) -> Optional[str]:
+    """O que o protocolo pediu e a saída não entregou, em uma frase, ou None quando está tudo lá.
+
+    Deliberadamente pequeno: o contrato de cada etapa é "quais campos existem e de que forma", e validar isso
+    não justifica uma dependência nova. Etapa sem ``schema`` declarado passa só pela checagem de JSON válido.
+    """
+    if not isinstance(schema, dict):
+        return None
+    if not isinstance(parsed, dict):
+        return "a saída não é um objeto"
+    for nome, regra in (schema.get("campos") or {}).items():
+        if nome not in parsed:
+            return f"falta o campo {nome}"
+        valor = parsed[nome]
+        regra = regra or {}
+        tipo = regra.get("tipo")
+        if tipo == "lista":
+            if not isinstance(valor, list):
+                return f"{nome} deveria ser uma lista"
+            for i, item in enumerate(valor):
+                if not isinstance(item, dict):
+                    return f"{nome}[{i}] deveria ser um objeto"
+                for exigido in regra.get("itens") or []:
+                    if exigido not in item:
+                        return f"falta {exigido} em {nome}[{i}]"
+        elif tipo == "objeto":
+            if not isinstance(valor, dict):
+                return f"{nome} deveria ser um objeto"
+            for exigido in regra.get("obrigatorios") or []:
+                if exigido not in valor:
+                    return f"falta {exigido} em {nome}"
+    return None
+
+
 async def _run_task(
     task: dict,
     contexto_extra: str,
@@ -123,6 +157,13 @@ async def _run_task(
                 parsed = json.loads(_extract_json_lenient(out_raw))
             except Exception as e:
                 log.warning("⚠️  [%s] JSON inválido | %s", task["id"], e)
+                return {"raw": out_raw, "parsed": None, "ok": False, "tempo": tempo,
+                        "erro": f"a etapa prometeu JSON e não entregou: {e}"}
+            problema = _schema_problem(task.get("schema"), parsed)
+            if problema:
+                log.warning("⚠️  [%s] fora do contrato | %s", task["id"], problema)
+                return {"raw": out_raw, "parsed": None, "ok": False, "tempo": tempo,
+                        "erro": f"a saída não segue o contrato da etapa: {problema}"}
 
         log.info("✅ [%s] %.2fs · %d chars", task["id"], tempo, len(out_raw))
         return {"raw": out_raw, "parsed": parsed, "ok": True, "tempo": tempo}

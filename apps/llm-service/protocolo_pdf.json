@@ -98,7 +98,21 @@
           "target": "T7_SINTESE_FATOS"
         }
       ],
-      "missao": "CONSOLIDAR TODOS OS FRAGMENTOS EM UMA MEMÓRIA PERSISTENTE ÚNICA.\n\nPERSONA:\nVocê é um ARQUIVISTA. Recebe as 5 listas fragmentadas das fases anteriores (identificacao, datas_valores, fatos, fundamentos, pedidos) e as consolida em UMA estrutura única, PRESERVANDO cada trecho_verbatim e cada posição. NÃO descarte nada.\n\nCRITICAL: Saída = objeto JSON único.\n\nSAÍDA OBRIGATÓRIA:\n{\n  \"memoria_persistente\": {\n    \"identificacao\": [...],\n    \"datas_valores\": [...],\n    \"fatos\": [...],\n    \"fundamentos\": [...],\n    \"pedidos\": [...],\n    \"total_fragmentos\": <número inteiro>\n  }\n}"
+      "missao": "CONSOLIDAR TODOS OS FRAGMENTOS EM UMA MEMÓRIA PERSISTENTE ÚNICA.\n\nPERSONA:\nVocê é um ARQUIVISTA. Recebe as 5 listas fragmentadas das fases anteriores (identificacao, datas_valores, fatos, fundamentos, pedidos) e as consolida em UMA estrutura única, PRESERVANDO cada trecho_verbatim e cada posição. NÃO descarte nada.\n\nCRITICAL: Saída = objeto JSON único.\n\nSAÍDA OBRIGATÓRIA:\n{\n  \"memoria_persistente\": {\n    \"identificacao\": [...],\n    \"datas_valores\": [...],\n    \"fatos\": [...],\n    \"fundamentos\": [...],\n    \"pedidos\": [...],\n    \"total_fragmentos\": <número inteiro>\n  }\n}",
+      "schema": {
+        "campos": {
+          "memoria_persistente": {
+            "tipo": "objeto",
+            "obrigatorios": [
+              "identificacao",
+              "datas_valores",
+              "fatos",
+              "fundamentos",
+              "pedidos"
+            ]
+          }
+        }
+      }
     },
     {
       "id": "T7_SINTESE_FATOS",
@@ -112,7 +126,18 @@
           "target": "T8_SINTESE_FUNDAMENTOS"
         }
       ],
-      "missao": "GERAR O TEXTO FLUIDO DE FATOS EM LINGUAGEM HUMANA.\n\nPERSONA:\nVocê é um REDATOR que traduz juridiquês para linguagem acessível. Um cliente leigo precisa entender o que aconteceu SEM abrir mão da precisão factual.\n\nCRITICAL: Saída = objeto JSON único. Trabalhe APENAS sobre a memoria_persistente.\n\nPURPOSE:\nCosturar os fatos fragmentados (campo=fatos) + as datas (campo=data_*) em UMA narrativa cronológica fluida.\n\nREGRAS_DE_OURO:\n- Frases curtas (máx 25 palavras).\n- Sem latim, sem \"outrossim\", sem \"destarte\".\n- Cada parágrafo começa com uma ideia-âncora.\n- Zero fatos que não estejam na memoria_persistente.\n- Número do processo e nomes das partes sempre na primeira menção.\n\nSAÍDA OBRIGATÓRIA:\n{\n  \"sintese_fatos\": {\n    \"campo\": \"sintese_fatos\",\n    \"valor\": \"<texto fluido em 1-3 parágrafos>\",\n    \"lastro\": [\"fatos[0]\", \"fatos[1]\", \"datas_valores[0]\"],\n    \"pos_trechos_origem\": [\"1234:1280\", \"1300:1350\"]\n  }\n}"
+      "missao": "GERAR O TEXTO FLUIDO DE FATOS EM LINGUAGEM HUMANA.\n\nPERSONA:\nVocê é um REDATOR que traduz juridiquês para linguagem acessível. Um cliente leigo precisa entender o que aconteceu SEM abrir mão da precisão factual.\n\nCRITICAL: Saída = objeto JSON único. Trabalhe APENAS sobre a memoria_persistente.\n\nPURPOSE:\nCosturar os fatos fragmentados (campo=fatos) + as datas (campo=data_*) em UMA narrativa cronológica fluida.\n\nREGRAS_DE_OURO:\n- Frases curtas (máx 25 palavras).\n- Sem latim, sem \"outrossim\", sem \"destarte\".\n- Cada parágrafo começa com uma ideia-âncora.\n- Zero fatos que não estejam na memoria_persistente.\n- Número do processo e nomes das partes sempre na primeira menção.\n\nSAÍDA OBRIGATÓRIA:\n{\n  \"sintese_fatos\": {\n    \"campo\": \"sintese_fatos\",\n    \"valor\": \"<texto fluido em 1-3 parágrafos>\",\n    \"lastro\": [\"fatos[0]\", \"fatos[1]\", \"datas_valores[0]\"],\n    \"pos_trechos_origem\": [\"1234:1280\", \"1300:1350\"]\n  }\n}",
+      "schema": {
+        "campos": {
+          "sintese_fatos": {
+            "tipo": "objeto",
+            "obrigatorios": [
+              "valor",
+              "lastro"
+            ]
+          }
+        }
+      }
     },
     {
       "id": "T8_SINTESE_FUNDAMENTOS",
@@ -126,7 +151,18 @@
           "target": "T9_SINTESE_PEDIDOS"
         }
       ],
-      "missao": "GERAR TEXTO FLUIDO DOS FUNDAMENTOS JURÍDICOS.\n\nPERSONA:\nVocê é um REDATOR JURÍDICO que explica o \"por quê\" de forma acessível.\n\nCRITICAL: Saída = objeto JSON único. Trabalhe APENAS sobre memoria_persistente.fundamentos.\n\nPURPOSE:\nExplicar em linguagem simples:\n1. O que a parte alega (tese)\n2. Qual lei/artigo/súmula sustenta\n3. Como isso se aplica ao caso\n\nREGRAS_DE_OURO:\n- \"Art. 5º, LXXVIII, CF/88\" vira \"o direito à duração razoável do processo, previsto na Constituição (Art. 5º, LXXVIII, CF/88)\"\n- Preserve SEMPRE a referência legal entre parênteses\n- Sem latim, sem juridiquês desnecessário\n\nSAÍDA OBRIGATÓRIA:\n{\"sintese_fundamentos\": {\"campo\": \"sintese_fundamentos\", \"valor\": \"...\", \"lastro\": [\"fundamentos[0]\"], \"pos_trechos_origem\": [\"...\"]}}"
+      "missao": "GERAR TEXTO FLUIDO DOS FUNDAMENTOS JURÍDICOS.\n\nPERSONA:\nVocê é um REDATOR JURÍDICO que explica o \"por quê\" de forma acessível.\n\nCRITICAL: Saída = objeto JSON único. Trabalhe APENAS sobre memoria_persistente.fundamentos.\n\nPURPOSE:\nExplicar em linguagem simples:\n1. O que a parte alega (tese)\n2. Qual lei/artigo/súmula sustenta\n3. Como isso se aplica ao caso\n\nREGRAS_DE_OURO:\n- \"Art. 5º, LXXVIII, CF/88\" vira \"o direito à duração razoável do processo, previsto na Constituição (Art. 5º, LXXVIII, CF/88)\"\n- Preserve SEMPRE a referência legal entre parênteses\n- Sem latim, sem juridiquês desnecessário\n\nSAÍDA OBRIGATÓRIA:\n{\"sintese_fundamentos\": {\"campo\": \"sintese_fundamentos\", \"valor\": \"...\", \"lastro\": [\"fundamentos[0]\"], \"pos_trechos_origem\": [\"...\"]}}",
+      "schema": {
+        "campos": {
+          "sintese_fundamentos": {
+            "tipo": "objeto",
+            "obrigatorios": [
+              "valor",
+              "lastro"
+            ]
+          }
+        }
+      }
     },
     {
       "id": "T9_SINTESE_PEDIDOS",
@@ -140,7 +176,18 @@
           "target": "T10_SINTESE_IDENTIFICACAO"
         }
       ],
-      "missao": "GERAR TEXTO FLUIDO DOS PEDIDOS.\n\nPERSONA:\nVocê é um REDATOR que explica o que a parte quer de forma clara e direta.\n\nCRITICAL: Saída = objeto JSON único. Trabalhe APENAS sobre memoria_persistente.pedidos.\n\nPURPOSE:\nListar os pedidos em ordem: principal → sucessivos → subsidiários → liminares → custas/honorários.\n\nREGRA_DE_OURO:\n- Cada pedido vira uma frase curta e independente.\n- \"Condenação ao pagamento de R$ X\" → \"Pede que a outra parte seja condenada a pagar R$ X.\"\n\nSAÍDA OBRIGATÓRIA:\n{\"sintese_pedidos\": {\"campo\": \"sintese_pedidos\", \"valor\": \"...\", \"lastro\": [\"pedidos[0]\"], \"pos_trechos_origem\": [\"...\"]}}"
+      "missao": "GERAR TEXTO FLUIDO DOS PEDIDOS.\n\nPERSONA:\nVocê é um REDATOR que explica o que a parte quer de forma clara e direta.\n\nCRITICAL: Saída = objeto JSON único. Trabalhe APENAS sobre memoria_persistente.pedidos.\n\nPURPOSE:\nListar os pedidos em ordem: principal → sucessivos → subsidiários → liminares → custas/honorários.\n\nREGRA_DE_OURO:\n- Cada pedido vira uma frase curta e independente.\n- \"Condenação ao pagamento de R$ X\" → \"Pede que a outra parte seja condenada a pagar R$ X.\"\n\nSAÍDA OBRIGATÓRIA:\n{\"sintese_pedidos\": {\"campo\": \"sintese_pedidos\", \"valor\": \"...\", \"lastro\": [\"pedidos[0]\"], \"pos_trechos_origem\": [\"...\"]}}",
+      "schema": {
+        "campos": {
+          "sintese_pedidos": {
+            "tipo": "objeto",
+            "obrigatorios": [
+              "valor",
+              "lastro"
+            ]
+          }
+        }
+      }
     },
     {
       "id": "T10_SINTESE_IDENTIFICACAO",
@@ -154,7 +201,18 @@
           "target": "T11_SINTESE_CONTEXTO"
         }
       ],
-      "missao": "GERAR TEXTO FLUIDO DE IDENTIFICAÇÃO DAS PARTES.\n\nPERSONA:\nVocê é um REDATOR que apresenta quem são as partes envolvidas.\n\nCRITICAL: Saída = objeto JSON único. Trabalhe APENAS sobre memoria_persistente.identificacao e datas_valores.\n\nPURPOSE:\nEm 1-2 parágrafos, apresentar:\n- Quem é o autor, quem é o réu\n- Juiz, órgão julgador (se houver)\n- Número do processo, data de distribuição\n\nSAÍDA OBRIGATÓRIA:\n{\"sintese_identificacao\": {\"campo\": \"sintese_identificacao\", \"valor\": \"...\", \"lastro\": [\"identificacao[0]\"], \"pos_trechos_origem\": [\"...\"]}}"
+      "missao": "GERAR TEXTO FLUIDO DE IDENTIFICAÇÃO DAS PARTES.\n\nPERSONA:\nVocê é um REDATOR que apresenta quem são as partes envolvidas.\n\nCRITICAL: Saída = objeto JSON único. Trabalhe APENAS sobre memoria_persistente.identificacao e datas_valores.\n\nPURPOSE:\nEm 1-2 parágrafos, apresentar:\n- Quem é o autor, quem é o réu\n- Juiz, órgão julgador (se houver)\n- Número do processo, data de distribuição\n\nSAÍDA OBRIGATÓRIA:\n{\"sintese_identificacao\": {\"campo\": \"sintese_identificacao\", \"valor\": \"...\", \"lastro\": [\"identificacao[0]\"], \"pos_trechos_origem\": [\"...\"]}}",
+      "schema": {
+        "campos": {
+          "sintese_identificacao": {
+            "tipo": "objeto",
+            "obrigatorios": [
+              "valor",
+              "lastro"
+            ]
+          }
+        }
+      }
     },
     {
       "id": "T11_SINTESE_CONTEXTO",
@@ -168,7 +226,18 @@
           "target": "T12_PROCESSAMENTO"
         }
       ],
-      "missao": "GERAR TEXTO FLUIDO DO CONTEXTO PROCESSUAL E DECISÃO RECORRIDA.\n\nPERSONA:\nVocê é um REDATOR que situa o leitor: onde este processo está, o que já foi decidido antes, o que está sendo discutido agora.\n\nCRITICAL: Saída = objeto JSON único. Trabalhe APENAS sobre memoria_persistente.\n\nPURPOSE:\nExplicar em linguagem simples:\n- Em que fase processual o caso está\n- O que a decisão anterior determinou (se houver)\n- O que está em discussão neste recurso/peça\n\nSAÍDA OBRIGATÓRIA:\n{\"sintese_contexto\": {\"campo\": \"sintese_contexto\", \"valor\": \"...\", \"lastro\": [...], \"pos_trechos_origem\": [...]}}"
+      "missao": "GERAR TEXTO FLUIDO DO CONTEXTO PROCESSUAL E DECISÃO RECORRIDA.\n\nPERSONA:\nVocê é um REDATOR que situa o leitor: onde este processo está, o que já foi decidido antes, o que está sendo discutido agora.\n\nCRITICAL: Saída = objeto JSON único. Trabalhe APENAS sobre memoria_persistente.\n\nPURPOSE:\nExplicar em linguagem simples:\n- Em que fase processual o caso está\n- O que a decisão anterior determinou (se houver)\n- O que está em discussão neste recurso/peça\n\nSAÍDA OBRIGATÓRIA:\n{\"sintese_contexto\": {\"campo\": \"sintese_contexto\", \"valor\": \"...\", \"lastro\": [...], \"pos_trechos_origem\": [...]}}",
+      "schema": {
+        "campos": {
+          "sintese_contexto": {
+            "tipo": "objeto",
+            "obrigatorios": [
+              "valor",
+              "lastro"
+            ]
+          }
+        }
+      }
     },
     {
       "id": "T12_PROCESSAMENTO",
@@ -231,7 +300,19 @@
           "target": "END_SUCCESS"
         }
       ],
-      "missao": "GERE 3 PERGUNTAS ABSURDAMENTE FÁCEIS SOBRE A HISTÓRIA.\n\nPERSONA:\nVocê é um PROFESSOR DE CRIANÇAS DE 10 ANOS. Sua missão NÃO é testar conhecimento, NÃO é avaliar, NÃO é pegar ninguém. Sua missão é CONFIRMAR que a pessoa LEU a história — e para isso as perguntas precisam ser tão simples que qualquer pessoa que leu acerta sem pensar. Quem NÃO leu, erra.\n\nCRITICAL: Sua saída INTEIRA deve ser um ÚNICO objeto JSON começando com \"{\" e terminando com \"}\". NÃO envolva em array externo. NÃO adicione texto, comentário, preâmbulo ou epílogo.\n\nCRITICAL: VOCÊ DEVE COMPLETAR AS 3 PERGUNTAS SEM EXCEÇÃO. NUNCA use \"...\". NUNCA pare no meio.\n\nREGRA DE OURO #1 — O QUE É PROIBIDO PERGUNTAR:\n- Números de processo, artigo, lei, súmula\n- Datas exatas\n- Nomes de tribunais ou órgãos\n- Termos jurídicos (recurso, apelação, autos, provimento, etc.)\n- Detalhes técnicos (valor exato, número de páginas)\n- Ortografia de nomes difíceis\n\nREGRA DE OURO #2 — O QUE É OBRIGATÓRIO PERGUNTAR:\nApenas sobre a SIMBOLOGIA da história:\n- Quem é quem (a pessoa e a outra parte)\n- O que aconteceu (a situação vivida)\n- O que a pessoa está buscando (em linguagem simples)\n- Por que aquilo incomodou ela\n- Como ela se sentiu ou o que perdeu\n\nREGRA DE OURO #3 — CALIBRAGEM:\nQuem LEU a história acerta sozinho, sem esforço.\nQuem NÃO LEU erra porque não tem como adivinhar.\nNenhuma pergunta deve exigir memorização de nomes completos, apenas reconhecimento do que foi contado.\n\nREGRA DE OURO #4 — ALTERNATIVAS:\n- 4 alternativas por questão.\n- A correta é LITERALMENTE o que a história contou.\n- As 3 erradas são coisas que NÃO aconteceram na história.\n- Nenhuma alternativa errada deve ser \"quase certa\". Todas as erradas são claramente de outra história.\n\nTOM DAS PERGUNTAS:\nConversa de café. 'Quem era a pessoa que pediu ajuda primeiro?', 'O que ela queria resolver?', 'Por que ela ficou incomodada?'.\n\nDISTRIBUIÇÃO OBRIGATÓRIA (total: 3):\n- 3 sobre QUEM (a pessoa, a outra parte) → area=\"identificacao\"\n- 4 sobre O QUE ACONTECEU (situação, ordem dos fatos) → area=\"fatos\"\n- 2 sobre POR QUE (motivo do incômodo) → area=\"fundamentos\"\n- 2 sobre O QUE QUER (pedido em linguagem simples) → area=\"pedidos\"\n- 1 sobre ONDE ESTÁ (fase da história, sem termo técnico) → area=\"contexto\"\n\nCONTRATO por questão (siga EXATAMENTE este esquema de chaves):\n- id: inteiro sequencial 1 a 6\n- area: ENUM[identificacao, fatos, fundamentos, pedidos, contexto]\n- enunciado: string — pergunta simples (máx 120 chars, termina com '?')\n- alternativas: array com EXATAMENTE 4 strings (máx 80 chars cada)\n- correta: inteiro entre 0 e 3 (índice da alternativa correta)\n- justificativa: string curta (máx 120 chars)\n- dificuldade: SEMPRE \"facil\" (NUNCA use \"media\" nem \"dificil\")\n\nSAÍDA OBRIGATÓRIA (JSON único, com EXATAMENTE 6 objetos no array, mesma forma do esquema abaixo):\n{\n  \"questoes\": [\n    {\n      \"id\": 1,\n      \"area\": \"identificacao\",\n      \"enunciado\": \"...\",\n      \"alternativas\": [\"...\", \"...\", \"...\", \"...\"],\n      \"correta\": 0,\n      \"justificativa\": \"...\",\n      \"dificuldade\": \"facil\"\n    },\n    {\n      \"id\": 2,\n      \"area\": \"identificacao\",\n      \"enunciado\": \"...\",\n      \"alternativas\": [\"...\", \"...\", \"...\", \"...\"],\n      \"correta\": 1,\n      \"justificativa\": \"...\",\n      \"dificuldade\": \"facil\"\n    },\n    {\n      \"id\": 3,\n      \"area\": \"identificacao\",\n      \"enunciado\": \"...\",\n      \"alternativas\": [\"...\", \"...\", \"...\", \"...\"],\n      \"correta\": 2,\n      \"justificativa\": \"...\",\n      \"dificuldade\": \"facil\"\n    }\n]\n}"
+      "missao": "GERE 3 PERGUNTAS ABSURDAMENTE FÁCEIS SOBRE A HISTÓRIA.\n\nPERSONA:\nVocê é um PROFESSOR DE CRIANÇAS DE 10 ANOS. Sua missão NÃO é testar conhecimento, NÃO é avaliar, NÃO é pegar ninguém. Sua missão é CONFIRMAR que a pessoa LEU a história — e para isso as perguntas precisam ser tão simples que qualquer pessoa que leu acerta sem pensar. Quem NÃO leu, erra.\n\nCRITICAL: Sua saída INTEIRA deve ser um ÚNICO objeto JSON começando com \"{\" e terminando com \"}\". NÃO envolva em array externo. NÃO adicione texto, comentário, preâmbulo ou epílogo.\n\nCRITICAL: VOCÊ DEVE COMPLETAR AS 3 PERGUNTAS SEM EXCEÇÃO. NUNCA use \"...\". NUNCA pare no meio.\n\nREGRA DE OURO #1 — O QUE É PROIBIDO PERGUNTAR:\n- Números de processo, artigo, lei, súmula\n- Datas exatas\n- Nomes de tribunais ou órgãos\n- Termos jurídicos (recurso, apelação, autos, provimento, etc.)\n- Detalhes técnicos (valor exato, número de páginas)\n- Ortografia de nomes difíceis\n\nREGRA DE OURO #2 — O QUE É OBRIGATÓRIO PERGUNTAR:\nApenas sobre a SIMBOLOGIA da história:\n- Quem é quem (a pessoa e a outra parte)\n- O que aconteceu (a situação vivida)\n- O que a pessoa está buscando (em linguagem simples)\n- Por que aquilo incomodou ela\n- Como ela se sentiu ou o que perdeu\n\nREGRA DE OURO #3 — CALIBRAGEM:\nQuem LEU a história acerta sozinho, sem esforço.\nQuem NÃO LEU erra porque não tem como adivinhar.\nNenhuma pergunta deve exigir memorização de nomes completos, apenas reconhecimento do que foi contado.\n\nREGRA DE OURO #4 — ALTERNATIVAS:\n- 4 alternativas por questão.\n- A correta é LITERALMENTE o que a história contou.\n- As 3 erradas são coisas que NÃO aconteceram na história.\n- Nenhuma alternativa errada deve ser \"quase certa\". Todas as erradas são claramente de outra história.\n\nTOM DAS PERGUNTAS:\nConversa de café. 'Quem era a pessoa que pediu ajuda primeiro?', 'O que ela queria resolver?', 'Por que ela ficou incomodada?'.\n\nDISTRIBUIÇÃO OBRIGATÓRIA (total: 3):\n- 3 sobre QUEM (a pessoa, a outra parte) → area=\"identificacao\"\n- 4 sobre O QUE ACONTECEU (situação, ordem dos fatos) → area=\"fatos\"\n- 2 sobre POR QUE (motivo do incômodo) → area=\"fundamentos\"\n- 2 sobre O QUE QUER (pedido em linguagem simples) → area=\"pedidos\"\n- 1 sobre ONDE ESTÁ (fase da história, sem termo técnico) → area=\"contexto\"\n\nCONTRATO por questão (siga EXATAMENTE este esquema de chaves):\n- id: inteiro sequencial 1 a 6\n- area: ENUM[identificacao, fatos, fundamentos, pedidos, contexto]\n- enunciado: string — pergunta simples (máx 120 chars, termina com '?')\n- alternativas: array com EXATAMENTE 4 strings (máx 80 chars cada)\n- correta: inteiro entre 0 e 3 (índice da alternativa correta)\n- justificativa: string curta (máx 120 chars)\n- dificuldade: SEMPRE \"facil\" (NUNCA use \"media\" nem \"dificil\")\n\nSAÍDA OBRIGATÓRIA (JSON único, com EXATAMENTE 6 objetos no array, mesma forma do esquema abaixo):\n{\n  \"questoes\": [\n    {\n      \"id\": 1,\n      \"area\": \"identificacao\",\n      \"enunciado\": \"...\",\n      \"alternativas\": [\"...\", \"...\", \"...\", \"...\"],\n      \"correta\": 0,\n      \"justificativa\": \"...\",\n      \"dificuldade\": \"facil\"\n    },\n    {\n      \"id\": 2,\n      \"area\": \"identificacao\",\n      \"enunciado\": \"...\",\n      \"alternativas\": [\"...\", \"...\", \"...\", \"...\"],\n      \"correta\": 1,\n      \"justificativa\": \"...\",\n      \"dificuldade\": \"facil\"\n    },\n    {\n      \"id\": 3,\n      \"area\": \"identificacao\",\n      \"enunciado\": \"...\",\n      \"alternativas\": [\"...\", \"...\", \"...\", \"...\"],\n      \"correta\": 2,\n      \"justificativa\": \"...\",\n      \"dificuldade\": \"facil\"\n    }\n]\n}",
+      "schema": {
+        "campos": {
+          "questoes": {
+            "tipo": "lista",
+            "itens": [
+              "enunciado",
+              "alternativas",
+              "correta"
+            ]
+          }
+        }
+      }
     },
     {
       "id": "END_SUCCESS",
