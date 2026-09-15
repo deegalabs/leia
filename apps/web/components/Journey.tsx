@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Check, MessageCircle } from "lucide-react";
 import { bindTask, getTask, submitQuiz, topicsOf, type QuizResult, type Task } from "@/lib/api";
 import { isReady } from "@/lib/status";
@@ -24,14 +24,19 @@ export function Journey({ hash }: { hash: string }) {
   const [chatOpen, setChatOpen] = useState(false);
   const [retry, setRetry] = useState(0);
   const storageKey = `leia:${hash}`;
-  /* LeIA: v3. A signed-in citizen is linked to the task once, so it shows up in her panel. */
+  /* LeIA: linking is an explicit act, never a side effect of opening the link. The link travels by
+     message and gets forwarded: whoever opened it first would otherwise own the record for good, and
+     the real recipient would be refused. */
   const { usuario, ready: authReady } = useAuth();
-  const boundRef = useRef(false);
-  useEffect(() => {
-    if (!task || !authReady || usuario?.papel !== "cidadao" || task.cidadao_vinculado !== false || boundRef.current) return;
-    boundRef.current = true;
-    bindTask(hash).catch(() => { boundRef.current = false; });
-  }, [task, authReady, usuario, hash]);
+  const [bound, setBound] = useState(false);
+  const [binding, setBinding] = useState(false);
+  const canBind = Boolean(task && authReady && usuario?.papel === "cidadao" && task.cidadao_vinculado === false && !bound);
+  async function claim() {
+    if (binding) return;
+    setBinding(true);
+    try { await bindTask(hash); setBound(true); } catch { /* segue sem vínculo */ }
+    finally { setBinding(false); }
+  }
 
   useEffect(() => {
     let alive = true;
@@ -115,6 +120,14 @@ export function Journey({ hash }: { hash: string }) {
               <p className="mb-2">{fmt(noQuestions ? m.journey.welcomeNoQuestions : m.journey.welcomeWithQuestions, { n: topics.length })}</p>
             </div>
           </div>
+          {canBind && (
+            <Card tone="pending" className="mt-4">
+              <h2 className="mb-1 text-[1.15rem]">Este documento é seu?</h2>
+              <p className="mb-3 text-[1rem]">Se for, ele passa a aparecer na sua lista de documentos. Se você só está vendo um exemplo, pode seguir sem marcar.</p>
+              <Button variant="secondary" onClick={claim} disabled={binding}>{binding ? "Guardando" : "Sim, este documento é meu"}</Button>
+            </Card>
+          )}
+          {bound && <Card tone="soft" className="mt-4"><p>Pronto. Este documento agora aparece na sua lista.</p></Card>}
           <Card tone="soft" className="mt-4">
             <h2 className="mb-2 text-[1.15rem]">Quem está falando com você</h2>
             <p id="intro">Sou uma assistente automática. Explico o que está escrito neste documento. Não sou advogada e não dou conselho jurídico. Suas respostas ficam só com você.</p>
