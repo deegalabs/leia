@@ -32,6 +32,8 @@ fecha um sentido, vira versão com tag anotada e release no GitHub.
   um registro que não existia mais. Comprovantes emitidos antes desta mudança continuam abrindo.
 
 ### Por dentro
+- A bateria lê também um corpus privado, fora do repositório, por `LEIA_EVAL_CASES`. Documento de verdade não é
+  versionado; o que fica escrito é a estrutura de cada tipo de peça, em `docs/DOCUMENT-TYPES.md`.
 - Existe uma bateria de avaliação do motor (`apps/llm-service/evals`). Ela mede, sobre casos gravados de tarefas
   reais e sem chave de modelo, se o trecho mostrado está mesmo no documento, se a posição informada é a certa e se
   o gabarito não viaja com a pergunta. Cobertura e precisão de âncora têm piso, que não reprova entrega mas acusa

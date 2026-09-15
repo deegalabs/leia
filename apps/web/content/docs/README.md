@@ -151,6 +151,7 @@ O guia completo, com a divisão de pastas e o que nunca entra no repositório, e
 | [docs/API-V3-CONTRACT.md](/docs/api) | Contrato entre a aplicação e o serviço |
 | [docs/SERVICE-V2-MAP.md](/docs/servico) | Mapa do serviço: rotas, dados, workflow, variáveis |
 | [docs/SCREENS.md](/docs/telas) | Telas e estados |
+| [docs/DOCUMENT-TYPES.md](/docs/tipos-de-documento) | Estrutura de cada tipo de peça e onde o motor costuma falhar |
 | [docs/AUDIT-GUIDE.md](/docs/auditoria) | Como auditar uma afirmação e conferir um registro |
 | [docs/SCALING.md](/docs/escala) | Escala para 1, 100 e 1.000 pessoas e custo por consentimento |
 | [docs/ROADMAP.md](/docs/roadmap) | Para onde o produto vai |

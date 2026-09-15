@@ -17,6 +17,7 @@ As camadas têm papéis diferentes de propósito:
 from __future__ import annotations
 
 import json
+import os
 import unicodedata
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -111,4 +112,21 @@ def avaliar(caso: dict) -> Resultado:
 
 
 def carregar_casos() -> list[dict]:
-    return [json.loads(p.read_text(encoding="utf-8")) for p in sorted(CASOS_DIR.glob("*.json"))]
+    """Os casos públicos do repositório, mais os privados de ``LEIA_EVAL_CASES`` quando essa pasta existe.
+
+    Documento de verdade não entra aqui: o repositório é público e a regra do projeto é que nenhum dado pessoal
+    real seja versionado, nem em exemplo. Mas um documento que não pode ser medido não serve de teste, então a
+    bateria lê também uma pasta de fora, que fica na máquina de quem tem o arquivo. A consequência, e ela é
+    real: o que roda na integração contínua é só o corpus público. O privado pega o que o público não pega, e
+    só roda quando alguém o roda."""
+    pastas = [CASOS_DIR]
+    extra = os.getenv("LEIA_EVAL_CASES", "").strip()
+    if extra:
+        pastas.append(Path(extra))
+    casos: list[dict] = []
+    for pasta in pastas:
+        if not pasta.is_dir():
+            continue
+        for arquivo in sorted(pasta.glob("*.json")):
+            casos.append(json.loads(arquivo.read_text(encoding="utf-8")))
+    return casos

@@ -99,3 +99,19 @@ def test_the_runner_reports_and_gates(capsys):
     saida = capsys.readouterr().out
     assert "cobertura_ancora" in saida and "violação" in saida
     assert "camada 3" in saida, "a bateria precisa dizer o que ela ainda não mede"
+
+
+def test_a_private_corpus_outside_the_repository_is_also_measured(tmp_path, monkeypatch, caso):
+    """Documento de verdade não entra no repositório, que é público. Mas a bateria precisa conseguir medir
+    sobre ele na máquina de quem tem o arquivo, senão ele não serve de teste nenhum."""
+    (tmp_path / "agravo.json").write_text(json.dumps({**caso, "nome": "agravo-privado"}, ensure_ascii=False), encoding="utf-8")
+    monkeypatch.setenv("LEIA_EVAL_CASES", str(tmp_path))
+
+    nomes = [c["nome"] for c in carregar_casos()]
+    assert "contrato-honorarios" in nomes, "os casos públicos pararam de ser medidos"
+    assert "agravo-privado" in nomes, "o corpus privado não foi lido"
+
+
+def test_a_missing_private_corpus_is_not_an_error(monkeypatch):
+    monkeypatch.setenv("LEIA_EVAL_CASES", "/caminho/que/nao/existe")
+    assert carregar_casos(), "sem o corpus privado a bateria tem que continuar rodando sozinha"
