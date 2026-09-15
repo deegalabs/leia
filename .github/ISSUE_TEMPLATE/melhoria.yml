@@ -1,0 +1,48 @@
+name: Melhoria
+description: Uma mudança de produto, de código ou de documentação
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problema
+    attributes:
+      label: Que problema isso resolve
+      description: Descreva a situação real, não a solução. Quem sofre com isso hoje e como.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposta
+    attributes:
+      label: O que você propõe
+    validations:
+      required: true
+
+  - type: dropdown
+    id: quem
+    attributes:
+      label: Quem é afetado
+      options:
+        - Cidadão que recebe o documento
+        - Advogado que revisa
+        - Quem confere um comprovante
+        - Quem desenvolve
+    validations:
+      required: true
+
+  - type: textarea
+    id: pronto
+    attributes:
+      label: Como saber que está pronto
+      description: O que precisa ser verdade para a issue poder ser fechada.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: limites
+    attributes:
+      label: Limites do produto
+      options:
+        - label: A proposta não faz a plataforma dar conselho jurídico nem interpretar o caso concreto.
+          required: true
+        - label: A proposta não coloca dado pessoal no registro público.
+          required: true

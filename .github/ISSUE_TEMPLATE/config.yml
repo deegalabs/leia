@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Dúvida sobre o produto ou sobre como contribuir
+    url: https://github.com/deegalabs/leia/discussions
+    about: Pergunta que não descreve um erro nem propõe uma mudança.
+  - name: Falha de segurança ou exposição de dado
+    url: https://github.com/deegalabs/leia/security/advisories/new
+    about: Nunca em issue pública. Relate por aqui, em sigilo.

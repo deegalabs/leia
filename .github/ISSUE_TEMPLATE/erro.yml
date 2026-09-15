@@ -1,0 +1,55 @@
+name: Erro
+description: Alguma coisa não funciona como deveria
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Se o problema expõe dado de alguém ou abre uma brecha de segurança, não abra issue aqui.
+        Use o [relato privado de segurança](https://github.com/deegalabs/leia/security/advisories/new).
+
+  - type: dropdown
+    id: onde
+    attributes:
+      label: Onde acontece
+      options:
+        - Aplicação (apps/web)
+        - Serviço cognitivo (apps/llm-service)
+        - Documentação
+        - Não sei dizer
+    validations:
+      required: true
+
+  - type: textarea
+    id: esperado
+    attributes:
+      label: O que deveria acontecer
+    validations:
+      required: true
+
+  - type: textarea
+    id: aconteceu
+    attributes:
+      label: O que aconteceu
+      description: Cole a mensagem de erro inteira, se houver. Nunca cole token, senha ou documento de alguém.
+    validations:
+      required: true
+
+  - type: textarea
+    id: passos
+    attributes:
+      label: Como reproduzir
+      placeholder: |
+        1. Abri ...
+        2. Cliquei em ...
+        3. Vi ...
+    validations:
+      required: true
+
+  - type: input
+    id: ambiente
+    attributes:
+      label: Onde você estava
+      placeholder: celular Android, Chrome, produção
+    validations:
+      required: true
