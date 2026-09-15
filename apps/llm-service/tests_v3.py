@@ -8,8 +8,6 @@ from __future__ import annotations
 
 import os
 
-os.environ["RATE_LIMIT_TRUST_XFF"] = "true"  # tests simulate different clients through X-Forwarded-For
-
 import io
 import json
 import os
@@ -890,3 +888,22 @@ def test_the_invite_also_closes_the_answers_route(lawyer):
     client.delete(f"/api/tarefas/{t['id']}/convite", headers=bearer(lawyer["token"]))
     r = client.post(f"/api/t/{t['hash']}/quiz", json={"respostas": {}})
     assert r.status_code == 403, "o registro pôde ser gravado por um link cancelado"
+
+
+def test_a_forged_forwarded_header_does_not_buy_a_new_identity():
+    """Quem chama escolhe o que escrever no começo de X-Forwarded-For. Se a chave do limite sair dali,
+    cada requisição vira um cliente novo, o balde nunca enche e o limite não limita nada.
+    O que o proxy confiável acrescenta fica no fim, e é isso que vale."""
+    os.environ["RATE_LIMIT_PER_MINUTE"] = "3"
+    limiter.reset()
+    try:
+        codes = []
+        for i in range(5):
+            forjado = {"X-Forwarded-For": f"203.0.113.{i}, 198.51.100.77"}
+            codes.append(client.post("/api/auth/login", json={"email": "ninguem@teste.local", "senha": "x"},
+                                     headers=forjado).status_code)
+        assert 429 in codes, "trocar o começo do cabeçalho contornou o limite por requisição"
+        assert codes[:3] == [401, 401, 401] and codes[3] == 429
+    finally:
+        os.environ["RATE_LIMIT_PER_MINUTE"] = "200"
+        limiter.reset()
