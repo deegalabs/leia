@@ -2,7 +2,10 @@
 
 <!-- Uma frase. O que passa a ser verdade depois deste merge. -->
 
-Fecha #
+Closes #
+
+<!-- A palavra-chave fica em inglês de propósito: o GitHub só fecha a issue sozinho com
+     closes, fixes ou resolves. "Fecha" é texto comum para ele e a issue continua aberta. -->
 
 ## Como verificar
 

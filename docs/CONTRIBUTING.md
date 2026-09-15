@@ -23,8 +23,9 @@ passa por pull request e todo pull request precisa de uma aprovação e da integ
    docs: describe the review gate
    ```
    Sem linha de coautor. Commits pequenos, um assunto por commit.
-5. **Pull request** com o modelo preenchido, apontando a issue que ele fecha. A integração contínua roda sozinha
-   e a Vercel publica uma prévia da aplicação no próprio pull request.
+5. **Pull request** com o modelo preenchido, escrevendo `Closes #123` para a issue que ele fecha. A palavra-chave
+   precisa ser em inglês, porque é só assim que o GitHub fecha a issue no merge. A integração contínua roda sozinha e
+   a Vercel publica uma prévia da aplicação no próprio pull request.
 6. **Revisão.** Uma aprovação libera o merge. Depois do merge na `main`, aplicação e serviço sobem em produção
    automaticamente.
 
