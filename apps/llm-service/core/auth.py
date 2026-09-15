@@ -89,6 +89,19 @@ def api_user(
     return _resolve_user(session, sessao, authorization, sem_credencial_redireciona=False)
 
 
+# LeIA: who is visiting, when anyone may visit. Used by the public routes to decide whether an
+# invite addressed to one person opens for whoever is asking.
+def optional_api_user(
+    sessao: Optional[str] = Cookie(default=None, alias="sessao"),
+    authorization: Optional[str] = Header(default=None),
+    session: Session = Depends(get_session),
+) -> Optional[Usuario]:
+    try:
+        return _resolve_user(session, sessao, authorization, sem_credencial_redireciona=False)
+    except HTTPException:
+        return None
+
+
 # LeIA: o cadastro de cidadã é aberto por desenho, então estar logado não é barreira nenhuma.
 # As rotas de bastidor (protocolo, contexto, chat interno) exigem o papel de fornecedor.
 def admin_user(u: Usuario = Depends(api_user)) -> Usuario:

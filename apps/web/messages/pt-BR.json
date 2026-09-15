@@ -291,7 +291,18 @@
         "task_done": "Etapa concluída",
         "task_error": "Etapa não concluída"
       },
-      "clientLinkPending": "O link só abre a explicação depois que você revisar e liberar."
+      "clientLinkPending": "O link só abre a explicação depois que você revisar e liberar.",
+      "inviteTitle": "Quem pode abrir este link",
+      "inviteOpenHint": "Hoje qualquer pessoa com o endereço abre o documento. Você pode limitar isso.",
+      "inviteAnyone": "Aberto a quem tiver o link",
+      "inviteAddressed": "Só abre para {email}",
+      "inviteUntil": "Vale até {data}",
+      "inviteRevoked": "Este link foi cancelado. Ninguém mais abre.",
+      "inviteEmailLabel": "E-mail de quem vai receber (opcional)",
+      "inviteEmailPlaceholder": "nome@exemplo.com",
+      "inviteLimit": "Limitar este link",
+      "inviteCancel": "Cancelar este link",
+      "inviteFailed": "Não deu para mudar quem pode abrir. Tente de novo."
     },
     "openDoubtsOne": "1 dúvida aberta",
     "reviewAndRelease": "Revisar e liberar",

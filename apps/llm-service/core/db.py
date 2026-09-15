@@ -81,6 +81,19 @@ class Tentativa(SQLModel, table=True):
     criada_em: datetime = Field(default_factory=datetime.utcnow)
 
 
+# LeIA: the invite that governs a document link. Without one, the link works as it always did;
+# with one, the link can expire, be revoked, and be addressed to a single person.
+# New table, so create_all builds it on Postgres too: this needs no column migration.
+class Invite(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    task_id: int = Field(foreign_key="tarefa.id", index=True)
+    email: Optional[str] = Field(default=None, index=True)
+    expires_at: Optional[datetime] = None
+    revoked_at: Optional[datetime] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_by: int = Field(foreign_key="usuario.id")
+
+
 # LeIA: doubt sent by the citizen to the lawyer who owns the task
 class Duvida(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)

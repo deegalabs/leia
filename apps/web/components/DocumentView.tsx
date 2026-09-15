@@ -10,7 +10,7 @@ export function DocumentView({ hash }: { hash: string }) {
   const [data, setData] = useState<Inferences | null>(null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
-    getInferences(hash).then(setData).catch((e: Error) => setError(e.message.includes("409") ? "A explicação ainda está sendo preparada. Volte em alguns minutos." : e.message.includes("404") ? "Documento não encontrado." : "Deu um problema do nosso lado, não foi você. Tente de novo em instantes."));
+    getInferences(hash).then(setData).catch((e: Error & { status?: number }) => setError(e.status === 409 ? "A explicação ainda está sendo preparada. Volte em alguns minutos." : e.status === 404 ? "Documento não encontrado." : e.status === 403 ? e.message : "Deu um problema do nosso lado, não foi você. Tente de novo em instantes."));
   }, [hash]);
   const goTo = (ref: string) => scrollToMark("mark", ref);
 

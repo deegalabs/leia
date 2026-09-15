@@ -8,7 +8,7 @@ export function Verify({ attempt }: { attempt: string }) {
   const [data, setData] = useState<VerifyResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
-    getVerify(attempt).then(setData).catch((e: Error) => setError(e.message.includes("404") ? "Registro não encontrado." : "Deu um problema do nosso lado. Tente de novo em instantes."));
+    getVerify(attempt).then(setData).catch((e: Error & { status?: number }) => setError(e.status === 404 ? "Registro não encontrado." : "Deu um problema do nosso lado. Tente de novo em instantes."));
   }, [attempt]);
 
   function download() {

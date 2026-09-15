@@ -27,8 +27,19 @@ invalida o anterior).
 | `POST /api/tarefas` | Bearer | multipart `titulo`, `pdf` | `{ id, hash, status: "criada" }` e agenda o pipeline. Dono = quem enviou. Se `cidadao`, também `cidadao_id` = ele |
 | `GET /api/tarefas/{id}` | Bearer (dono, admin ou cidadã vinculada) | | `{ tarefa: { id, hash, titulo, status, criada_em, atualizada_em, origem }, link_cliente, resumo_md \| null, eventos: [últimos 20], tentativas: [ { numero, acertos, total, aprovado, criada_em, hash_imutavel } ], duvidas: [ { id, texto, contexto, criada_em, respondida, resposta, respondida_em } ], cidadao, advogado }` |
 | `POST /api/tarefas/{id}/duvidas/{duvida_id}/responder` | Bearer (dono ou admin) | `{ resposta }` | `{ ok: true }`; marca `respondida=true`, `respondida_em` |
+| `POST /api/tarefas/{id}/convite` | Bearer (só quem enviou) | `{ email?, validade_horas? }` | `{ id, email, expira_em, revogado_em, criado_em }`; emitir de novo substitui o convite anterior; validade padrão de 30 dias |
+| `DELETE /api/tarefas/{id}/convite` | Bearer (só quem enviou) | | cancela o convite ativo; 404 quando não há convite |
 
-## Cidadã (rotas públicas, o hash é o segredo)
+## Cidadã (rotas públicas, governadas pelo convite)
+
+O hash já foi o segredo inteiro: quem tivesse o endereço abria o documento, para sempre, e não havia como
+desfazer. Agora o documento pode ter um **convite**, que acrescenta validade, cancelamento e, quando quem
+enviou sabe o endereço, uma destinatária única.
+
+Documento **sem convite** se comporta como sempre, para não quebrar link que já circulou. Com convite, toda
+rota pública responde **403** com o motivo em `detail`: cancelado, vencido, ou endereçado a outra pessoa.
+Quem enviou o documento e a cidadã já vinculada entram sempre.
+
 | Método e rota | Entrada | Saída |
 |---|---|---|
 | `GET /api/t/{hash}` | | como hoje **mais** `advogado: { nome } \| null` (nulo quando o dono é `cidadao`), `tem_advogado: bool`, `cidadao_vinculado: bool`, `duvidas_enviadas: n` |

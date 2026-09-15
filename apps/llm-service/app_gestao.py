@@ -21,7 +21,7 @@ from core.db import (Usuario, Tarefa, LogEvento, Tentativa,
 from core.db import Duvida                       # LeIA: doubts sent by the citizen
 from leia.pipeline import run_pipeline           # LeIA: semaphore around the workflow
 from leia.ratelimit import rate_limit            # LeIA: per-IP limit on public write routes
-from core.auth import (authenticate, end_session, current_user,
+from core.auth import (authenticate, end_session, current_user, optional_api_user,
                        create_initial_user, hash_password)
 from core import workspace as ws
 from core import session as sess
@@ -696,11 +696,15 @@ async def api_quiz(
     payload: dict,
     request: Request,
     background: BackgroundTasks,
+    visitante: Optional[Usuario] = Depends(optional_api_user),
     session: Session = Depends(get_session),
 ):
     t = session.exec(select(Tarefa).where(Tarefa.hash == hash_)).first()
     if not t:
         raise HTTPException(404, "Link inválido")
+
+    from leia import invites
+    invites.ensure_open(session, t, visitante)
 
     from leia.api_citizen import GATE_MESSAGE, is_gated   # LeIA: local import (leia.api_citizen imports this module)
     if is_gated(t):   # LeIA: lawyer review gate, the citizen only answers after the lawyer approves
@@ -758,9 +762,13 @@ async def api_quiz(
 async def api_cliente_chat(
     hash_: str,
     payload: dict,
+    visitante: Optional[Usuario] = Depends(optional_api_user),
     session: Session = Depends(get_session),
 ):
+    from leia import invites
     t = session.exec(select(Tarefa).where(Tarefa.hash == hash_)).first()
+    if t:
+        invites.ensure_open(session, t, visitante)
     if not t:
         raise HTTPException(404, "Link inválido")
 

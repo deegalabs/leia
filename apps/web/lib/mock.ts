@@ -83,7 +83,11 @@ export type MockTask = {
   ready_at: number; eventos: MockEvent[]; tentativas: MockAttempt[]; duvidas: MockDoubt[];
   /* LeIA: visible preparation. How many of the 14 steps started and finished; externa = produced by the external flow (no steps) */
   etapas_iniciadas: number; etapas_feitas: number; externa: boolean;
+  /* LeIA: o convite que governa o link; ausente significa link aberto, como sempre foi */
+  convite?: MockInvite | null;
 };
+
+export type MockInvite = { id: number; email: string | null; expira_em: string | null; revogado_em: string | null; criado_em: string };
 
 /* LeIA: the 14 workflow steps in pt-BR (docs/API-V3-CONTRACT.md, "Preparação visível e tarefas do fluxo externo") and the
    seconds each one reports once finished (illustrative; the simulated pipeline is faster than the real one) */
@@ -234,7 +238,7 @@ export function taskDetail(u: MockUser, id: number) {
   if (!canSee(u, t)) throw fail(403, "sem acesso");
   return {
     tarefa: { id: t.id, hash: t.hash, titulo: t.titulo, status: t.status, criada_em: t.criada_em, atualizada_em: t.atualizada_em, origem: t.origem },
-    link_cliente: clientLink(t), resumo_md: hasContent(t) ? contentOf(t).resumo_md : null, eventos: t.eventos.slice(-20),
+    convite: t.convite ?? null, link_cliente: clientLink(t), resumo_md: hasContent(t) ? contentOf(t).resumo_md : null, eventos: t.eventos.slice(-20),
     tentativas: t.tentativas.map(({ numero, acertos, total, aprovado, criada_em, hash_imutavel, comprovante_token }) => ({ numero, acertos, total, aprovado, criada_em, hash_imutavel, comprovante_token })),
     duvidas: t.duvidas, cidadao: nameOf(t.cidadao_id), advogado: lawyerOf(t),
   };
@@ -256,9 +260,49 @@ const hasContent = (t: MockTask) => t.status === "pronta" || t.status === "envia
 export const isReleased = (t: MockTask) => t.status === "enviada" || t.status === "assinada" || (t.status === "pronta" && t.origem === "cidadao");
 export const inReview = (t: MockTask) => t.status === "pronta" && t.origem === "advogado";
 /* 409 body shared by the public routes while the lawyer reviews or the pipeline runs */
-export function publicGate(hash: string): Response | null {
+function ownedByMe(u: MockUser, id: number): MockTask {
+  const t = storeTaskById(id);
+  if (!t || t.dono_id !== u.id) throw fail(404, "Documento não encontrado");
+  return t;
+}
+
+export function issueInvite(u: MockUser, id: number, input: { email?: unknown; validade_horas?: unknown }): MockInvite {
+  const t = ownedByMe(u, id);
+  const horas = Math.max(1, Number(input.validade_horas) || 30 * 24);
+  const email = String(input.email ?? "").trim().toLowerCase() || null;
+  t.convite = { id: (t.convite?.id ?? 0) + 1, email, criado_em: nowIso(), revogado_em: null,
+                expira_em: new Date(Date.now() + horas * 3600_000).toISOString() };
+  return t.convite;
+}
+
+export function revokeInvite(u: MockUser, id: number): MockInvite {
+  const t = ownedByMe(u, id);
+  if (!t.convite) throw fail(404, "Este documento não tem convite para cancelar.");
+  t.convite.revogado_em = t.convite.revogado_em ?? nowIso();
+  return t.convite;
+}
+
+/* LeIA: mesma regra do serviço (apps/llm-service/leia/invites.py). Sem convite, o link abre como sempre abriu. */
+export function inviteGate(t: MockTask, visitor: MockUser | null): Response | null {
+  if (visitor && (visitor.id === t.dono_id || visitor.id === t.cidadao_id)) return null;
+  const c = t.convite;
+  if (!c) return null;
+  if (c.revogado_em) return Response.json({ detail: "Este link foi cancelado por quem enviou o documento." }, { status: 403 });
+  if (c.expira_em && new Date(c.expira_em).getTime() <= Date.now()) {
+    return Response.json({ detail: "Este link venceu. Peça um novo a quem enviou o documento." }, { status: 403 });
+  }
+  if (c.email) {
+    if (!visitor) return Response.json({ detail: "Este documento foi enviado para uma pessoa. Entre com o e-mail que recebeu o convite." }, { status: 403 });
+    if (visitor.email.trim().toLowerCase() !== c.email) return Response.json({ detail: "Este documento foi enviado para outra pessoa." }, { status: 403 });
+  }
+  return null;
+}
+
+export function publicGate(hash: string, visitor: MockUser | null = null): Response | null {
   const t = storeTask(hash);
   if (!t) return Response.json({ detail: "não encontrado" }, { status: 404 });
+  const invite = inviteGate(t, visitor);
+  if (invite) return invite;
   if (inReview(t)) return Response.json({ detail: "Em revisão pelo advogado" }, { status: 409 });
   if (!isReleased(t)) return Response.json({ detail: "ainda não está pronta" }, { status: 409 });
   return null;

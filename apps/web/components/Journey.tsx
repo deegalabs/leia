@@ -50,9 +50,12 @@ export function Journey({ hash }: { hash: string }) {
         if (saved?.result?.aprovado) { setResult(saved.result); setStep({ kind: "result" }); return; }
         if (saved?.answers) setAnswers(saved.answers);
       } catch { /* ignore */ }
-    }).catch((e: Error) => {
+    }).catch((e: Error & { status?: number }) => {
       if (!alive) return;
-      if (e.message.includes("404")) { setError("Este link não existe ou foi digitado errado. Confira com quem enviou o documento."); return; }
+      if (e.status === 404) { setError("Este link não existe ou foi digitado errado. Confira com quem enviou o documento."); return; }
+      /* 403 é recusa explicada pelo serviço: link cancelado, vencido, ou endereçado a outra pessoa.
+         Insistir não muda nada, então a tela mostra o motivo e para. */
+      if (e.status === 403) { setError(e.message); return; }
       setError("Deu um problema do nosso lado, não foi você. Estamos tentando de novo.");
       setTimeout(() => setRetry((n) => n + 1), 4000);
     });
