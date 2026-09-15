@@ -23,3 +23,6 @@ Thumbs.db
 data/*.db
 uploads/
 .venv-leia/
+# build output that changes on every build
+.vercel/
+apps/web/public/sw.js
