@@ -22,6 +22,8 @@ Thumbs.db
 # local data
 data/*.db
 uploads/
+# runtime state of the backstage chat, written by the service
+apps/llm-service/contexto_persistente.json
 .venv-leia/
 # build output that changes on every build
 .vercel/

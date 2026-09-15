@@ -8,7 +8,7 @@ from sqlmodel import Session, select
 from core.db import engine, Tentativa, Tarefa
 
 
-def _proximo_numero(tarefa_id: int) -> int:
+def _next_round(tarefa_id: int) -> int:
     with Session(engine) as s:
         ult = s.exec(
             select(Tentativa)
@@ -21,7 +21,7 @@ def _proximo_numero(tarefa_id: int) -> int:
 PREIMAGE_SCHEMA = "leia.attempt.v2"
 
 
-def hash_da_tentativa(tarefa_hash: str, numero: int, respostas_json: str, criada_em: datetime) -> str:
+def attempt_hash(tarefa_hash: str, numero: int, respostas_json: str, criada_em: datetime) -> str:
     """Hash da tentativa, recalculável por terceiro a partir do que fica gravado.
 
     A v1 misturava IP, navegador e um instante que não era persistido, então ninguém, nem a própria
@@ -39,15 +39,15 @@ def hash_da_tentativa(tarefa_hash: str, numero: int, respostas_json: str, criada
     return hashlib.sha256(preimage.encode("utf-8")).hexdigest()
 
 
-class TentativasEsgotadas(Exception):
+class AttemptsExhausted(Exception):
     """A pessoa usou o número máximo de tentativas de conferência deste documento."""
 
 
-def _teto() -> int:
+def _cap() -> int:
     return max(1, int(os.getenv("QUIZ_MAX_ATTEMPTS", "3")))
 
 
-def tentativas_esgotadas(tarefa_id: int) -> bool:
+def attempts_exhausted(tarefa_id: int) -> bool:
     """Verdadeiro quando não cabe mais tentativa sem que alguém já tenha sido aprovado.
 
     O teto existe porque cada envio devolve quais perguntas foram erradas, e sem limite o registro
@@ -58,22 +58,22 @@ def tentativas_esgotadas(tarefa_id: int) -> bool:
         feitas = list(s.exec(select(Tentativa).where(Tentativa.tarefa_id == tarefa_id)))
     if any(t.aprovado for t in feitas):
         return False
-    return len(feitas) >= _teto()
+    return len(feitas) >= _cap()
 
 
-def registrar(
+def record(
     tarefa: Tarefa,
     respostas: dict[int | str, int],
     questoes: list[dict],
-    ip: Optional[str] = None,        # aceito e descartado: ver hash_da_tentativa
+    ip: Optional[str] = None,        # aceito e descartado: ver attempt_hash
     user_agent: Optional[str] = None,
 ) -> Tentativa:
     """
     Valida as respostas contra o gabarito das questões, grava a tentativa
     e retorna a linha persistida com hash imutável.
     """
-    if tentativas_esgotadas(tarefa.id):
-        raise TentativasEsgotadas()
+    if attempts_exhausted(tarefa.id):
+        raise AttemptsExhausted()
 
     total = len(questoes)
     acertos = 0
@@ -86,11 +86,11 @@ def registrar(
 
     aprovado = acertos >= max(1, int(total * float(os.getenv("QUIZ_PASS_RATIO", "0.83"))))   # ≥ 83% (10/12)
 
-    numero = _proximo_numero(tarefa.id)
+    numero = _next_round(tarefa.id)
     respostas_json = json.dumps(respostas, ensure_ascii=False, sort_keys=True)
     criada_em = datetime.utcnow().replace(microsecond=0)
 
-    h = hash_da_tentativa(tarefa.hash, numero, respostas_json, criada_em)
+    h = attempt_hash(tarefa.hash, numero, respostas_json, criada_em)
 
     # IP e navegador não são gravados: não entram na prova, não são necessários ao produto,
     # e estavam impressos no comprovante que a cidadã mostra a terceiros.
@@ -109,7 +109,7 @@ def registrar(
     return t
 
 
-def listar(tarefa_id: int) -> list[Tentativa]:
+def list_all(tarefa_id: int) -> list[Tentativa]:
     with Session(engine) as s:
         return list(s.exec(
             select(Tentativa)
@@ -118,7 +118,7 @@ def listar(tarefa_id: int) -> list[Tentativa]:
         ).all())
 
 
-def melhor(tarefa_id: int) -> Optional[Tentativa]:
+def best(tarefa_id: int) -> Optional[Tentativa]:
     with Session(engine) as s:
         return s.exec(
             select(Tentativa)
@@ -127,7 +127,7 @@ def melhor(tarefa_id: int) -> Optional[Tentativa]:
         ).first()
 
 
-def analisar_erros(tentativa: Tentativa, questoes: list[dict]) -> list[dict]:
+def review_points(tentativa: Tentativa, questoes: list[dict]) -> list[dict]:
     """
     Retorna lista de {id, area, enunciado, escolhida, correta, justificativa}
     apenas das questões ERRADAS.

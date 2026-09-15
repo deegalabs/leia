@@ -12,8 +12,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 
-from core import sessao as sess
-from core.auth import autenticar, encerrar_sessao, hash_senha, usuario_api
+from core import session as sess
+from core.auth import authenticate, end_session, hash_password, api_user
 from core.db import Usuario, get_session
 from leia.ratelimit import rate_limit
 
@@ -55,9 +55,9 @@ def cadastro(body: CadastroIn, session: Session = Depends(get_session)):
         raise HTTPException(422, "Informe um e-mail válido.")
     if session.exec(select(Usuario).where(Usuario.email == email)).first():
         raise HTTPException(409, "Já existe uma conta com este e-mail.")
-    u = Usuario(email=email, senha_hash=hash_senha(body.senha), nome=body.nome.strip(), papel=papel)
+    u = Usuario(email=email, senha_hash=hash_password(body.senha), nome=body.nome.strip(), papel=papel)
     session.add(u); session.commit(); session.refresh(u)
-    u = autenticar(session, email, body.senha)  # issues the first token
+    u = authenticate(session, email, body.senha)  # issues the first token
     return {"token": u.session_token, "usuario": public_user(u)}
 
 
@@ -66,23 +66,23 @@ def login(body: LoginIn, session: Session = Depends(get_session)):
     email = body.email.strip().lower()
     previous = session.exec(select(Usuario).where(Usuario.email == email)).first()
     old_token = previous.session_token if previous else None
-    u = autenticar(session, email, body.senha)
+    u = authenticate(session, email, body.senha)
     if not u:
         raise HTTPException(401, "E-mail ou senha não conferem.")
     if old_token:
-        sess.encerrar(old_token)  # the previous token is gone; its session memory goes with it
+        sess.close(old_token)  # the previous token is gone; its session memory goes with it
     return {"token": u.session_token, "usuario": public_user(u)}
 
 
 @router.get("/api/auth/me")
-def me(u: Usuario = Depends(usuario_api)):
+def me(u: Usuario = Depends(api_user)):
     return {"usuario": public_user(u)}
 
 
 @router.post("/api/auth/logout")
-def logout(u: Usuario = Depends(usuario_api), session: Session = Depends(get_session)):
+def logout(u: Usuario = Depends(api_user), session: Session = Depends(get_session)):
     token = u.session_token
-    encerrar_sessao(session, u)
+    end_session(session, u)
     if token:
-        sess.encerrar(token)
+        sess.close(token)
     return {"ok": True}

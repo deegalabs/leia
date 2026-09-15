@@ -99,12 +99,12 @@ def test_payload_is_reproducible_by_a_third_party():
 def test_signed_pdf_makes_no_false_claim_and_carries_no_personal_data(tmp_path):
     from pypdf import PdfReader as _R
 
-    from core.pdf_sign import gerar_pdf_assinado
+    from core.pdf_sign import build_signed_pdf
 
     origem = pathlib.Path(__file__).resolve().parents[2] / "examples" / "contrato-honorarios-exemplo.pdf"
     assert origem.exists(), "o PDF de exemplo sumiu do repositório"
     saida = tmp_path / "assinado.pdf"
-    gerar_pdf_assinado(origem, saida, {
+    build_signed_pdf(origem, saida, {
         "tarefa_hash": "hash-da-tarefa", "numero": 1, "acertos": 5, "total": 6,
         "hash_imutavel": "b" * 64, "ts": "2026-09-15T12:00:00+00:00",
         "ip": "200.201.202.203", "user_agent": "Mozilla/5.0 (Android 10)",

@@ -12,7 +12,7 @@ import httpx
 from sqlmodel import Session
 
 from core.db import engine, Tarefa, LogEvento
-from core.workspace import pasta, registrar_evento
+from core.workspace import folder, record_event
 
 log = logging.getLogger("jurisprudencia")
 
@@ -78,7 +78,7 @@ async def obter_resultado(job_id: str) -> dict:
 # ══════════════════════════════════════════════════════════════════════════
 #  HELPERS DE PERSISTÊNCIA (mesmo padrão de core/api.py)
 # ══════════════════════════════════════════════════════════════════════════
-def _atualizar_status(tarefa_id: int, status_: str) -> None:
+def _update_status(tarefa_id: int, status_: str) -> None:
     with Session(engine) as s:
         t = s.get(Tarefa, tarefa_id)
         if not t:
@@ -90,8 +90,8 @@ def _atualizar_status(tarefa_id: int, status_: str) -> None:
         s.commit()
 
 
-def _salvar_json(hash_: str, nome: str, conteudo: Any) -> None:
-    (pasta(hash_) / nome).write_text(
+def _save_json(hash_: str, nome: str, conteudo: Any) -> None:
+    (folder(hash_) / nome).write_text(
         json.dumps(conteudo, ensure_ascii=False, indent=2), encoding="utf-8"
     )
 
@@ -99,7 +99,7 @@ def _salvar_json(hash_: str, nome: str, conteudo: Any) -> None:
 # ══════════════════════════════════════════════════════════════════════════
 #  ORQUESTRAÇÃO
 # ══════════════════════════════════════════════════════════════════════════
-async def executar_jurisprudencia(
+async def run_caselaw(
     tarefa_id: int,
     pdf_bytes: Optional[bytes] = None,
     texto: Optional[str] = None,
@@ -127,37 +127,37 @@ async def executar_jurisprudencia(
     log.info("═" * 70)
     log.info("🎬 JURISPRUDÊNCIA (API externa) | tarefa_id=%s", tarefa_id)
 
-    _atualizar_status(tarefa_id, "processando")
-    registrar_evento(hash_, "jurisprudencia_start", tarefa_id=tarefa_id)
+    _update_status(tarefa_id, "processando")
+    record_event(hash_, "jurisprudencia_start", tarefa_id=tarefa_id)
 
     # ── 1. Envia para a API externa
     try:
         envio = await submeter(pdf_bytes=pdf_bytes, texto=texto, filename=filename, consulta=consulta)
     except Exception as e:
         log.error("💥 submit falhou | %s", e)
-        _atualizar_status(tarefa_id, "falhou")
-        registrar_evento(hash_, "jurisprudencia_erro", etapa="submit", erro=str(e))
+        _update_status(tarefa_id, "falhou")
+        record_event(hash_, "jurisprudencia_erro", etapa="submit", erro=str(e))
         return
 
     job_id = envio.get("job_id")
     total_steps = envio.get("total_steps")
     if not job_id:
         log.error("💥 API externa não retornou job_id | %s", envio)
-        _atualizar_status(tarefa_id, "falhou")
-        registrar_evento(hash_, "jurisprudencia_erro", etapa="submit",
+        _update_status(tarefa_id, "falhou")
+        record_event(hash_, "jurisprudencia_erro", etapa="submit",
                          erro="resposta sem job_id")
         return
 
-    registrar_evento(hash_, "jurisprudencia_job", job_id=job_id, total_steps=total_steps)
-    _salvar_json(hash_, "jurisprudencia_job.json", envio)
+    record_event(hash_, "jurisprudencia_job", job_id=job_id, total_steps=total_steps)
+    _save_json(hash_, "jurisprudencia_job.json", envio)
 
     # ── 2. Poll até status == done | error | timeout
     t0 = time.time()
     while True:
         if time.time() - t0 > POLL_TIMEOUT:
             log.error("💥 timeout aguardando job %s", job_id)
-            _atualizar_status(tarefa_id, "falhou")
-            registrar_evento(hash_, "jurisprudencia_erro", etapa="timeout", job_id=job_id)
+            _update_status(tarefa_id, "falhou")
+            record_event(hash_, "jurisprudencia_erro", etapa="timeout", job_id=job_id)
             return
 
         await asyncio.sleep(POLL_INTERVAL)
@@ -167,7 +167,7 @@ async def executar_jurisprudencia(
             log.warning("⚠️  status falhou, tentando de novo | %s", e)
             continue
 
-        registrar_evento(
+        record_event(
             hash_, "jurisprudencia_status",
             step=st.get("current_step"), idx=st.get("step_index"),
             total=st.get("total_steps"), status=st.get("status"),
@@ -176,8 +176,8 @@ async def executar_jurisprudencia(
 
         if st.get("status") == "error":
             log.error("💥 job %s falhou | %s", job_id, st.get("error"))
-            _atualizar_status(tarefa_id, "falhou")
-            registrar_evento(hash_, "jurisprudencia_erro", etapa="job",
+            _update_status(tarefa_id, "falhou")
+            record_event(hash_, "jurisprudencia_erro", etapa="job",
                              erro=st.get("error"))
             return
 
@@ -189,19 +189,19 @@ async def executar_jurisprudencia(
         res = await obter_resultado(job_id)
     except Exception as e:
         log.error("💥 result falhou | %s", e)
-        _atualizar_status(tarefa_id, "falhou")
-        registrar_evento(hash_, "jurisprudencia_erro", etapa="result", erro=str(e))
+        _update_status(tarefa_id, "falhou")
+        record_event(hash_, "jurisprudencia_erro", etapa="result", erro=str(e))
         return
 
     dados_llm = res.get("dados_llm")
-    _salvar_json(hash_, "jurisprudencia_resultado.json", dados_llm)
+    _save_json(hash_, "jurisprudencia_resultado.json", dados_llm)
     if res.get("doc_text"):
-        (pasta(hash_) / "jurisprudencia_texto.txt").write_text(
+        (folder(hash_) / "jurisprudencia_texto.txt").write_text(
             str(res["doc_text"]), encoding="utf-8"
         )
 
-    _atualizar_status(tarefa_id, "pronta")
-    registrar_evento(
+    _update_status(tarefa_id, "pronta")
+    record_event(
         hash_, "jurisprudencia_done",
         tokens=res.get("tokens_total"), elapsed=res.get("elapsed"),
     )

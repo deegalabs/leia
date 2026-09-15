@@ -1,4 +1,4 @@
-"""Bounded runner for the PDF workflow (core.pipeline_pdf.executar_pipeline_pdf).
+"""Bounded runner for the PDF workflow (core.pipeline_pdf.run_pdf_pipeline).
 
 Every background run goes through one asyncio.Semaphore sized by PIPELINE_CONCURRENCY (default 3), so a
 burst of uploads does not open more Groq streams than the account can take. Nothing else is shared: each
@@ -49,19 +49,19 @@ def _mark_failed(tarefa_id: int, erro: str) -> None:
         s.add(t)
         s.add(LogEvento(tarefa_id=tarefa_id, tipo="erro_pipeline", payload=erro[:2000]))
         s.commit()
-        ws.registrar_evento(t.hash, "erro_pipeline", erro=erro[:500])
+        ws.record_event(t.hash, "erro_pipeline", erro=erro[:500])
 
 
 async def run_pipeline(tarefa_id: int, groq_client, variacao: str = "", session_token: str | None = None) -> None:
-    """Drop-in for ``executar_pipeline_pdf`` in ``BackgroundTasks.add_task``."""
-    from core.pipeline_pdf import executar_pipeline_pdf
+    """Drop-in for ``run_pdf_pipeline`` in ``BackgroundTasks.add_task``."""
+    from core.pipeline_pdf import run_pdf_pipeline
 
     sem = semaphore()
     if sem.locked():
         log.info("pipeline queued | tarefa=%s | limit=%s", tarefa_id, concurrency())
     async with sem:
         try:
-            await executar_pipeline_pdf(tarefa_id, groq_client, variacao, session_token)
+            await run_pdf_pipeline(tarefa_id, groq_client, variacao, session_token)
         except Exception as e:  # noqa: BLE001 (the failure belongs to this task only)
             log.exception("pipeline crashed | tarefa=%s", tarefa_id)
             try:

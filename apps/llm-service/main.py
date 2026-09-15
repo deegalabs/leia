@@ -15,7 +15,7 @@ from fastapi.templating import Jinja2Templates
 from groq import AsyncGroq
 from sqlmodel import Session
 
-from core.workspace import pasta as _workspace_pasta
+from core.workspace import folder as _workspace_folder
 
 # ─── LOGGING ─────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -62,7 +62,7 @@ if (BASE_DIR / "static").exists():
 #  BOOTSTRAP: banco + usuário admin inicial + rotas de gestão
 # ══════════════════════════════════════════════════════════════════════════
 from core.db import init_db, engine, Usuario                  # noqa: E402
-from core.auth import criar_usuario_inicial, usuario_admin    # noqa: E402
+from core.auth import create_initial_user, admin_user    # noqa: E402
 from app_gestao import router as gestao_router                # noqa: E402
 
 init_db()
@@ -71,7 +71,7 @@ with Session(engine) as _s:
     # LeIA: the first admin only exists when ADMIN_PASSWORD is set explicitly (no default password)
     if not os.getenv("ADMIN_PASSWORD"):
         log.error("ADMIN_PASSWORD não definida: nenhum usuário inicial foi criado")
-    elif criar_usuario_inicial(
+    elif create_initial_user(
         _s,
         email=os.getenv("ADMIN_EMAIL", "admin@local"),
         senha=os.getenv("ADMIN_PASSWORD"),
@@ -83,10 +83,10 @@ with Session(engine) as _s:
 app.include_router(gestao_router)
 
 # LeIA: JSON for the citizen app, receipt, public verification and timestamp (apps/web consumes these)
-from leia.api_cliente import router as cliente_router, get_attempt   # noqa: E402
+from leia.api_citizen import router as cliente_router, get_attempt   # noqa: E402
 from leia.registry import build_router as build_registry_router       # noqa: E402
 from leia.api_auth import router as auth_router                       # noqa: E402  accounts (Bearer)
-from leia.api_tarefas import router as tarefas_router                 # noqa: E402  documents of the signed-in user
+from leia.api_tasks import router as tarefas_router                 # noqa: E402  documents of the signed-in user
 
 app.include_router(cliente_router)
 app.include_router(build_registry_router(get_attempt, templates))
@@ -104,7 +104,7 @@ def health() -> dict:
 # ══════════════════════════════════════════════════════════════════════════
 #  JSON → TEXTO HUMANO
 # ══════════════════════════════════════════════════════════════════════════
-def _rotulo(k: str) -> str:
+def _label(k: str) -> str:
     s = str(k).replace("_", " ").strip().lower()
     return s[:1].upper() + s[1:] if s else s
 
@@ -139,7 +139,7 @@ def _fmt_valor(v, indent: int = 0) -> str:
             return "(vazio)"
         linhas = []
         for k, val in v.items():
-            rot = _rotulo(k)
+            rot = _label(k)
             txt = _fmt_valor(val, indent + 1)
             linhas.append(f"{pad}{rot}:{txt}" if txt.startswith("\n")
                           else f"{pad}{rot}: {txt}")
@@ -147,19 +147,19 @@ def _fmt_valor(v, indent: int = 0) -> str:
     return str(v)
 
 
-def formatar_conteudo_texto(content) -> str:
+def format_text_content(content) -> str:
     if isinstance(content, str):
         s = content.strip()
         if s.startswith(("{", "[")) and s.endswith(("}", "]")):
             try:
-                return formatar_conteudo_texto(json.loads(s))
+                return format_text_content(json.loads(s))
             except Exception:
                 pass
         return content
     if isinstance(content, dict):
         partes = []
         for k, v in content.items():
-            rot = _rotulo(k)
+            rot = _label(k)
             txt = _fmt_valor(v, 0)
             partes.append(f"▸ {rot}:{txt}" if txt.startswith("\n")
                           else f"▸ {rot}: {txt}")
@@ -168,7 +168,7 @@ def formatar_conteudo_texto(content) -> str:
         blocos = []
         for i, item in enumerate(content, 1):
             blocos.append(f"── Item {i} ──")
-            blocos.append(formatar_conteudo_texto(item))
+            blocos.append(format_text_content(item))
             blocos.append("")
         return "\n".join(blocos).rstrip()
     return str(content)
@@ -181,7 +181,7 @@ def estimar_tokens(t) -> int:
     return len(str(t)) // 4
 
 
-def _ler(nome: str, default: str = "") -> str:
+def _read_file(nome: str, default: str = "") -> str:
     try:
         return (BASE_DIR / nome).read_text(encoding="utf-8")
     except Exception as e:
@@ -189,15 +189,15 @@ def _ler(nome: str, default: str = "") -> str:
         return default
 
 
-def carregar_protocolo() -> str:
-    return _ler(ARQUIVO_CONFIG, "[]")
+def load_protocol() -> str:
+    return _read_file(ARQUIVO_CONFIG, "[]")
 
 
-def carregar_help() -> str:
-    return _ler(ARQUIVO_HELP, "# Help\n\nCrie `help.md` na raiz.")
+def load_help() -> str:
+    return _read_file(ARQUIVO_HELP, "# Help\n\nCrie `help.md` na raiz.")
 
 
-def salvar_protocolo(conteudo: str) -> str:
+def save_protocol(conteudo: str) -> str:
     try:
         agentes = json.loads(conteudo)
         (BASE_DIR / ARQUIVO_CONFIG).write_text(conteudo, encoding="utf-8")
@@ -208,7 +208,7 @@ def salvar_protocolo(conteudo: str) -> str:
         return f"❌ Erro JSON: {e}"
 
 
-def carregar_contexto_persistente() -> list:
+def load_persistent_context() -> list:
     try:
         return json.loads(CONTEXTO_PATH.read_text(encoding="utf-8"))
     except Exception:
@@ -216,7 +216,7 @@ def carregar_contexto_persistente() -> list:
         return []
 
 
-def salvar_contexto_persistente(ctx: list) -> None:
+def save_persistent_context(ctx: list) -> None:
     try:
         CONTEXTO_PATH.write_text(
             json.dumps(ctx, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -224,7 +224,7 @@ def salvar_contexto_persistente(ctx: list) -> None:
         log.error("❌ contexto save | %s", e)
 
 
-def limpar_contexto_persistente() -> str:
+def clear_persistent_context() -> str:
     try:
         CONTEXTO_PATH.write_text("[]", encoding="utf-8")
         log.info("🗑️  contexto limpo")
@@ -271,7 +271,7 @@ def limitar_timeline(timeline, max_chars: int = 12000, max_msgs: int = 12):
     return sel, acum, estimar_tokens(acum)
 
 
-def ler_anexo_bytes(nome: str, conteudo: bytes) -> str:
+def read_attachment_bytes(nome: str, conteudo: bytes) -> str:
     try:
         texto = conteudo.decode("utf-8", errors="replace")
         log.info("📎 anexo | %s | %d chars", nome, len(texto))
@@ -283,7 +283,7 @@ def ler_anexo_bytes(nome: str, conteudo: bytes) -> str:
 
 # ══════════════════════════════════════════════════════════════════════════
 #  DEBUG — payload real enviado/recebido do LLM no Chat Bot, gravado em
-#  workspace/{hash}/chat_llm_debug.jsonl (mesma pasta do T6_FUSAO_MEMORIA.json
+#  workspace/{hash}/chat_llm_debug.jsonl (mesma folder do T6_FUSAO_MEMORIA.json
 #  daquela sessão de destilação). Existe para depurar por que o chat às vezes
 #  não usa o processo destilado para responder: com isso dá pra conferir,
 #  linha a linha, exatamente o que foi montado e mandado pro modelo (incluindo
@@ -299,7 +299,7 @@ def _debug_log_llm(hash_sessao: str | None, tipo: str, **dados) -> None:
             "tipo": tipo,
             **dados,
         }
-        p = _workspace_pasta(hash_sessao) / "chat_llm_debug.jsonl"
+        p = _workspace_folder(hash_sessao) / "chat_llm_debug.jsonl"
         with p.open("a", encoding="utf-8") as f:
             f.write(json.dumps(linha, ensure_ascii=False, default=str) + "\n")
         log.info("🐞 debug LLM salvo | hash=%s… | tipo=%s | %s",
@@ -308,12 +308,12 @@ def _debug_log_llm(hash_sessao: str | None, tipo: str, **dados) -> None:
         log.error("❌ debug LLM falhou | hash=%s | %s", hash_sessao, e)
 
 
-def verificar_stop(texto) -> bool:
+def has_stop_keyword(texto) -> bool:
     return bool(texto and re.search(r"\b" + re.escape(STOP_KEYWORD) + r"\b",
                                     str(texto), re.I))
 
 
-def _extrair_json(texto: str) -> str:
+def _extract_json(texto: str) -> str:
     t = (texto or "").strip()
     if t.startswith("```"):
         t = re.sub(r"^```(?:json|jshon|javascript)?\s*", "", t, flags=re.I)
@@ -325,7 +325,7 @@ def _extrair_json(texto: str) -> str:
     return t
 
 
-def _montar_messages(timeline, config) -> list:
+def _build_messages(timeline, config) -> list:
     msgs = [{
         "role": "system",
         "content": f"AGENTE: {config['nome']}\nMISSÃO: {config['missao']}",
@@ -352,7 +352,7 @@ def _montar_messages(timeline, config) -> list:
 # ══════════════════════════════════════════════════════════════════════════
 #  ENGINE — `emitir_stream=False` para intermediários
 # ══════════════════════════════════════════════════════════════════════════
-async def _executar_agente(timeline, config, emitir_stream: bool = False,
+async def _run_agent(timeline, config, emitir_stream: bool = False,
                             debug_hash: str | None = None):
     nome   = config.get("nome", "?")
     modelo = config.get("modelo") or MODELO_PADRAO
@@ -362,7 +362,7 @@ async def _executar_agente(timeline, config, emitir_stream: bool = False,
     log.info("🔥 AGENTE | %s | stream=%s", nome, emitir_stream)
     log.info("   modelo=%s · tipo_saida=%s", modelo, tipo)
 
-    messages = _montar_messages(timeline, config)
+    messages = _build_messages(timeline, config)
     total_chars = sum(len(m.get("content", "")) for m in messages)
     log.info("   → payload | %d msgs · ~%d chars", len(messages), total_chars)
     _debug_log_llm(debug_hash, "chat_llm_payload_enviado",
@@ -405,7 +405,7 @@ async def _executar_agente(timeline, config, emitir_stream: bool = False,
         content = out_raw
         if tipo in ("json", "jshon"):
             try:
-                content = json.loads(_extrair_json(out_raw))
+                content = json.loads(_extract_json(out_raw))
                 log.info("   ✅ JSON | %d chaves", len(content))
             except Exception:
                 log.info("   ℹ️  fallback: texto")
@@ -419,7 +419,7 @@ async def _executar_agente(timeline, config, emitir_stream: bool = False,
             "role": "assistant",
             "agent": nome,
             "content": content,
-            "text": formatar_conteudo_texto(content),
+            "text": format_text_content(content),
             "is_json": isinstance(content, (dict, list)),
             "groq_payload_real": messages,
             "tempo": tempo,
@@ -438,7 +438,7 @@ def _sse(evt: dict) -> str:
     return f"data: {json.dumps(evt, ensure_ascii=False)}\n\n"
 
 
-async def _stream_orquestrador(texto, anexos, protocolo_json, objetivo, isolar_pergunta=True,
+async def _stream_orchestrator(texto, anexos, protocolo_json, objetivo, isolar_pergunta=True,
                                 debug_hash: str | None = None):
     log.info("═" * 62)
     log.info("🎬 PIPELINE | %d chars · %d anexos", len(texto), len(anexos))
@@ -457,7 +457,7 @@ async def _stream_orquestrador(texto, anexos, protocolo_json, objetivo, isolar_p
     log.info("   protocolo | %d agentes", total)
     yield _sse({"type": "user", "content": texto})
 
-    ctx = carregar_contexto_persistente()
+    ctx = load_persistent_context()
     ctx.append({
         "role": "user",
         "content": f"[USUARIO] {texto}",
@@ -468,7 +468,7 @@ async def _stream_orquestrador(texto, anexos, protocolo_json, objetivo, isolar_p
     if objetivo and objetivo.strip():
         ctx_sessao += f"[OBJETIVO DO MODELO]\n{objetivo.strip()}\n[FIM OBJETIVO]\n\n"
     for nome, blob in anexos:
-        ctx_sessao += ler_anexo_bytes(nome, blob)
+        ctx_sessao += read_attachment_bytes(nome, blob)
 
     # Cada pergunta é respondida de forma isolada: só a pergunta atual + o
     # anexo (resumo_estruturado da sessão), sem o histórico de turnos
@@ -497,7 +497,7 @@ async def _stream_orquestrador(texto, anexos, protocolo_json, objetivo, isolar_p
 
         await asyncio.sleep(DELAY_ENTRE_AGENTES)
 
-        async for kind, payload in _executar_agente(
+        async for kind, payload in _run_agent(
             timeline, cfg, emitir_stream=eh_ultimo, debug_hash=debug_hash
         ):
             if kind == "meta":
@@ -526,7 +526,7 @@ async def _stream_orquestrador(texto, anexos, protocolo_json, objetivo, isolar_p
                 })
                 resp = res["content"]
 
-                if verificar_stop(resp):
+                if has_stop_keyword(resp):
                     log.warning("🛑 STOP em %s", nome)
                     final = resp
                     if isinstance(resp, dict) and "proximo_passo" in resp:
@@ -546,7 +546,7 @@ async def _stream_orquestrador(texto, anexos, protocolo_json, objetivo, isolar_p
                     "role": "assistant", "agent": nome, "content": persist,
                     "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 })
-                salvar_contexto_persistente(ctx)
+                save_persistent_context(ctx)
                 timeline.append({"role": "assistant", "content": resp})
 
             elif kind == "error":
@@ -564,28 +564,28 @@ async def _stream_orquestrador(texto, anexos, protocolo_json, objetivo, isolar_p
 #  ROTAS — API
 # ══════════════════════════════════════════════════════════════════════════
 @app.get("/api/protocolo")
-async def api_get_protocolo(u: Usuario = Depends(usuario_admin)):
-    return {"conteudo": carregar_protocolo()}
+async def api_get_protocolo(u: Usuario = Depends(admin_user)):
+    return {"conteudo": load_protocol()}
 
 
 @app.post("/api/protocolo")
-async def api_post_protocolo(payload: dict, u: Usuario = Depends(usuario_admin)):
-    return {"message": salvar_protocolo(payload.get("conteudo", "[]"))}
+async def api_post_protocolo(payload: dict, u: Usuario = Depends(admin_user)):
+    return {"message": save_protocol(payload.get("conteudo", "[]"))}
 
 
 @app.get("/api/help")
-async def api_get_help(u: Usuario = Depends(usuario_admin)):
-    return {"conteudo": carregar_help()}
+async def api_get_help(u: Usuario = Depends(admin_user)):
+    return {"conteudo": load_help()}
 
 
 @app.get("/api/contexto")
-async def api_get_contexto(u: Usuario = Depends(usuario_admin)):
-    return {"contexto": carregar_contexto_persistente()}
+async def api_get_contexto(u: Usuario = Depends(admin_user)):
+    return {"contexto": load_persistent_context()}
 
 
 @app.post("/api/contexto/limpar")
-async def api_post_limpar_contexto(u: Usuario = Depends(usuario_admin)):
-    return {"message": limpar_contexto_persistente()}
+async def api_post_limpar_contexto(u: Usuario = Depends(admin_user)):
+    return {"message": clear_persistent_context()}
 
 
 @app.post("/api/chat")
@@ -595,7 +595,7 @@ async def api_chat(
     objetivo: str = Form(""),
     protocolo_json: str = Form(""),
     anexos: List[UploadFile] = File(default=[]),
-    u: Usuario = Depends(usuario_admin),
+    u: Usuario = Depends(admin_user),
 ):
     # O front-end não edita mais o protocolo por requisição (o antigo painel
     # de edição foi removido do template). Se não vier nada usável aqui,
@@ -605,17 +605,17 @@ async def api_chat(
     try:
         _p = json.loads(protocolo_json or "null")
         if not isinstance(_p, list) or not _p:
-            protocolo_efetivo = carregar_protocolo()
+            protocolo_efetivo = load_protocol()
     except Exception:
-        protocolo_efetivo = carregar_protocolo()
+        protocolo_efetivo = load_protocol()
 
     # Anexo compartilhado (server-side, autoritativo): o processo
     # estruturado (T6_FUSAO_MEMORIA) já destilado nesta sessão de login.
     # Acompanha TODA pergunta do usuário. Nunca inclui PDF, texto bruto,
     # nem nada do fluxo de PDF assinado (memória inteiramente separada).
-    from core import sessao as sess
+    from core import session as sess
     token = u.session_token
-    anexo = sess.anexo_compartilhado(token) if token else None
+    anexo = sess.shared_attachment(token) if token else None
     hash_sessao = anexo.get("hash") if anexo else None
     objetivo_efetivo = objetivo
     if anexo:
@@ -643,7 +643,7 @@ async def api_chat(
     for up in anexos:
         if up and up.filename:
             anexos_bytes.append((up.filename, await up.read()))
-    gen = _stream_orquestrador(texto, anexos_bytes, protocolo_efetivo, objetivo_efetivo,
+    gen = _stream_orchestrator(texto, anexos_bytes, protocolo_efetivo, objetivo_efetivo,
                                 isolar_pergunta=True, debug_hash=hash_sessao)
     return StreamingResponse(
         gen,

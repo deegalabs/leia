@@ -31,8 +31,8 @@ from typing import Any
 from sqlmodel import Session
 
 from core.db import engine, Tarefa, LogEvento
-from core.pdf_extract import extrair_texto
-from core.workspace import pasta, registrar_evento
+from core.pdf_extract import extract_text
+from core.workspace import folder, record_event
 
 log = logging.getLogger("pipeline_pdf")
 
@@ -45,7 +45,7 @@ PIPELINE_MAX_TOKENS = int(os.getenv("PIPELINE_MAX_TOKENS", "8000"))
 # ══════════════════════════════════════════════════════════════════════════
 #  EXECUÇÃO DE UMA TASK VIA GROQ
 # ══════════════════════════════════════════════════════════════════════════
-def _montar_prompt(task: dict, contexto_extra: str) -> list[dict]:
+def _build_prompt(task: dict, contexto_extra: str) -> list[dict]:
     return [
         {
             "role": "system",
@@ -65,7 +65,7 @@ def _montar_prompt(task: dict, contexto_extra: str) -> list[dict]:
     ]
 
 
-def _extrair_json_robusto(texto: str) -> str:
+def _extract_json_lenient(texto: str) -> str:
     """Recorta {...} ou [...] mesmo com prosa em volta e cercas ```json."""
     import re
     t = (texto or "").strip()
@@ -79,13 +79,13 @@ def _extrair_json_robusto(texto: str) -> str:
     return t
 
 
-async def _executar_task_groq(
+async def _run_task(
     task: dict,
     contexto_extra: str,
     groq_client,
 ) -> dict:
     """Executa uma task e retorna dict com raw, parsed, ok, tempo, erro."""
-    messages = _montar_prompt(task, contexto_extra)
+    messages = _build_prompt(task, contexto_extra)
     modelo = task.get("modelo") or MODELO_PADRAO
     tipo   = (task.get("tipo_saida") or "json").lower()
 
@@ -120,7 +120,7 @@ async def _executar_task_groq(
         parsed = out_raw
         if tipo in ("json", "jshon"):
             try:
-                parsed = json.loads(_extrair_json_robusto(out_raw))
+                parsed = json.loads(_extract_json_lenient(out_raw))
             except Exception as e:
                 log.warning("⚠️  [%s] JSON inválido | %s", task["id"], e)
 
@@ -137,7 +137,7 @@ async def _executar_task_groq(
 # ══════════════════════════════════════════════════════════════════════════
 #  CONTEXTO CUMULATIVO
 # ══════════════════════════════════════════════════════════════════════════
-def _contexto_para_task(
+def _context_for_task(
     modo: str,
     texto_pdf: str,
     outputs_anteriores: dict[str, Any],
@@ -161,7 +161,7 @@ def _contexto_para_task(
 # ══════════════════════════════════════════════════════════════════════════
 #  HELPERS DE PERSISTÊNCIA
 # ══════════════════════════════════════════════════════════════════════════
-def _atualizar_status(tarefa_id: int, status: str) -> None:
+def _update_status(tarefa_id: int, status: str) -> None:
     with Session(engine) as s:
         t = s.get(Tarefa, tarefa_id)
         if not t:
@@ -174,7 +174,7 @@ def _atualizar_status(tarefa_id: int, status: str) -> None:
         s.commit()
 
 
-def _evento(tarefa_id: int, tipo: str, payload: dict | None = None) -> None:
+def _event(tarefa_id: int, tipo: str, payload: dict | None = None) -> None:
     with Session(engine) as s:
         s.add(LogEvento(
             tarefa_id=tarefa_id,
@@ -201,8 +201,8 @@ def _embaralhar_alternativas(doc: Any, hash_: str) -> Any:
     return doc
 
 
-def _salvar(hash_: str, nome: str, conteudo: Any) -> Path:
-    p = pasta(hash_) / nome
+def _save(hash_: str, nome: str, conteudo: Any) -> Path:
+    p = folder(hash_) / nome
     if isinstance(conteudo, (dict, list)):
         p.write_text(
             json.dumps(conteudo, ensure_ascii=False, indent=2),
@@ -216,7 +216,7 @@ def _salvar(hash_: str, nome: str, conteudo: Any) -> Path:
 # ══════════════════════════════════════════════════════════════════════════
 #  PIPELINE PRINCIPAL
 # ══════════════════════════════════════════════════════════════════════════
-async def executar_pipeline_pdf(
+async def run_pdf_pipeline(
     tarefa_id: int,
     groq_client,
     variacao: str = "",
@@ -245,22 +245,22 @@ async def executar_pipeline_pdf(
         hash_ = t.hash
         pdf_path = Path(t.workspace_path) / "original.pdf"
 
-    _atualizar_status(tarefa_id, "processando")
-    registrar_evento(hash_, "pipeline_start", tarefa_id=tarefa_id)
+    _update_status(tarefa_id, "processando")
+    record_event(hash_, "pipeline_start", tarefa_id=tarefa_id)
 
     # ── 2. Extrai texto do PDF
     try:
-        texto_pdf = extrair_texto(pdf_path)
+        texto_pdf = extract_text(pdf_path)
     except Exception as e:
         log.error("💥 Extração falhou | %s", e)
-        _atualizar_status(tarefa_id, "falhou")
-        _evento(tarefa_id, "erro_extracao", {"erro": str(e)})
-        registrar_evento(hash_, "erro_extracao", erro=str(e))
+        _update_status(tarefa_id, "falhou")
+        _event(tarefa_id, "erro_extracao", {"erro": str(e)})
+        record_event(hash_, "erro_extracao", erro=str(e))
         return
 
-    _salvar(hash_, "texto_extraido.txt", texto_pdf)
-    _evento(tarefa_id, "texto_extraido", {"chars": len(texto_pdf)})
-    registrar_evento(hash_, "texto_extraido", chars=len(texto_pdf))
+    _save(hash_, "texto_extraido.txt", texto_pdf)
+    _event(tarefa_id, "texto_extraido", {"chars": len(texto_pdf)})
+    record_event(hash_, "texto_extraido", chars=len(texto_pdf))
     log.info("📄 texto extraído | %d chars", len(texto_pdf))
 
     # ── 3. Carrega protocolo
@@ -268,8 +268,8 @@ async def executar_pipeline_pdf(
         protocolo = json.loads(PROTOCOLO_PDF.read_text(encoding="utf-8"))
     except Exception as e:
         log.error("💥 protocolo_pdf.json | %s", e)
-        _atualizar_status(tarefa_id, "falhou")
-        _evento(tarefa_id, "erro_protocolo", {"erro": str(e)})
+        _update_status(tarefa_id, "falhou")
+        _event(tarefa_id, "erro_protocolo", {"erro": str(e)})
         return
 
     tasks = protocolo["tasks"]
@@ -292,41 +292,41 @@ async def executar_pipeline_pdf(
         except ValueError:
             idx = 0
 
-        _evento(tarefa_id, "task_start", {
+        _event(tarefa_id, "task_start", {
             "id": task["id"], "nome": task.get("nome"),
             "idx": idx, "total": total,
         })
-        registrar_evento(hash_, "task_start",
+        record_event(hash_, "task_start",
                          id=task["id"], idx=idx, total=total)
 
         # Contexto
         modo = task.get("contexto_adicional", "texto_bruto")
-        ctx = _contexto_para_task(modo, texto_pdf, outputs_anteriores)
+        ctx = _context_for_task(modo, texto_pdf, outputs_anteriores)
         if variacao:
             ctx = f"<variacao>{variacao}</variacao>\n\n{ctx}"
 
         # Executa
-        res = await _executar_task_groq(task, ctx, groq_client)
+        res = await _run_task(task, ctx, groq_client)
 
         if not res["ok"]:
-            _evento(tarefa_id, "task_error", {
+            _event(tarefa_id, "task_error", {
                 "id": task["id"], "erro": res.get("erro"),
             })
-            registrar_evento(hash_, "task_error",
+            record_event(hash_, "task_error",
                              id=task["id"], erro=res.get("erro"))
-            _atualizar_status(tarefa_id, "falhou")
+            _update_status(tarefa_id, "falhou")
             return
 
         # Guarda output
         outputs_anteriores[task["id"]] = res["parsed"]
 
         # Salva arquivo da task
-        _salvar(hash_, f"{task['id']}.json", res["parsed"])
+        _save(hash_, f"{task['id']}.json", res["parsed"])
 
-        _evento(tarefa_id, "task_done", {
+        _event(tarefa_id, "task_done", {
             "id": task["id"], "tempo": round(res["tempo"], 2),
         })
-        registrar_evento(hash_, "task_done",
+        record_event(hash_, "task_done",
                          id=task["id"], tempo=round(res["tempo"], 2))
 
         # Próximo
@@ -335,11 +335,11 @@ async def executar_pipeline_pdf(
 
     # ── 5. Consolida artefatos finais
     if "T6_FUSAO_MEMORIA" in outputs_anteriores:
-        _salvar(hash_, "memoria_persistente.json",
+        _save(hash_, "memoria_persistente.json",
                 outputs_anteriores["T6_FUSAO_MEMORIA"])
 
     if "T12_PROCESSAMENTO" in outputs_anteriores:
-        _salvar(hash_, "texto_tagueado.json",
+        _save(hash_, "texto_tagueado.json",
                 outputs_anteriores["T12_PROCESSAMENTO"])
 
     if "T13_HUMANIZACAO" in outputs_anteriores:
@@ -348,16 +348,16 @@ async def executar_pipeline_pdf(
             val = (val.get("resumo_humanizado")
                    or val.get("texto")
                    or json.dumps(val, ensure_ascii=False))
-        _salvar(hash_, "resumo_humanizado.md", val)
+        _save(hash_, "resumo_humanizado.md", val)
 
     if "T14_QUESTOES" in outputs_anteriores:
-        _salvar(hash_, "questoes.json", _embaralhar_alternativas(outputs_anteriores["T14_QUESTOES"], hash_))   # LeIA
+        _save(hash_, "questoes.json", _embaralhar_alternativas(outputs_anteriores["T14_QUESTOES"], hash_))   # LeIA
 
     # ── 6. Finaliza
     tempo_total = round(time.time() - t_pipe, 2)
-    _atualizar_status(tarefa_id, "pronta")
-    _evento(tarefa_id, "pipeline_done", {"elapsed": tempo_total})
-    registrar_evento(hash_, "pipeline_done", elapsed=tempo_total)
+    _update_status(tarefa_id, "pronta")
+    _event(tarefa_id, "pipeline_done", {"elapsed": tempo_total})
+    record_event(hash_, "pipeline_done", elapsed=tempo_total)
 
     # Memória de sessão — SÓ o T6_FUSAO_MEMORIA (processo estruturado),
     # nunca o PDF, nunca o texto extraído, nunca o resumo humanizado.
@@ -365,9 +365,9 @@ async def executar_pipeline_pdf(
         with Session(engine) as s:
             t = s.get(Tarefa, tarefa_id)
             titulo = t.titulo if t else hash_
-        from core import sessao as sess
+        from core import session as sess
         try:
-            sess.registrar_destilacao(
+            sess.record_distillation(
                 session_token, "chat",
                 hash_=hash_, titulo=titulo,
                 resumo_estruturado=outputs_anteriores.get("T6_FUSAO_MEMORIA"),
