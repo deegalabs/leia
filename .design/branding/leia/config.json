@@ -1,0 +1,33 @@
+{
+  "version": "0.5.0",
+  "project_type": "brand",
+  "brand_name": "LeIA",
+  "brand_mode": "evolve",
+  "created": "2026-09-15",
+  "maintainer": "Deega Labs",
+  "system_config": {
+    "system_strategy": "existing",
+    "tokens_source": "apps/web/app/tokens.css",
+    "framework": "Next.js 16 + Tailwind 4"
+  },
+  "evolution_scope": {
+    "status": "confirmed",
+    "confirmed_at": "2026-09-15",
+    "counts": {
+      "preserve": 14,
+      "evolve": 14,
+      "replace": 17,
+      "total": 45
+    },
+    "source": "audit/evolution-map.md",
+    "adjustments_on_confirmation": [
+      "Elemento 10 (wordmark): EVOLUIR passou a PRESERVAR. O destaque em IA sustenta a leitura do nome.",
+      "Largura da coluna de leitura: coluna estreita para a jornada da cidadã; 760 px ficam para documentação."
+    ],
+    "sequence": [
+      "Bloqueado por prioridade: a fila crítica de segurança vem antes de qualquer fase de design.",
+      "Item da auditoria a executar junto com a segurança: remover os templates legados do serviço.",
+      "Depois: sistema de largura e duas cascas, comprovante, tipografia."
+    ]
+  }
+}

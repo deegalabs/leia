@@ -11,7 +11,7 @@ from typing import Optional
 
 from fastapi import (APIRouter, BackgroundTasks, Depends, Form, HTTPException,
                      Request, UploadFile, File, status)
-from fastapi.responses import (HTMLResponse, RedirectResponse, FileResponse,
+from fastapi.responses import (RedirectResponse, FileResponse,
                                StreamingResponse)
 from fastapi.templating import Jinja2Templates
 from sqlmodel import Session, select
@@ -132,82 +132,6 @@ async def create_pdf_task(
 
     log.info("📁 Tarefa criada + pipeline agendada | id=%s hash=%s origem=%s", t.id, h, origem)
     return t
-
-
-# ══════════════════════════════════════════════════════════════════════════
-#  LOGIN / LOGOUT
-# ══════════════════════════════════════════════════════════════════════════
-@router.get("/login", response_class=HTMLResponse)
-async def login_form(request: Request, erro: Optional[str] = None):
-    return templates.TemplateResponse(
-        request,
-        "login.html",
-        {"erro": erro},
-    )
-
-
-@router.post("/login", dependencies=[Depends(rate_limit)])   # LeIA: per-IP limit
-async def login_post(
-    email: str = Form(...),
-    senha: str = Form(...),
-    session: Session = Depends(get_session),
-):
-    u = autenticar(session, email, senha)
-    if not u:
-        return RedirectResponse("/login?erro=credenciais", status_code=303)
-    resp = RedirectResponse("/dashboard", status_code=303)
-    resp.set_cookie("sessao", u.session_token, httponly=True, samesite="lax",
-                    secure=os.getenv("SESSION_COOKIE_SECURE", "false").lower() in ("1", "true", "yes"))
-    return resp
-
-
-@router.post("/logout")
-async def logout(
-    request: Request,
-    session: Session = Depends(get_session),
-):
-    cookie = request.cookies.get("sessao")
-    if cookie:
-        u = session.exec(select(Usuario).where(Usuario.session_token == cookie)).first()
-        if u:
-            encerrar_sessao(session, u)
-        # memória de sessão (jurisprudência/resumo/chat) não sobrevive ao login
-        sess.encerrar(cookie)
-    resp = RedirectResponse("/login", status_code=303)
-    resp.delete_cookie("sessao")
-    return resp
-
-
-# ══════════════════════════════════════════════════════════════════════════
-#  DASHBOARD
-# ══════════════════════════════════════════════════════════════════════════
-@router.get("/dashboard", response_class=HTMLResponse)
-async def dashboard(
-    request: Request,
-    u: Usuario = Depends(usuario_atual),
-    session: Session = Depends(get_session),
-):
-    q = select(Tarefa).order_by(Tarefa.criada_em.desc())   # type: ignore
-    if u.papel == "advogado":
-        q = q.where(Tarefa.advogado_id == u.id)
-    elif u.papel != "fornecedor":  # LeIA: a citizen sees what they sent or what is linked to them
-        q = q.where((Tarefa.advogado_id == u.id) | (Tarefa.cidadao_id == u.id))
-
-    tarefas = session.exec(q).all()
-
-    contagem = {"total": len(tarefas)}
-    for t in tarefas:
-        contagem[t.status] = contagem.get(t.status, 0) + 1
-
-    return templates.TemplateResponse(
-        request,
-        "dashboard.html",
-        {
-            "usuario": u,
-            "tarefas": tarefas,
-            "contagem": contagem,
-        },
-    )
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -608,101 +532,6 @@ async def api_sessao_memoria_limpar(
     return {"message": "✅ Memória de sessão limpa" + (f" (aba: {aba})" if aba else "")}
 
 
-@router.get("/tarefas/nova", response_class=HTMLResponse)
-async def nova_form(request: Request, u: Usuario = Depends(usuario_atual)):
-    return templates.TemplateResponse(
-        request,
-        "tarefa_nova.html",
-        {"usuario": u},
-    )
-
-
-@router.post("/tarefas/nova")
-async def nova_post(
-    bg: BackgroundTasks,
-    titulo: str = Form(...),
-    pdf: UploadFile = File(...),
-    u: Usuario = Depends(usuario_atual),
-    session: Session = Depends(get_session),
-):
-    # LeIA: creation steps live in create_pdf_task (shared with POST /api/tarefas)
-    t = await create_pdf_task(session, u, titulo, pdf, bg,
-                              origem="cidadao" if u.papel == "cidadao" else "advogado",
-                              cidadao_id=u.id if u.papel == "cidadao" else None)
-    return RedirectResponse(f"/tarefas/{t.id}", status_code=303)
-
-
-# ══════════════════════════════════════════════════════════════════════════
-#  DETALHE DA TAREFA (painel do advogado)
-# ══════════════════════════════════════════════════════════════════════════
-@router.get("/tarefas/{tarefa_id}", response_class=HTMLResponse)
-async def detalhe(
-    tarefa_id: int,
-    request: Request,
-    u: Usuario = Depends(usuario_atual),
-    session: Session = Depends(get_session),
-):
-    t = session.get(Tarefa, tarefa_id)
-    if not t:
-        raise HTTPException(404, "Tarefa não encontrada")
-    if not _permite_ver(u, t):
-        raise HTTPException(403, "Sem acesso")
-
-    eventos = ws.ler_eventos(t.hash)
-
-    resumo_md      = _ler_artefato(t.hash, "resumo_humanizado.md")
-    texto_extraido = _ler_artefato(t.hash, "texto_extraido.txt")
-    questoes       = _ler_json(t.hash, "questoes.json")
-    memoria        = _ler_json(t.hash, "memoria_persistente.json")
-    texto_tagueado = _ler_json(t.hash, "texto_tagueado.json")
-
-    # Tarefas criadas via /api/resumo-estruturado/submit (API externa) não
-    # passam pelo pipeline local — o resultado fica em resumo_estruturado.json
-    # / resumo_estruturado_texto.txt, não em memoria_persistente.json.
-    meta = _ler_json(t.hash, "meta.json") or {}
-    resumo_estruturado_externo = None
-    resumo_estruturado_texto = None
-    if meta.get("origem") == "resumo_estruturado_api_externa":
-        resumo_estruturado_externo = _ler_json(t.hash, "resumo_estruturado.json")
-        resumo_estruturado_texto = _ler_artefato(t.hash, "resumo_estruturado_texto.txt")
-
-    link_cliente = (os.getenv("CLIENT_APP_URL") or str(request.base_url)).rstrip("/") + f"/t/{t.hash}"
-
-    lista_tent = tn.listar(t.id)
-    tentativas_erros = {}
-    qs = (questoes or {}).get("questoes", []) if isinstance(questoes, dict) else []
-    for tt in lista_tent:
-        if not tt.aprovado:
-            tentativas_erros[tt.id] = tn.analisar_erros(tt, qs)
-
-    # LeIA: doubts the citizen sent to the lawyer
-    duvidas = session.exec(select(Duvida).where(Duvida.tarefa_id == t.id)
-                           .order_by(Duvida.criada_em.desc())).all()   # type: ignore
-
-    return templates.TemplateResponse(
-        request,
-        "tarefa_detalhe.html",
-        {
-            "usuario": u,
-            "tarefa": t,
-            "duvidas": duvidas,
-            "eventos": list(reversed(eventos)),
-            "link_cliente": link_cliente,
-            "resumo_md": resumo_md,
-            "texto_extraido": texto_extraido,
-            "questoes": questoes,
-            "memoria": memoria,
-            "texto_tagueado": texto_tagueado,
-            "resumo_estruturado_externo": resumo_estruturado_externo,
-            "resumo_estruturado_texto": resumo_estruturado_texto,
-            "num_questoes": len(qs),
-            "historico": lista_tent,
-            "melhor_tent": tn.melhor(t.id),
-            "tentativas_erros": tentativas_erros,
-        },
-    )
-
-
 # ══════════════════════════════════════════════════════════════════════════
 #  REPROCESSAR (reroda pipeline do zero, mesma rodada)
 # ══════════════════════════════════════════════════════════════════════════
@@ -859,54 +688,6 @@ async def api_status(
 
 
 # ══════════════════════════════════════════════════════════════════════════
-#  LINK PÚBLICO DO CLIENTE — /t/{hash}
-# ══════════════════════════════════════════════════════════════════════════
-@router.get("/t/{hash_}", response_class=HTMLResponse)
-async def cliente_view(
-    hash_: str,
-    request: Request,
-    session: Session = Depends(get_session),
-):
-    t = session.exec(select(Tarefa).where(Tarefa.hash == hash_)).first()
-    if not t:
-        raise HTTPException(404, "Link inválido ou expirado")
-
-    if t.status not in ("pronta", "enviada", "assinada"):
-        return templates.TemplateResponse(
-            request,
-            "cliente_aguarde.html",
-            {"tarefa": t},
-        )
-
-    resumo_md = _ler_artefato(t.hash, "resumo_humanizado.md") or "*(resumo indisponível)*"
-    questoes  = _ler_json(t.hash, "questoes.json")
-    memoria   = _ler_json(t.hash, "memoria_persistente.json")
-
-    lista_tent = tn.listar(t.id)
-    ultima = lista_tent[-1] if lista_tent else None
-    qs = (questoes or {}).get("questoes", []) if isinstance(questoes, dict) else []
-    erros_ultima = tn.analisar_erros(ultima, qs) if ultima else []
-
-    ws.registrar_evento(t.hash, "cliente_abriu",
-                        ip=request.client.host if request.client else "?",
-                        ua=request.headers.get("user-agent", "")[:200])
-
-    return templates.TemplateResponse(
-        request,
-        "cliente_view.html",
-        {
-            "tarefa": t,
-            "resumo_md": resumo_md,
-            "questoes": questoes,
-            "memoria": memoria,
-            "ultima_tentativa": ultima,
-            "erros_ultima": erros_ultima,
-            "historico": lista_tent,
-        },
-    )
-
-
-# ══════════════════════════════════════════════════════════════════════════
 #  API PÚBLICA DO CLIENTE — quiz
 # ══════════════════════════════════════════════════════════════════════════
 @router.post("/api/t/{hash_}/quiz", dependencies=[Depends(rate_limit)])   # LeIA: per-IP limit
@@ -1051,35 +832,6 @@ def _dados_assinatura(t: Tarefa, melhor: Tentativa) -> dict:
         "user_agent": melhor.user_agent,
         "hash_imutavel": melhor.hash_imutavel,
     }
-
-
-@router.get("/t/{hash_}/pdf-assinado")
-async def cliente_baixar_pdf_assinado(
-    hash_: str,
-    session: Session = Depends(get_session),
-):
-    t = session.exec(select(Tarefa).where(Tarefa.hash == hash_)).first()
-    if not t:
-        raise HTTPException(404)
-
-    melhor = tn.melhor(t.id)
-    if not melhor or not melhor.aprovado:
-        raise HTTPException(403, "Nenhuma tentativa aprovada para esta tarefa")
-
-    pdf_orig = Path(t.workspace_path) / "original.pdf"
-    if not pdf_orig.exists():
-        raise HTTPException(404, "PDF original não encontrado")
-
-    dados = _dados_assinatura(t, melhor)
-    saida = Path(t.workspace_path) / "pdf_assinado.pdf"
-    gerar_pdf_assinado(pdf_orig, saida, dados)
-    ws.registrar_evento(t.hash, "pdf_assinado_baixado",
-                        tentativa=melhor.numero)
-    return FileResponse(
-        saida,
-        filename=f"{t.hash}_assinado.pdf",
-        media_type="application/pdf",
-    )
 
 
 @router.get("/tarefas/{tarefa_id}/pdf-assinado")

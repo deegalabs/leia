@@ -1,5 +1,5 @@
 # ╔══════════════════════════════════════════════════════════════════════════╗
-# ║   PIPELINE PDF v2 — Sequencial · ADUC-SDR · com variação p/ novas rodadas ║
+# ║   PIPELINE PDF v2 — Sequencial · LeIA · com variação p/ novas rodadas   ║
 # ╚══════════════════════════════════════════════════════════════════════════╝
 """
 Orquestrador da pipeline PDF → resumo humanizado + questões.

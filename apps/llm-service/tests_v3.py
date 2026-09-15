@@ -145,12 +145,9 @@ def test_bearer_and_cookie_rules(lawyer):
     fresh = TestClient(main.app)  # no cookies from other tests
     assert fresh.get("/api/tarefas").status_code == 401
     assert fresh.get("/api/tarefas", headers=bearer("nao-existe")).status_code == 401
-    r = fresh.get("/dashboard", follow_redirects=False)
-    assert r.status_code == 303 and r.headers["location"] == "/login"  # templates keep redirecting
-    r = fresh.get("/dashboard", headers=bearer("nao-existe"), follow_redirects=False)
+    r = fresh.get("/api/tarefas", headers=bearer("nao-existe"))
     assert r.status_code == 401 and r.headers["content-type"].startswith("application/json")
-    r = fresh.get("/dashboard", headers=bearer(lawyer["token"]))
-    assert r.status_code == 200  # Bearer also opens the panel
+    assert fresh.get("/api/tarefas", headers=bearer(lawyer["token"])).status_code == 200
     fresh.close()
 
 
@@ -227,14 +224,8 @@ def test_public_json_and_doubt_flow(lawyer, lawyer_task, citizen):
     lst = client.get("/api/tarefas", headers=bearer(lawyer["token"])).json()["tarefas"]
     assert [t for t in lst if t["id"] == lawyer_task["id"]][0]["duvidas_abertas"] == 1
 
-    # the doubt also shows in the internal panel (cookie session)
-    panel = TestClient(main.app)
-    panel.post("/login", data={"email": "advogada@teste.local", "senha": "senha-123"}, follow_redirects=False)
-    page = panel.get(f"/tarefas/{lawyer_task['id']}")
-    assert page.status_code == 200 and "Dúvidas da cliente" in page.text and "Quanto pago se perder?" in page.text
-    panel.close()
-    # one token per user: the cookie login above rotated it, so the app signs in again
-    lawyer["token"] = client.post("/api/auth/login", json={"email": "advogada@teste.local", "senha": "senha-123"}).json()["token"]
+    # o texto da dúvida chega ao advogado pela API de detalhe, que é o que o app consome
+    assert detail["duvidas"][0]["texto"] == "Quanto pago se perder?"
 
     # only the owner or the admin answers
     url = f"/api/tarefas/{lawyer_task['id']}/duvidas/{doubt['id']}/responder"
@@ -615,3 +606,46 @@ def test_parse_pos_and_value_text():
     assert value_text('{"tipo": "lei", "norma": "CPC", "artigo": null}') == "lei, CPC"
     assert value_text({"a": {"b": "X"}, "c": ["Y", "X"]}) == "X, Y" and value_text("plain") == "plain" and value_text(None) == ""
     assert value_text("{não é json}") == "{não é json}"
+
+
+# ── Remoção da casca legada do serviço ────────────────────────────────────────
+# A jornada da cidadã vive no app Next e o painel interno herdado não faz parte do
+# produto público. Estes testes falham enquanto as rotas HTML legadas existirem.
+
+LEGACY_HTML_ROUTES = ["/", "/login", "/dashboard", "/tarefas/nova"]
+
+
+def test_legacy_panel_routes_are_gone(lawyer):
+    fresh = TestClient(main.app)
+    for path in LEGACY_HTML_ROUTES:
+        anon = fresh.get(path, follow_redirects=False)
+        assert anon.status_code == 404, f"{path} anônimo devolveu {anon.status_code}"
+        auth = fresh.get(path, headers=bearer(lawyer["token"]), follow_redirects=False)
+        assert auth.status_code == 404, f"{path} autenticado devolveu {auth.status_code}"
+    fresh.close()
+
+
+def test_legacy_citizen_html_page_is_gone(lawyer_task):
+    fresh = TestClient(main.app)
+    r = fresh.get(f"/t/{lawyer_task['hash']}", follow_redirects=False)
+    assert r.status_code == 404, f"a página HTML da cidadã ainda responde: {r.status_code}"
+    assert "data-correta" not in r.text
+    fresh.close()
+
+
+def test_legacy_unauthenticated_pdf_route_is_gone(lawyer_task):
+    fresh = TestClient(main.app)
+    r = fresh.get(f"/t/{lawyer_task['hash']}/pdf-assinado", follow_redirects=False)
+    assert r.status_code == 404, f"o PDF sem credencial ainda responde: {r.status_code}"
+    fresh.close()
+
+
+def test_no_legacy_template_survives_in_the_repo():
+    import pathlib
+    legados = ["index.html", "dashboard.html", "login.html", "cliente_view.html",
+               "cliente_aguarde.html", "tarefa_detalhe.html", "tarefa_nova.html"]
+    base = pathlib.Path(__file__).parent / "templates"
+    presentes = [n for n in legados if (base / n).exists()]
+    assert not presentes, f"templates legados ainda no repositório: {presentes}"
+    dourado = [p.name for p in base.rglob("*.html") if "c9a84c" in p.read_text(encoding="utf-8", errors="ignore")]
+    assert not dourado, f"paleta do produto de origem ainda presente em: {dourado}"

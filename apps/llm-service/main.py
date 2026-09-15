@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import AsyncGenerator, List
 
 from fastapi import FastAPI, Request, UploadFile, File, Form, Depends
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -39,7 +39,7 @@ STOP_KEYWORD     = "STOP_PIPELINE:"
 MODELO_PADRAO    = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
 
 BASE_DIR = Path(__file__).resolve().parent
-log.info("🚀 ADUC-SDR v45 | Groq: %s",
+log.info("LeIA · serviço cognitivo | Groq: %s",
          "OK" if "gsk_" in groq_key else "⚠️ placeholder")
 
 # ─── APP ─────────────────────────────────────────────────────────────────
@@ -551,23 +551,6 @@ async def _stream_orquestrador(texto, anexos, protocolo_json, objetivo, isolar_p
     log.info("🏁 PIPELINE | %.2fs", time.time() - t_pipe)
     yield _sse({"type": "final", "status": "done",
                 "elapsed": round(time.time() - t_pipe, 2)})
-
-
-# ══════════════════════════════════════════════════════════════════════════
-#  ROTAS — CHAT (protegido por login)
-# ══════════════════════════════════════════════════════════════════════════
-@app.get("/", response_class=HTMLResponse)
-async def index(request: Request, u: Usuario = Depends(usuario_atual)):
-    """Chat do investigador AI. Exige login."""
-    return templates.TemplateResponse(
-        request,
-        "index.html",
-        {
-            "protocolo_init": carregar_protocolo(),
-            "help_init": carregar_help(),
-            "usuario": u,
-        },
-    )
 
 
 # ══════════════════════════════════════════════════════════════════════════
