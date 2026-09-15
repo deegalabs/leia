@@ -8,6 +8,10 @@ no fim, com as evidências em `evidence/` e o índice em [docs/DELIVERIES.md](do
 Entra aqui toda mudança que altera o que alguém percebe, no mesmo pull request que a faz. Quando o conjunto
 fecha um sentido, vira versão com tag anotada e release no GitHub.
 
+_Nada por enquanto._
+
+## v1.1.0 · 2026-09-15 · a sessão e o link deixam de ser credenciais soltas
+
 ### Segurança e privacidade
 - A sessão saiu do armazenamento do navegador e virou cookie inacessível a script. Para isso o navegador
   deixou de falar direto com o serviço: agora ele fala com a aplicação, e a aplicação fala com o serviço.
