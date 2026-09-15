@@ -64,7 +64,7 @@ de processo, endereço, valores identificáveis e datas exatas. O que precisa so
 | **Estrutura** | referência à decisão recorrida, razões, pedido de reforma |
 | **O que o motor extrai** | o que a decisão anterior decidiu, o que se quer mudar e por quê |
 | **Onde costuma falhar** | o documento fala o tempo todo de **outro** documento, e o motor precisa não confundir o que a decisão anterior disse, o que o precedente citado diz e o que a parte afirma agora |
-| **No corpus** | privado, um agravo em recurso especial de 14 páginas |
+| **No corpus** | privado, um agravo em recurso especial de 14 páginas, processado pelo pipeline |
 
 Medido nesse agravo, e os números valem mais que a impressão:
 
@@ -76,7 +76,22 @@ Medido nesse agravo, e os números valem mais que a impressão:
 | Espaço inserido dentro de palavra pelo extrator | frequente (`no s arts`, `o se u provimento`) | a busca exata falha, a aproximada acha com 0,98 |
 | Âncora literal sobre 60 frases do documento | nenhuma perdida | o desenho em três estágios era necessário, não enfeite |
 
-O quarto item é o que justifica a existência do estágio aproximado. O extrator devolve `o se u provimento`, o
+Depois de processar o documento pelo pipeline inteiro, mais quatro medidas:
+
+| O que medi | Resultado | Consequência |
+|---|---|---|
+| Etapas concluídas | 14 de 14 | a peça recursal atravessa o motor |
+| Itens extraídos | 29, sendo 18 de fundamentos e **0 de fatos** | numa peça recursal os fatos vivem dentro da decisão citada |
+| Itens conferidos no documento | 29 de 29 | a âncora aguenta redação recursal |
+| Tópicos com trecho | 4 de 6 | "Onde a história está agora" passou a ter trecho, porque aqui existe fundamentação |
+
+O item dos fatos é o achado grave: com zero itens extraídos, a humanização **escreveu a seção assim mesmo**, e a
+pessoa lê quatro parágrafos sem âncora nenhuma justamente na seção sobre o que aconteceu
+([#53](https://github.com/deegalabs/leia/issues/53)). E a regra de não citar tribunal fez `Tribunal da Cidadania`,
+que é o apelido do STJ e foi extraído certo, virar `instância da Cidadania` na tela
+([#54](https://github.com/deegalabs/leia/issues/54)).
+
+O quarto item da tabela anterior é o que justifica a existência do estágio aproximado. O extrator devolve `o se u provimento`, o
 modelo devolve `o seu provimento`, e nenhuma normalização de espaço junta `se` com `u`. Sem o terceiro estágio,
 toda frase com essa quebra perderia a âncora, e a tela deixaria de mostrar o trecho. Com ele, a frase é achada e a
 tela diz a verdade sobre como: "com pequenas diferenças de digitação", em vez de afirmar cópia exata.
