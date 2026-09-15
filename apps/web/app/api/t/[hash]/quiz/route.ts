@@ -1,6 +1,9 @@
 import { evaluateQuiz, findTask, nextAttemptNumber, publicGate, recordAttempt } from "@/lib/mock";
+import { viaService } from "@/lib/server/service";
 
 export async function POST(req: Request, { params }: RouteContext<"/api/t/[hash]/quiz">) {
+  const up = await viaService(req);
+  if (up) return up;
   const { hash } = await params;
   const gate = publicGate(hash); /* LeIA: 409 while the lawyer reviews */
   if (gate) return gate;

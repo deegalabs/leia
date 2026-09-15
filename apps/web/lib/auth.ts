@@ -1,85 +1,84 @@
-/* Session for the v3 accounts (docs/API-V3-CONTRACT.md): Bearer token plus user, kept in localStorage under
-   "leia:auth". Same origin rules as lib/api.ts: NEXT_PUBLIC_API_BASE empty means the in-app mock. */
-import { useMemo, useSyncExternalStore } from "react";
-import { API_BASE } from "./api";
+/* Session for the v3 accounts (docs/API-V3-CONTRACT.md), as the browser sees it: the person, never the token.
+   The token is held by this app's server in an HttpOnly cookie (lib/server/session.ts) and attached to the
+   service call there. Nothing here writes to browser storage, so a script running on the page has nothing to read. */
+import { useEffect, useSyncExternalStore } from "react";
 
 export type Role = "cidadao" | "advogado" | "fornecedor";
 export type Usuario = { id: number; nome: string; email: string; papel: Role };
-export type Auth = { token: string; usuario: Usuario };
 export type ApiError = Error & { status?: number };
 
-export const AUTH_KEY = "leia:auth";
-const CHANGE_EVENT = "leia:auth-change";
+type Estado = { usuario: Usuario | null; pronto: boolean };
+/* Stable reference: the server render and the first client render must agree. */
+const INICIAL: Estado = { usuario: null, pronto: false };
 
-function readRaw(): string | null {
-  try { return typeof window === "undefined" ? null : localStorage.getItem(AUTH_KEY); } catch { return null; }
-}
-function parse(raw: string | null): Auth | null {
-  if (!raw) return null;
-  try {
-    const a = JSON.parse(raw);
-    return a && typeof a.token === "string" && a.usuario && typeof a.usuario.id === "number" ? (a as Auth) : null;
-  } catch { return null; }
-}
-function write(auth: Auth | null) {
-  try { if (auth) localStorage.setItem(AUTH_KEY, JSON.stringify(auth)); else localStorage.removeItem(AUTH_KEY); } catch { /* storage unavailable */ }
-  if (typeof window !== "undefined") window.dispatchEvent(new Event(CHANGE_EVENT));
+let estado: Estado = INICIAL;
+const ouvintes = new Set<() => void>();
+
+function definir(next: Estado) {
+  estado = next;
+  for (const cb of ouvintes) cb();
 }
 
-export const getAuth = (): Auth | null => parse(readRaw());
-export function authHeaders(): Record<string, string> {
-  const a = getAuth();
-  return a ? { Authorization: `Bearer ${a.token}` } : {};
-}
-
-async function post<T>(path: string, body: unknown, withAuth = false): Promise<T> {
-  const r = await fetch(`${API_BASE}${path}`, {
-    method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json", ...(withAuth ? authHeaders() : {}) }, body: JSON.stringify(body),
+async function chamar<T>(path: string, init?: RequestInit): Promise<T> {
+  const r = await fetch(path, {
+    ...init,
+    credentials: "same-origin",
+    headers: { Accept: "application/json", ...(init?.body ? { "Content-Type": "application/json" } : {}), ...init?.headers },
+    cache: "no-store",
   });
   if (!r.ok) {
-    const e: ApiError = new Error(`HTTP ${r.status}`); e.status = r.status;
+    const e: ApiError = new Error(`HTTP ${r.status}`);
+    e.status = r.status;
     throw e;
   }
-  return r.json();
+  return r.json() as Promise<T>;
 }
 
-export async function login(email: string, senha: string): Promise<Auth> {
-  const a = await post<Auth>("/api/auth/login", { email, senha });
-  write(a);
-  return a;
-}
-export async function cadastro(input: { nome: string; email: string; senha: string; papel: "cidadao" | "advogado"; oab?: string }): Promise<Auth> {
-  const a = await post<Auth>("/api/auth/cadastro", input);
-  write(a);
-  return a;
-}
-export async function logout(): Promise<void> {
-  try { if (getAuth()) await post("/api/auth/logout", {}, true); } catch { /* the token is dropped locally anyway */ }
-  write(null);
-}
-/* Confirms the stored token with the service; a 401 clears the local session. */
-export async function me(): Promise<Usuario | null> {
-  const a = getAuth();
-  if (!a) return null;
-  const r = await fetch(`${API_BASE}/api/auth/me`, { headers: { Accept: "application/json", ...authHeaders() }, cache: "no-store" });
-  if (r.status === 401) { write(null); return null; }
-  if (!r.ok) throw new Error(`HTTP ${r.status}`);
-  const { usuario } = (await r.json()) as { usuario: Usuario };
-  write({ token: a.token, usuario });
+export async function login(email: string, senha: string): Promise<Usuario> {
+  const { usuario } = await chamar<{ usuario: Usuario }>("/api/auth/login", { method: "POST", body: JSON.stringify({ email, senha }) });
+  definir({ usuario, pronto: true });
   return usuario;
 }
 
-function subscribe(cb: () => void) {
-  window.addEventListener(CHANGE_EVENT, cb);
-  window.addEventListener("storage", cb);
-  return () => { window.removeEventListener(CHANGE_EVENT, cb); window.removeEventListener("storage", cb); };
+export async function cadastro(input: { nome: string; email: string; senha: string; papel: "cidadao" | "advogado"; oab?: string }): Promise<Usuario> {
+  const { usuario } = await chamar<{ usuario: Usuario }>("/api/auth/cadastro", { method: "POST", body: JSON.stringify(input) });
+  definir({ usuario, pronto: true });
+  return usuario;
 }
 
-/* "use client" only. ready=false while hydrating, so screens do not redirect before the session is read. */
+export async function logout(): Promise<void> {
+  try { await chamar("/api/auth/logout", { method: "POST", body: "{}" }); } catch { /* the cookie is dropped by the server either way */ }
+  definir({ usuario: null, pronto: true });
+}
+
+/* Asks the server who the cookie belongs to. A session the service no longer accepts comes back empty. */
+export async function me(): Promise<Usuario | null> {
+  try {
+    const { usuario } = await chamar<{ usuario: Usuario }>("/api/auth/me");
+    definir({ usuario, pronto: true });
+    return usuario;
+  } catch {
+    definir({ usuario: null, pronto: true });
+    return null;
+  }
+}
+
+let emCurso: Promise<Usuario | null> | null = null;
+/* One request per page load, shared by every component that asks. */
+export function carregarSessao(): Promise<Usuario | null> {
+  if (!emCurso) emCurso = me().finally(() => { emCurso = null; });
+  return emCurso;
+}
+
+function subscribe(cb: () => void) {
+  ouvintes.add(cb);
+  return () => { ouvintes.delete(cb); };
+}
+
+/* "use client" only. ready=false until the server answers who is signed in, so screens do not redirect early. */
 export function useAuth() {
-  const raw = useSyncExternalStore(subscribe, readRaw, () => null);
-  const ready = useSyncExternalStore(() => () => {}, () => true, () => false);
-  const auth = useMemo(() => parse(raw), [raw]);
-  const usuario = auth?.usuario ?? null;
-  return { auth, usuario, ready, isLawyer: usuario?.papel === "advogado" || usuario?.papel === "fornecedor", isCitizen: usuario?.papel === "cidadao" };
+  const s = useSyncExternalStore(subscribe, () => estado, () => INICIAL);
+  useEffect(() => { if (!s.pronto) void carregarSessao(); }, [s.pronto]);
+  const usuario = s.usuario;
+  return { usuario, ready: s.pronto, isLawyer: usuario?.papel === "advogado" || usuario?.papel === "fornecedor", isCitizen: usuario?.papel === "cidadao" };
 }

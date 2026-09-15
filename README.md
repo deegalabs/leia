@@ -74,8 +74,10 @@ apps/llm-service    FastAPI · SQLModel · Postgres · Groq (openai/gpt-oss-120b
   mock/               serviço falso, roda a interface inteira sem chave de modelo
 ```
 
-O app e o serviço são duas origens independentes. O app fala com o serviço por `NEXT_PUBLIC_API_BASE`; sem essa
-variável ele usa o mock interno em `app/api/*` e funciona sozinho. O contrato entre os dois está em
+O navegador fala só com o app, e o app fala com o serviço. Quem faz a ponte são as rotas em `app/api/*`, que
+encaminham para o endereço em `SERVICE_URL` ou respondem pelo mock interno quando não há serviço configurado.
+É esse desenho que permite a sessão viver num cookie que script de página não alcança, porque cookie não
+atravessa origens. O contrato entre os dois está em
 [docs/API-V3-CONTRACT.md](docs/API-V3-CONTRACT.md); os diagramas de caso de uso e de sequência, em
 [docs/USE-CASES.md](docs/USE-CASES.md); as decisões e o fluxo de dados, em [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
@@ -104,7 +106,7 @@ uvicorn main:app --port 8000
 
 # 2. aplicação, em outro terminal
 cd apps/web
-printf 'NEXT_PUBLIC_API_BASE=http://localhost:8000\n' > .env.local
+printf 'SERVICE_URL=http://localhost:8000\n' > .env.local
 pnpm install && pnpm dev
 ```
 
