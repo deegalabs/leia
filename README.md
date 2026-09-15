@@ -117,9 +117,13 @@ Detalhes de cada lado em [apps/llm-service/README.md](apps/llm-service/README.md
 ### Testes
 
 ```bash
-cd apps/llm-service && .venv/bin/python -m pytest -q tests_leia.py tests_v3.py
+cd apps/llm-service && .venv/bin/python -m pytest -q
+cd apps/llm-service && .venv/bin/python -m evals.run   # bateria de avaliação do motor
 cd apps/web && pnpm test && pnpm lint && pnpm build
 ```
+
+A bateria mede o que o motor promete, sobre casos gravados de tarefas reais, sem chave de modelo.
+O que ela mede e o que ela deliberadamente não mede está em [apps/llm-service/evals/README.md](apps/llm-service/evals/README.md).
 
 Os mesmos comandos rodam na integração contínua a cada pull request.
 
