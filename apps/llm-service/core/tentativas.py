@@ -18,21 +18,33 @@ def _proximo_numero(tarefa_id: int) -> int:
     return (ult.numero + 1) if ult else 1
 
 
-def _hash_imutavel(
-    tarefa_hash: str, numero: int, respostas_json: str,
-    ip: str, ua: str, ts: str,
-) -> str:
-    prefix = os.getenv("ATTEMPT_HASH_PREFIX", "PARA.AI")
-    payload = f"{prefix}|{tarefa_hash}|{numero}|{respostas_json}|{ip}|{ua}|{ts}"
-    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+PREIMAGE_SCHEMA = "leia.attempt.v2"
+
+
+def hash_da_tentativa(tarefa_hash: str, numero: int, respostas_json: str, criada_em: datetime) -> str:
+    """Hash da tentativa, recalculável por terceiro a partir do que fica gravado.
+
+    A v1 misturava IP, navegador e um instante que não era persistido, então ninguém, nem a própria
+    equipe, conseguia recalcular o valor publicado, e o preimage carregava dado pessoal. A v2 usa
+    apenas o que está no registro, e o documento entra como referência derivada, nunca como o link.
+    """
+    quando = criada_em.replace(microsecond=0).isoformat()
+    preimage = json.dumps({
+        "schema": PREIMAGE_SCHEMA,
+        "documentRef": hashlib.sha256(tarefa_hash.encode("utf-8")).hexdigest(),
+        "attemptRound": numero,
+        "answers": json.loads(respostas_json),
+        "createdAt": quando,
+    }, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(preimage.encode("utf-8")).hexdigest()
 
 
 def registrar(
     tarefa: Tarefa,
     respostas: dict[int | str, int],
     questoes: list[dict],
-    ip: Optional[str],
-    user_agent: Optional[str],
+    ip: Optional[str] = None,        # aceito e descartado: ver hash_da_tentativa
+    user_agent: Optional[str] = None,
 ) -> Tentativa:
     """
     Valida as respostas contra o gabarito das questões, grava a tentativa
@@ -51,12 +63,12 @@ def registrar(
 
     numero = _proximo_numero(tarefa.id)
     respostas_json = json.dumps(respostas, ensure_ascii=False, sort_keys=True)
-    ip_s = ip or "?"
-    ua_s = (user_agent or "?")[:300]
-    ts = datetime.utcnow().isoformat()
+    criada_em = datetime.utcnow().replace(microsecond=0)
 
-    h = _hash_imutavel(tarefa.hash, numero, respostas_json, ip_s, ua_s, ts)
+    h = hash_da_tentativa(tarefa.hash, numero, respostas_json, criada_em)
 
+    # IP e navegador não são gravados: não entram na prova, não são necessários ao produto,
+    # e estavam impressos no comprovante que a cidadã mostra a terceiros.
     t = Tentativa(
         tarefa_id=tarefa.id,
         numero=numero,
@@ -65,8 +77,7 @@ def registrar(
         total=total,
         aprovado=aprovado,
         hash_imutavel=h,
-        ip=ip_s,
-        user_agent=ua_s,
+        criada_em=criada_em,
     )
     with Session(engine) as s:
         s.add(t); s.commit(); s.refresh(t)

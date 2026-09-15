@@ -712,10 +712,7 @@ async def api_quiz(
         raise HTTPException(409, "Questões não disponíveis")
 
     respostas = payload.get("respostas") or {}
-    ip = request.client.host if request.client else "?"
-    ua = request.headers.get("user-agent", "")
-
-    tent = tn.registrar(t, respostas, questoes, ip, ua)
+    tent = tn.registrar(t, respostas, questoes)
     erros = tn.analisar_erros(tent, questoes)
     erros = [{"id": e.get("id"), "area": e.get("area"), "enunciado": e.get("enunciado"), "escolhida": e.get("escolhida")} for e in erros]  # LeIA: no answer key to the browser
 

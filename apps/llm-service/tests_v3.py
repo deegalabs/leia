@@ -674,3 +674,40 @@ def test_backstage_routes_stay_open_to_the_supplier():
     for method, path in BACKSTAGE:
         r = getattr(client, method)(path, headers=bearer(admin["token"]))
         assert r.status_code == 200, f"{path} fechada para o fornecedor: {r.status_code}"
+
+
+# ── Hash da tentativa: reproduzível por terceiro e sem dado pessoal ───────────
+
+def _tarefa_de_teste(hash_: str):
+    from core.db import Session as _S, Tarefa as _T, engine as _e
+    with _S(_e) as s:
+        t = _T(hash=hash_, titulo="Contrato", advogado_id=1, status="enviada")
+        s.add(t); s.commit(); s.refresh(t)
+        return t
+
+
+QUESTOES = [{"id": 1, "correta": 0}, {"id": 2, "correta": 1}, {"id": 3, "correta": 2}]
+
+
+def test_attempt_hash_carries_no_personal_data(lawyer):
+    import core.tentativas as tn
+    t = _tarefa_de_teste("hash-tentativa-1")
+    tent = tn.registrar(t, {"1": 0, "2": 1, "3": 2}, QUESTOES, "203.0.113.7", "Mozilla/5.0 (Android)")
+    assert tent.ip is None and tent.user_agent is None, "IP e navegador continuam sendo gravados"
+
+
+def test_attempt_hash_is_reproducible_from_what_is_stored(lawyer):
+    import core.tentativas as tn
+    t = _tarefa_de_teste("hash-tentativa-2")
+    tent = tn.registrar(t, {"1": 0, "2": 1, "3": 2}, QUESTOES, "203.0.113.7", "Mozilla/5.0")
+    recalculado = tn.hash_da_tentativa(t.hash, tent.numero, tent.respostas, tent.criada_em)
+    assert recalculado == tent.hash_imutavel, "ninguém consegue recalcular o hash a partir do que está gravado"
+
+
+def test_attempt_hash_does_not_depend_on_the_client(lawyer):
+    import core.tentativas as tn
+    t = _tarefa_de_teste("hash-tentativa-3")
+    a = tn.registrar(t, {"1": 0, "2": 1, "3": 2}, QUESTOES, "203.0.113.7", "Chrome")
+    b = tn.hash_da_tentativa(t.hash, a.numero, a.respostas, a.criada_em)
+    assert a.hash_imutavel == b
+    assert "PARA.AI" not in tn.PREIMAGE_SCHEMA, "a marca do produto de origem ainda está no hash"
