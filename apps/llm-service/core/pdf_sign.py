@@ -6,6 +6,7 @@ from pathlib import Path
 from datetime import datetime
 
 from pypdf import PdfReader, PdfWriter
+from pypdf.generic import NameObject
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.colors import HexColor
@@ -78,11 +79,11 @@ def _pagina_assinatura(dados: dict) -> BytesIO:
     y -= 22
     c.setFont("Helvetica", 10)
     texto = (
-        "O(a) signatário(a) abaixo identificado(a) declara ter lido o resumo "
-        "estruturado apresentado no link público desta tarefa, ter respondido "
-        "ao questionário de verificação de compreensão, e ter atingido o "
-        "critério mínimo de acertos estabelecido. O presente documento "
-        "constitui prova digital inequívoca do consentimento informado."
+        "Quem acessou o link deste documento leu a explicação em linguagem simples, "
+        "respondeu às perguntas de conferência e atingiu o critério mínimo. "
+        "Este comprovante registra que isso aconteceu nesta data e que o conteúdo "
+        "não foi alterado depois. Ele não identifica a pessoa e não substitui "
+        "assinatura: a identificação, quando necessária, é feita por outro meio."
     )
     for linha in _quebrar(texto, 88):
         c.drawString(48, y, linha); y -= 14
@@ -103,8 +104,6 @@ def _pagina_assinatura(dados: dict) -> BytesIO:
         ("Rodada",             str(dados.get("numero", "—"))),
         ("Data da assinatura", dados.get("ts", "—")),
         ("Acertos",            f"{dados.get('acertos','?')}/{dados.get('total','?')}"),
-        ("IP",                 dados.get("ip", "—")),
-        ("Navegador",          (dados.get("user_agent") or "—")[:70]),
     ]
     c.setFont("Helvetica", 9)
     for rot, val in linhas:
@@ -162,6 +161,13 @@ def gerar_pdf_assinado(
     # 3) página de assinatura no fim
     sig = PdfReader(_pagina_assinatura(dados)).pages[0]
     writer.add_page(sig)
+
+    # Regra do produto: arquivo gerado não carrega metadado. O pypdf grava /Producer por padrão,
+    # e o documento original pode trazer autor, título e datas do editor de quem o produziu.
+    writer.metadata = None
+    root = writer._root_object
+    if "/Metadata" in root:
+        del root[NameObject("/Metadata")]
 
     pdf_saida.parent.mkdir(parents=True, exist_ok=True)
     with pdf_saida.open("wb") as f:

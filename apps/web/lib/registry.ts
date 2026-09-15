@@ -2,7 +2,7 @@
    so the Python service and this TypeScript mock produce identical hashes for identical attempts. */
 import { createHash, randomBytes } from "node:crypto";
 
-export const PAYLOAD_SCHEMA = "leia.payload.v1";
+export const PAYLOAD_SCHEMA = "leia.payload.v2";
 
 type Json = string | number | boolean | null | Json[] | { [k: string]: Json };
 function sortKeys(v: Json): Json {
@@ -23,8 +23,8 @@ export function attemptHash(a: AttemptRecord): string {
 
 export function buildPayload(a: AttemptRecord) {
   return {
-    schema: PAYLOAD_SCHEMA, documentToken: a.tarefa_hash, attemptRound: a.numero, attemptSha256: attemptHash(a),
-    documentSha256: "", summarySha256: "", understood: a.aprovado, answered: a.total, createdAt: a.criada_em, salt: a.salt,
+    schema: PAYLOAD_SCHEMA, documentRef: sha256(a.tarefa_hash), attemptRound: a.numero, attemptSha256: attemptHash(a),
+    documentSha256: "", summarySha256: "", understood: a.aprovado, answered: a.total, createdAt: a.criada_em,
   };
 }
 

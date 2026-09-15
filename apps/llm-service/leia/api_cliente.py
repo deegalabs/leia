@@ -365,7 +365,7 @@ def _ots_path(tarefa_hash: str, numero: int):
 
 
 def get_attempt(hash_imutavel: str) -> Optional[dict[str, Any]]:
-    """Adapter for leia.registry.build_router. Nothing personal: the salt is derived from the attempt hash."""
+    """Adapter for leia.registry.build_router. Nothing personal reaches the published payload."""
     with Session(engine) as s:
         tent = s.exec(select(Tentativa).where(Tentativa.hash_imutavel == hash_imutavel)).first()
         if not tent:
@@ -374,7 +374,7 @@ def get_attempt(hash_imutavel: str) -> Optional[dict[str, Any]]:
     created = tent.criada_em.replace(tzinfo=timezone.utc) if tent.criada_em.tzinfo is None else tent.criada_em
     p = _ots_path(t.hash, tent.numero)
     return {"hash_imutavel": tent.hash_imutavel, "tarefa_hash": t.hash, "numero": tent.numero, "acertos": tent.acertos,
-            "total": tent.total, "aprovado": tent.aprovado, "criada_em": created, "salt": tent.hash_imutavel[:40],
+            "total": tent.total, "aprovado": tent.aprovado, "criada_em": created,
             "ots": p.read_bytes() if p.exists() else None}
 
 

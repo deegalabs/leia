@@ -94,7 +94,7 @@ async def quiz(hash_: str, body: dict[str, Any]):
     aprovado = acertos >= state.get("minimo_aprovacao", 10)
     created = datetime.now(timezone.utc)
     attempt = {"tarefa_hash": hash_, "numero": numero, "acertos": acertos, "total": total, "aprovado": aprovado,
-               "criada_em": created, "salt": secrets.token_hex(20)}
+               "criada_em": created}
     attempt["hash_imutavel"] = hashlib.sha256(
         json.dumps({"tarefa": hash_, "numero": numero, "respostas": respostas, "criada_em": created.isoformat()},
                    sort_keys=True).encode()).hexdigest()

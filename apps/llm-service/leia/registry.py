@@ -15,7 +15,6 @@ import hashlib
 import io
 import json
 import os
-import secrets
 from datetime import datetime, timezone
 from typing import Any, Callable, Optional
 
@@ -31,7 +30,7 @@ def render(templates: Any, request: Request, name: str, context: dict[str, Any])
         context["request"] = request
         return templates.TemplateResponse(name, context)
 
-PAYLOAD_SCHEMA = "leia.payload.v1"
+PAYLOAD_SCHEMA = "leia.payload.v2"
 
 
 def canonical_json(obj: dict[str, Any]) -> str:
@@ -45,8 +44,13 @@ def sha256_hex(data: str | bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def build_payload(attempt: dict[str, Any], salt: Optional[str] = None) -> dict[str, Any]:
-    """Consent payload without personal data. ``salt`` is stored with the attempt and never published."""
+def build_payload(attempt: dict[str, Any]) -> dict[str, Any]:
+    """Consent payload, published in full so a third party can recompute the hash.
+
+    It carries no personal data and, since v2, no document token either: the receipt is meant to be shown
+    to third parties, and publishing the task hash handed them the citizen's private link. ``documentRef``
+    identifies the document without revealing it, and whoever already holds the link can confirm the match.
+    """
     created = attempt.get("criada_em")
     if isinstance(created, datetime):
         created_iso = created.astimezone(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
@@ -54,7 +58,7 @@ def build_payload(attempt: dict[str, Any], salt: Optional[str] = None) -> dict[s
         created_iso = str(created)
     return {
         "schema": PAYLOAD_SCHEMA,
-        "documentToken": attempt.get("tarefa_hash", ""),
+        "documentRef": sha256_hex(attempt.get("tarefa_hash", "")),
         "attemptRound": int(attempt.get("numero") or 1),
         "attemptSha256": attempt.get("hash_imutavel", ""),
         "documentSha256": attempt.get("pdf_sha256") or "",
@@ -62,8 +66,18 @@ def build_payload(attempt: dict[str, Any], salt: Optional[str] = None) -> dict[s
         "understood": bool(attempt.get("aprovado")),
         "answered": int(attempt.get("total") or 0),
         "createdAt": created_iso,
-        "salt": salt or attempt.get("salt") or secrets.token_hex(20),
     }
+
+
+def ots_digest(proof: bytes) -> Optional[str]:
+    """Hex digest a detached OpenTimestamps proof was made over, or None when it cannot be read."""
+    try:
+        from opentimestamps.core.serialize import BytesDeserializationContext  # type: ignore
+        from opentimestamps.core.timestamp import DetachedTimestampFile  # type: ignore
+        ctx = BytesDeserializationContext(proof)
+        return DetachedTimestampFile.deserialize(ctx).file_digest.hex()
+    except Exception:
+        return None
 
 
 def payload_hash(payload: dict[str, Any]) -> tuple[str, str]:
@@ -146,8 +160,11 @@ def build_router(get_attempt: Callable[[str], Optional[dict[str, Any]]], templat
         payload = build_payload(attempt)
         canonical, digest = payload_hash(payload)
         ots = attempt.get("ots")  # bytes or None, stored by the service after stamping
+        # A stamp only counts when it was made over this very record. A file on disk proves nothing:
+        # if the payload changed after stamping, the proof belongs to a record that no longer exists.
+        matches = bool(ots) and ots_digest(ots) == digest
         return {"attempt": attempt, "payload": payload, "canonical": canonical, "payload_hash": digest,
-                "ots_present": bool(ots), "ots_base64": base64.b64encode(ots).decode() if ots else None}
+                "ots_present": matches, "ots_base64": base64.b64encode(ots).decode() if matches else None}
 
     @router.get("/t/{attempt_hash}/comprovante", response_class=HTMLResponse)
     def receipt(request: Request, attempt_hash: str):
