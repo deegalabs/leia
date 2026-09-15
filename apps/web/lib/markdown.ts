@@ -14,6 +14,7 @@ export type DocPart = { kind: "html"; html: string } | { kind: "mermaid"; code: 
 type RenderContext = { toc: TocItem[]; seen: Map<string, number>; source: string; diagrams: { code: string; title?: string }[]; lastHeading?: string };
 
 const escapeAttr = (s: string) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const escapeText = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const plain = (html: string) => html.replace(/<[^>]+>/g, "").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&").replace(/\s+/g, " ").trim();
 const slugify = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9\s-]/g, "").trim().replace(/\s+/g, "-").slice(0, 80) || "secao";
 /* a break opportunity after each slash lets long routes and paths wrap between segments instead of mid-word */
@@ -22,8 +23,16 @@ const PLACEHOLDER = /<!--leia-diagram:(\d+)-->/g;
 
 let ctx: RenderContext = { toc: [], seen: new Map(), source: "", diagrams: [] };
 
+/* Só estes esquemas saem como href. Qualquer outro (javascript:, data:, vbscript:) vira link inerte:
+   a documentação é markdown do repositório, que é público e aceita contribuição de fora. */
+const SAFE_SCHEME = /^(https?:|mailto:|#|\/)/i;
+const INERT = "#";
+
 function resolveLink(href: string, source: string): string {
-  if (/^([a-z][a-z0-9+.-]*:|#|\/)/i.test(href)) return href; // absolute URL, anchor or site path
+  const trimmed = href.trim().replace(/[\u0000-\u001f]/g, "");
+  if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed) && !SAFE_SCHEME.test(trimmed)) return INERT;
+  if (SAFE_SCHEME.test(trimmed)) return trimmed; // absolute URL, anchor or site path
+  href = trimmed;
   const [path, hash] = href.split("#");
   const resolved = posix.normalize(posix.join(posix.dirname(source), path));
   const suffix = hash ? `#${hash}` : "";
@@ -49,6 +58,11 @@ const md = new Marked({
       if ((token.lang ?? "").trim().toLowerCase() !== "mermaid") return false; // default renderer
       ctx.diagrams.push({ code: token.text, title: ctx.lastHeading });
       return `<!--leia-diagram:${ctx.diagrams.length - 1}-->\n`;
+    },
+    html(token: Tokens.HTML | Tokens.Tag) {
+      // A documentação não precisa de HTML bruto, e aceitar HTML de um pull request de
+      // documentação é entregar a origem do produto a quem escreveu o markdown.
+      return escapeText(token.raw ?? token.text ?? "");
     },
     link(token: Tokens.Link) {
       const href = resolveLink(token.href, ctx.source);
