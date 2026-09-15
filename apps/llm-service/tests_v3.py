@@ -772,10 +772,15 @@ def test_health_answers_without_credentials_and_says_nothing_else():
 
 
 def test_the_healthcheck_path_declared_to_the_host_is_really_served():
+    """O caminho que o host consulta vive em .railway/railway.ts, fora desta pasta.
+    Se alguém remover a rota e esquecer a configuração, o deploy novo nunca assume e ninguém percebe."""
     import pathlib
-    import tomllib
+    import re
 
-    cfg = tomllib.loads(pathlib.Path(__file__).with_name("railway.toml").read_text(encoding="utf-8"))
-    caminho = cfg["deploy"]["healthcheckPath"]
+    cfg = pathlib.Path(__file__).resolve().parents[2] / ".railway" / "railway.ts"
+    assert cfg.exists(), "a configuração de deploy sumiu do repositório"
+    achado = re.search(r"healthcheckPath:\s*\"([^\"]+)\"", cfg.read_text(encoding="utf-8"))
+    assert achado, "nenhum healthcheckPath declarado: o host não tem como saber se a versão nova subiu"
+    caminho = achado.group(1)
     r = TestClient(main.app).get(caminho)
     assert r.status_code == 200, f"o deploy espera 200 em {caminho} e a aplicação responde {r.status_code}"
