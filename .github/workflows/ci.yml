@@ -29,7 +29,9 @@ jobs:
       - name: install
         run: pip install -r requirements.txt -r requirements-dev.txt
       - name: test
-        run: python -m pytest -q tests_leia.py tests_v3.py
+        run: python -m pytest -q
+      - name: evals
+        run: python -m evals.run
 
   web:
     name: web (vitest, lint, build)

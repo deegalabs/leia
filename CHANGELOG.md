@@ -25,6 +25,14 @@ fecha um sentido, vira versão com tag anotada e release no GitHub.
   falha com ela, o que é melhor que uma explicação construída sobre lixo. Sete etapas passaram a declarar no
   protocolo quais campos precisam existir, e a saída é conferida contra isso.
 
+### Por dentro
+- Existe uma bateria de avaliação do motor (`apps/llm-service/evals`). Ela mede, sobre casos gravados de tarefas
+  reais e sem chave de modelo, se o trecho mostrado está mesmo no documento, se a posição informada é a certa e se
+  o gabarito não viaja com a pergunta. Cobertura e precisão de âncora têm piso, que não reprova entrega mas acusa
+  piora. A camada de juiz não existe ainda, e a bateria diz isso em voz alta em vez de fingir.
+- `pytest -q` passou a encontrar todo arquivo de teste do serviço. Antes os arquivos eram nomeados um a um no
+  comando, então um arquivo novo de teste podia existir sem nunca ser executado.
+
 ## v1.1.0 · 2026-09-15 · a sessão e o link deixam de ser credenciais soltas
 
 ### Segurança e privacidade

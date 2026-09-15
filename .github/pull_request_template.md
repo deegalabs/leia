@@ -17,7 +17,7 @@ Closes #
 ## Antes de pedir revisão
 
 - [ ] O teste foi escrito antes da correção e foi visto falhando pelo motivo certo.
-- [ ] `pytest -q tests_leia.py tests_v3.py` passa, quando o serviço mudou.
+- [ ] `pytest -q` passa, quando o serviço mudou.
 - [ ] `pnpm test && pnpm lint && pnpm build` passa, quando a aplicação mudou.
 - [ ] Nenhuma chave, senha, token ou documento de pessoa real entrou no diff.
 - [ ] O CHANGELOG foi atualizado em "Não lançado", ou a mudança não altera nada que alguém perceba.

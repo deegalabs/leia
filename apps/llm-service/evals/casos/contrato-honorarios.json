@@ -1,0 +1,497 @@
+{
+  "nome": "contrato-honorarios",
+  "origem": "tarefa de exemplo em producao, documento ficticio de examples/contrato-honorarios-exemplo.pdf",
+  "capturado_em": "2026-09-15",
+  "documento": "===== PÁGINA 1 =====\n\nCONTRATO DE PRESTAÇÃO DE SERVIÇOS\n ADVOCATÍCIOS (EXEMPLO FICTÍCIO)\nCONTRATANTE: pessoa física, aqui identificada apenas como CONTRATANTE.\nCONTRATADA: advogada, aqui identificada apenas como CONTRATADA. Documento\nfictício para demonstração; nomes e valores não correspondem a pessoas ou casos reais.\nCLÁUSULA 1. O CONTRATANTE contrata a CONTRATADA para propor e acompanhar\nação de cobrança de verbas trabalhistas em face de seu ex-empregador, até decisão final\nem primeira instância.\nCLÁUSULA 2. Pelos serviços, o CONTRATANTE pagará honorários iniciais de R$\n1.500,00 (mil e quinhentos reais), em três parcelas mensais de R$ 500,00, vencendo a\nprimeira em 10 dias após a assinatura deste contrato.\nCLÁUSULA 3. Além dos honorários iniciais, o CONTRATANTE pagará à CONTRATADA\nhonorários de êxito de 20% (vinte por cento) sobre o valor efetivamente recebido na ação,\nno momento do recebimento.\nCLÁUSULA 4. As despesas do processo, como custas, cópias e perícias, correm por\nconta do CONTRATANTE e serão pagas mediante apresentação de comprovante.\nCLÁUSULA 5. O CONTRATANTE poderá encerrar este contrato a qualquer tempo, por\nescrito, ficando devidos os honorários iniciais já vencidos e os honorários de êxito\nproporcionais ao trabalho realizado até a data do encerramento.\nCLÁUSULA 6. A CONTRATADA manterá o CONTRATANTE informado sobre os atos\nrelevantes do processo, por telefone ou mensagem, no prazo de 5 dias úteis após cada\nato.\nCLÁUSULA 7. Fica eleito o foro da comarca de Curitiba, Paraná, para resolver qualquer\ndúvida sobre este contrato.\nCuritiba, 13 de setembro de 2026.",
+  "topicos": [
+    {
+      "id": 1,
+      "titulo": "Resumo em uma linha",
+      "explicacao_md": "Advogada pede ao cliente que pague as taxas combinadas pelo processo trabalhista."
+    },
+    {
+      "id": 2,
+      "titulo": "👥 Quem está nesta história",
+      "explicacao_md": "CONTRATANTE (quem pediu ajuda primeiro) é a pessoa que precisa do apoio. Ele quer receber o que lhe é devido do ex‑empregador.  \n\nCONTRATADA (advogada) vai cuidar do caso e cobrar as taxas combinadas.",
+      "trecho": "CONTRATANTE: pessoa física, aqui identificada apenas como CONTRATANTE.",
+      "conferencia": {
+        "metodo": "exato",
+        "score": 1.0
+      }
+    },
+    {
+      "id": 3,
+      "titulo": "📖 O que aconteceu",
+      "explicacao_md": "Primeiro, o cliente contratou a advogada para entrar com ação contra seu ex‑empregador.  \nDepois, combinaram que o cliente pagaria uma taxa inicial de mil e quinhentos reais.  \nA taxa seria dividida em três parcelas de quinhentos reais cada.  \nA primeira parcela venceria dez dias após a assinatura do acordo.  \nTambém combinaram que, se a ação fosse bem‑sucedida, o cliente pagaria vinte por cento.  \nA porcentagem seria calculada sobre o valor que ele receber.  \nA advogada ficou responsável por informar o cliente sobre cada passo do processo.  \nO cliente deveria arcar também com os custos do processo, como cópias e perícias.",
+      "trecho": "CLÁUSULA 1. O CONTRATANTE contrata a CONTRATADA para propor e acompanhar\nação de cobrança de verbas trabalhistas em face de seu ex-empregador, até decisão final\nem primeira instância.",
+      "conferencia": {
+        "metodo": "exato",
+        "score": 1.0
+      }
+    },
+    {
+      "id": 4,
+      "titulo": "💭 O que a pessoa sente e busca",
+      "explicacao_md": "A advogada sente que o cliente ainda não cumpriu o combinado.  \nEla busca que a Justiça reconheça o direito ao pagamento das taxas.",
+      "trecho": "CLÁUSULA 1. O CONTRATANTE contrata a CONTRATADA para propor e acompanhar\nação de cobrança de verbas trabalhistas em face de seu ex-empregador, até decisão final\nem primeira instância.",
+      "conferencia": {
+        "metodo": "exato",
+        "score": 1.0
+      }
+    },
+    {
+      "id": 5,
+      "titulo": "🤝 O que está sendo pedido",
+      "explicacao_md": "- Ela pede o pagamento da taxa inicial de mil e quinhentos reais.  \n- Ela pede que as três parcelas de quinhentos reais sejam quitadas.  \n- Ela pede o pagamento de vinte por cento do valor que o cliente receber.",
+      "trecho": "CLÁUSULA 2. Pelos serviços, o CONTRATANTE pagará honorários iniciais de R$\n1.500,00 (mil e quinhentos reais), em três parcelas mensais de R$ 500,00, vencendo a\nprimeira em 10 dias após a assinatura deste contrato.",
+      "conferencia": {
+        "metodo": "exato",
+        "score": 1.0
+      }
+    },
+    {
+      "id": 6,
+      "titulo": "🧭 Onde a história está agora",
+      "explicacao_md": "A Justiça ainda não decidiu nada.  \nA advogada já apresentou o pedido de pagamento das taxas.  \nO processo segue aguardando a resposta do cliente."
+    }
+  ],
+  "questoes": [
+    {
+      "id": 1,
+      "enunciado": "Quem pediu ajuda primeiro?",
+      "alternativas": [
+        "CONTRATANTE",
+        "CONTRATADA",
+        "Juiz",
+        "Ex‑empregador"
+      ],
+      "area": "identificacao"
+    },
+    {
+      "id": 2,
+      "enunciado": "Quem vai cuidar do caso?",
+      "alternativas": [
+        "CONTRATADA",
+        "CONTRATANTE",
+        "Testemunha",
+        "Fiscal"
+      ],
+      "area": "identificacao"
+    },
+    {
+      "id": 3,
+      "enunciado": "Qual era o objetivo do contrato?",
+      "alternativas": [
+        "Propor ação de cobrança de verbas trabalhistas",
+        "Comprar um carro",
+        "Alugar um imóvel",
+        "Abrir uma empresa"
+      ],
+      "area": "fatos"
+    },
+    {
+      "id": 4,
+      "enunciado": "Quantas parcelas foram combinadas para o pagamento inicial?",
+      "alternativas": [
+        "Três",
+        "Uma",
+        "Cinco",
+        "Doze"
+      ],
+      "area": "fatos"
+    },
+    {
+      "id": 5,
+      "enunciado": "O que a advogada está pedindo ao cliente?",
+      "alternativas": [
+        "Pagamento das taxas combinadas",
+        "Desistir da ação",
+        "Aumentar o valor da causa",
+        "Mudar de advogado"
+      ],
+      "area": "pedidos"
+    },
+    {
+      "id": 6,
+      "enunciado": "Em que fase está a história?",
+      "alternativas": [
+        "Ainda no início, sem decisão",
+        "Já com sentença final",
+        "Em fase de recurso",
+        "Em fase de execução"
+      ],
+      "area": "contexto"
+    }
+  ],
+  "inferencias": {
+    "classes": [
+      {
+        "classe": "identificacao",
+        "rotulo": "Quem é quem",
+        "cor": "#D2E3FC",
+        "itens": [
+          {
+            "ref": "identificacao[0]",
+            "campo": "autor",
+            "valor": "CONTRATANTE",
+            "trecho": "CONTRATANTE: pessoa física, aqui identificada apenas como CONTRATANTE.",
+            "pos": [
+              89,
+              159
+            ],
+            "conferido": true,
+            "cor": "#D2E3FC",
+            "conferencia": {
+              "metodo": "exato",
+              "score": 1.0
+            }
+          },
+          {
+            "ref": "identificacao[1]",
+            "campo": "advogado_autor",
+            "valor": "CONTRATADA",
+            "trecho": "CONTRATADA: advogada, aqui identificada apenas como CONTRATADA. Documento",
+            "pos": [
+              160,
+              233
+            ],
+            "conferido": true,
+            "cor": "#D2E3FC",
+            "conferencia": {
+              "metodo": "exato",
+              "score": 1.0
+            }
+          }
+        ]
+      },
+      {
+        "classe": "datas_valores",
+        "rotulo": "Datas e valores",
+        "cor": "#C8E6C9",
+        "itens": []
+      },
+      {
+        "classe": "fatos",
+        "rotulo": "Fatos",
+        "cor": "#F9DEDC",
+        "itens": [
+          {
+            "ref": "fatos[0]",
+            "campo": "contexto",
+            "valor": "Marca de página indicando início do documento.",
+            "trecho": "===== PÁGINA 1 =====",
+            "pos": [
+              0,
+              20
+            ],
+            "conferido": true,
+            "cor": "#F9DEDC",
+            "conferencia": {
+              "metodo": "exato",
+              "score": 1.0
+            }
+          },
+          {
+            "ref": "fatos[1]",
+            "campo": "contexto",
+            "valor": "Título do contrato de prestação de serviços.",
+            "trecho": "CONTRATO DE PRESTAÇÃO DE SERVIÇOS",
+            "pos": [
+              22,
+              55
+            ],
+            "conferido": true,
+            "cor": "#F9DEDC",
+            "conferencia": {
+              "metodo": "exato",
+              "score": 1.0
+            }
+          },
+          {
+            "ref": "fatos[2]",
+            "campo": "contexto",
+            "valor": "Subtítulo indicando a natureza fictícia do exemplo.",
+            "trecho": " ADVOCATÍCIOS (EXEMPLO FICTÍCIO)",
+            "pos": [
+              57,
+              88
+            ],
+            "conferido": true,
+            "cor": "#F9DEDC",
+            "conferencia": {
+              "metodo": "exato",
+              "score": 1.0
+            }
+          },
+          {
+            "ref": "fatos[3]",
+            "campo": "contexto",
+            "valor": "Identificação do contratante como pessoa física.",
+            "trecho": "CONTRATANTE: pessoa física, aqui identificada apenas como CONTRATANTE.",
+            "pos": [
+              89,
+              159
+            ],
+            "conferido": true,
+            "cor": "#F9DEDC",
+            "conferencia": {
+              "metodo": "exato",
+              "score": 1.0
+            }
+          },
+          {
+            "ref": "fatos[4]",
+            "campo": "contexto",
+            "valor": "Identificação da contratada como advogada.",
+            "trecho": "CONTRATADA: advogada, aqui identificada apenas como CONTRATADA. Documento",
+            "pos": [
+              160,
+              233
+            ],
+            "conferido": true,
+            "cor": "#F9DEDC",
+            "conferencia": {
+              "metodo": "exato",
+              "score": 1.0
+            }
+          },
+          {
+            "ref": "fatos[5]",
+            "campo": "contexto",
+            "valor": "Aviso de que o documento é fictício e não corresponde a casos reais.",
+            "trecho": "fictício para demonstração; nomes e valores não correspondem a pessoas ou casos reais.",
+            "pos": [
+              234,
+              320
+            ],
+            "conferido": true,
+            "cor": "#F9DEDC",
+            "conferencia": {
+              "metodo": "exato",
+              "score": 1.0
+            }
+          },
+          {
+            "ref": "fatos[6]",
+            "campo": "acontecimento_principal",
+            "valor": "O CONTRATANTE contrata a CONTRATADA para propor e acompanhar ação de cobrança de verbas trabalhistas contra ex‑empregador, até decisão final em primeira instância.",
+            "trecho": "CLÁUSULA 1. O CONTRATANTE contrata a CONTRATADA para propor e acompanhar\nação de cobrança de verbas trabalhistas em face de seu ex-empregador, até decisão final\nem primeira instância.",
+            "pos": [
+              321,
+              504
+            ],
+            "conferido": true,
+            "cor": "#F9DEDC",
+            "conferencia": {
+              "metodo": "exato",
+              "score": 1.0
+            }
+          },
+          {
+            "ref": "fatos[7]",
+            "campo": "fato_secundario",
+            "valor": "O CONTRATANTE pagará honorários iniciais de R$ 1.500,00 em três parcelas mensais de R$ 500,00, com a primeira vencendo 10 dias após a assinatura.",
+            "trecho": "CLÁUSULA 2. Pelos serviços, o CONTRATANTE pagará honorários iniciais de R$\n1.500,00 (mil e quinhentos reais), em três parcelas mensais de R$ 500,00, vencendo a\nprimeira em 10 dias após a assinatura deste contrato.",
+            "pos": [
+              505,
+              718
+            ],
+            "conferido": true,
+            "cor": "#F9DEDC",
+            "conferencia": {
+              "metodo": "exato",
+              "score": 1.0
+            }
+          },
+          {
+            "ref": "fatos[8]",
+            "campo": "fato_secundario",
+            "valor": "O CONTRATANTE pagará à CONTRATADA honorários de êxito de 20 % sobre o valor efetivamente recebido na ação, no momento do recebimento.",
+            "trecho": "CLÁUSULA 3. Além dos honorários iniciais, o CONTRATANTE pagará à CONTRATADA\nhonorários de êxito de 20% (vinte por cento) sobre o valor efetivamente recebido na ação,\nno momento do recebimento.",
+            "pos": [
+              719,
+              911
+            ],
+            "conferido": true,
+            "cor": "#F9DEDC",
+            "conferencia": {
+              "metodo": "exato",
+              "score": 1.0
+            }
+          },
+          {
+            "ref": "fatos[9]",
+            "campo": "fato_secundario",
+            "valor": "As despesas do processo (custas, cópias e perícias) correrão por conta do CONTRATANTE, que as pagará mediante comprovação.",
+            "trecho": "CLÁUSULA 4. As despesas do processo, como custas, cópias e perícias, correm por\nconta do CONTRATANTE e serão pagas mediante apresentação de comprovante.",
+            "pos": [
+              912,
+              1064
+            ],
+            "conferido": true,
+            "cor": "#F9DEDC",
+            "conferencia": {
+              "metodo": "exato",
+              "score": 1.0
+            }
+          },
+          {
+            "ref": "fatos[10]",
+            "campo": "fato_secundario",
+            "valor": "O CONTRATANTE pode encerrar o contrato a qualquer tempo, por escrito, devendo os honorários iniciais já vencidos e os de êxito proporcionais ao trabalho realizado até a data de encerramento.",
+            "trecho": "CLÁUSULA 5. O CONTRATANTE poderá encerrar este contrato a qualquer tempo, por\nescrito, ficando devidos os honorários iniciais já vencidos e os honorários de êxito\nproporcionais ao trabalho realizado até a data do encerramento.",
+            "pos": [
+              1065,
+              1291
+            ],
+            "conferido": true,
+            "cor": "#F9DEDC",
+            "conferencia": {
+              "metodo": "exato",
+              "score": 1.0
+            }
+          },
+          {
+            "ref": "fatos[11]",
+            "campo": "fato_secundario",
+            "valor": "A CONTRATADA manterá o CONTRATANTE informado sobre atos relevantes do processo, por telefone ou mensagem, no prazo de 5 dias úteis após cada ato.",
+            "trecho": "CLÁUSULA 6. A CONTRATADA manterá o CONTRATANTE informado sobre os atos\nrelevantes do processo, por telefone ou mensagem, no prazo de 5 dias úteis após cada\nato.",
+            "pos": [
+              1292,
+              1452
+            ],
+            "conferido": true,
+            "cor": "#F9DEDC",
+            "conferencia": {
+              "metodo": "exato",
+              "score": 1.0
+            }
+          },
+          {
+            "ref": "fatos[12]",
+            "campo": "fato_secundario",
+            "valor": "Fica eleito o foro da comarca de Curitiba, Paraná, para resolver qualquer dúvida sobre o contrato.",
+            "trecho": "CLÁUSULA 7. Fica eleito o foro da comarca de Curitiba, Paraná, para resolver qualquer\ndúvida sobre este contrato.",
+            "pos": [
+              1453,
+              1566
+            ],
+            "conferido": true,
+            "cor": "#F9DEDC",
+            "conferencia": {
+              "metodo": "exato",
+              "score": 1.0
+            }
+          },
+          {
+            "ref": "fatos[13]",
+            "campo": "contexto",
+            "valor": "Local e data de assinatura do contrato.",
+            "trecho": "Curitiba, 13 de setembro de 2026.",
+            "pos": [
+              1567,
+              1600
+            ],
+            "conferido": true,
+            "cor": "#F9DEDC",
+            "conferencia": {
+              "metodo": "exato",
+              "score": 1.0
+            }
+          }
+        ]
+      },
+      {
+        "classe": "fundamentos",
+        "rotulo": "Fundamentos: leis e decisões citadas",
+        "cor": "#EADDFF",
+        "itens": []
+      },
+      {
+        "classe": "pedidos",
+        "rotulo": "Pedidos",
+        "cor": "#FFDDBE",
+        "itens": [
+          {
+            "ref": "pedidos[0]",
+            "campo": "honorarios",
+            "valor": "pagamento de honorários iniciais no valor total de R$ 1.500,00, em três parcelas mensais de R$ 500,00, vencendo a primeira em 10 dias após a assinatura do contrato",
+            "trecho": "CLÁUSULA 2. Pelos serviços, o CONTRATANTE pagará honorários iniciais de R$\n1.500,00 (mil e quinhentos reais), em três parcelas mensais de R$ 500,00, vencendo a\nprimeira em 10 dias após a assinatura deste contrato.",
+            "pos": [
+              505,
+              718
+            ],
+            "conferido": true,
+            "cor": "#FFDDBE",
+            "conferencia": {
+              "metodo": "exato",
+              "score": 1.0
+            }
+          },
+          {
+            "ref": "pedidos[1]",
+            "campo": "honorarios",
+            "valor": "pagamento de honorários de êxito equivalentes a 20% do valor efetivamente recebido na ação",
+            "trecho": "CLÁUSULA 3. Além dos honorários iniciais, o CONTR",
+            "pos": [
+              719,
+              768
+            ],
+            "conferido": true,
+            "cor": "#FFDDBE",
+            "conferencia": {
+              "metodo": "exato",
+              "score": 1.0
+            }
+          }
+        ]
+      }
+    ],
+    "sinteses": [
+      {
+        "classe": "identificacao",
+        "rotulo": "Quem é quem",
+        "texto": "O autor da demanda é o CONTRATANTE, pessoa física, identificado no trecho [89:158]. A parte ré não consta nos dados disponíveis. A ação é representada pela advogada CONTRATADA, conforme trecho [159:231]. Não há informações sobre juiz, órgão julgador, número do processo ou data de distribuição.",
+        "lastro": [
+          "identificacao[0]",
+          "identificacao[1]"
+        ]
+      },
+      {
+        "classe": "fatos",
+        "rotulo": "Fatos",
+        "texto": "Contrato firmado. Em 13 de setembro de 2026, o CONTRATANTE, pessoa física, assinou contrato com a CONTRATADA, advogada, para ajuizar ação de cobrança de verbas trabalhistas contra seu ex‑empregador, até decisão em primeira instância. Obrigações financeiras. O CONTRATANTE pagará honorários iniciais de R$ 1.500,00 em três parcelas de R$ 500,00, com a primeira vencendo 10 dias após a assinatura. Sobre o valor recuperado, pagará honorários de êxito equivalentes a 20 % no momento do recebimento. As despesas processuais, como custas, cópias e perícias, ficarão a cargo do CONTRATANTE, mediante comprovação. Comunicação e foro. A CONTRATADA informará o CONTRATANTE sobre atos relevantes do processo, por telefone ou mensagem, em até 5 dias úteis. O contrato pode ser rescindido a qualquer tempo, por escrito, devendo ser pagos os honorários vencidos e os de êxito proporcionais ao trabalho realizado. Eventuais dúvidas serão resolvidas no foro da comarca de Curitiba, Paraná.",
+        "lastro": [
+          "fatos[6]",
+          "fatos[7]",
+          "fatos[8]"
+        ]
+      },
+      {
+        "classe": "fundamentos",
+        "rotulo": "Fundamentos: leis e decisões citadas",
+        "texto": "A parte alega que tem direito ao recebimento dos honorários pactuados no contrato, tanto os honorários iniciais quanto os de êxito, bem como ao pagamento das despesas processuais, com base nas normas que regulam os contratos de prestação de serviços advocatícios e o cumprimento das obrigações contratuais. O fundamento legal para os honorários iniciais está no art. 22 da Lei nº 8.906/1994 (Estatuto da OAB) e no art. 389 do Código Civil, que dispõe sobre a obrigação de pagar o preço no contrato. Os honorários de êxito encontram respaldo no art. 85, §§ 2º e 3º, do Código de Processo Civil, que permite a fixação de honorários sobre o proveito econômico obtido. A obrigação de arcar com as despesas processuais está amparada no art. 4º, § 4º, da Lei nº 9.289/1996 e no princípio da sucumbência previsto no art. 85, § 2º, do CPC. A possibilidade de rescisão unilateral com pagamento proporcional está prevista no art. 473 do Código Civil. Por fim, a escolha do foro da comarca de Curitiba está em conformidade com o art. 63 do CPC, que permite a eleição de foro quando houver conexão com a prestação de serviços. Assim, as normas citadas justificam a exigibilidade dos pagamentos e a competência territorial, aplicando‑se diretamente ao contrato celebrado entre o CONTRATANTE e a CONTRATADA.",
+        "lastro": []
+      },
+      {
+        "classe": "pedidos",
+        "rotulo": "Pedidos",
+        "texto": "Pede que o CONTRATANTE pague honorários iniciais no total de R$ 1.500,00, em três parcelas mensais de R$ 500,00, com a primeira vencendo 10 dias após a assinatura do contrato. Pede que o CONTRATANTE pague honorários de êxito equivalentes a 20% do valor efetivamente recebido na ação.",
+        "lastro": [
+          "pedidos[0]"
+        ]
+      },
+      {
+        "classe": "contexto",
+        "rotulo": "Contexto do processo",
+        "texto": "O processo está na fase inicial, ainda não houve decisão judicial. Foi ajuizada uma ação de cobrança de verbas trabalhistas, baseada no contrato de prestação de serviços advocatícios firmado em 13/09/2026 entre o CONTRATANTE (autor) e a CONTRATADA (advogada). O pedido principal consiste no pagamento dos honorários iniciais de R$ 1.500,00 e dos honorários de êxito de 20 % sobre o valor recuperado, além das despesas processuais. Não há decisão anterior a ser impugnada; o que se discute agora é a exigibilidade desses pagamentos conforme as cláusulas contratuais e a legislação aplicável.",
+        "lastro": [
+          "T7_SINTESE_FATOS",
+          "T8_SINTESE_FUNDAMENTOS",
+          "T9_SINTESE_PEDIDOS",
+          "T10_SINTESE_IDENTIFICACAO"
+        ]
+      }
+    ]
+  }
+}

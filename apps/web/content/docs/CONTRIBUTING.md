@@ -36,7 +36,7 @@ passa por pull request e todo pull request precisa de uma aprovação e da integ
 cd apps/llm-service
 python3 -m venv .venv && . .venv/bin/activate
 pip install -r requirements.txt -r requirements-dev.txt
-python -m pytest -q tests_leia.py tests_v3.py
+python -m pytest -q
 
 # aplicação
 cd apps/web
