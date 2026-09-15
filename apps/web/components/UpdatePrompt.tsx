@@ -54,7 +54,8 @@ export function UpdatePrompt() {
   );
 }
 
-/* "v1.0.0 · abc1234" for the footer: the version is fixed (no release tags yet); the commit sha is what changes per deploy. */
+/* "v1.1.0 · abc1234" for the footer: the version comes from apps/web/package.json, which the release commit
+   bumps together with the CHANGELOG; the commit sha is what changes on every deploy. */
 export function VersionBadge({ className = "" }: { className?: string }) {
   const sha = process.env.NEXT_PUBLIC_COMMIT_SHA ?? "dev";
   return <span className={`font-mono text-[0.85rem] ${className}`}>LeIA v{process.env.NEXT_PUBLIC_APP_VERSION ?? "0.0.0"} · {sha === "dev" ? sha : <a href={`https://github.com/deegalabs/leia/commit/${sha}`} className="underline underline-offset-2" target="_blank" rel="noreferrer">{sha}</a>}</span>;
