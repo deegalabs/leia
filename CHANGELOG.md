@@ -8,7 +8,14 @@ no fim, com as evidências em `evidence/` e o índice em [docs/DELIVERIES.md](do
 Entra aqui toda mudança que altera o que alguém percebe, no mesmo pull request que a faz. Quando o conjunto
 fecha um sentido, vira versão com tag anotada e release no GitHub.
 
-_Nada por enquanto._
+### Segurança e privacidade
+- O trecho literal deixou de ser conferido pelo modelo e passou a ser localizado pelo serviço. A posição que o
+  modelo escrevia era aceita se parecesse válida, então o selo de "trecho conferido" podia apontar para a
+  cláusula errada, ou aparecer para um trecho inventado. Agora a busca é do servidor, em três estágios, e o
+  item diz qual achou.
+- Na jornada, o trecho só aparece depois de ser encontrado no documento, e a frase muda conforme o método:
+  cópia exata só é afirmada quando foi exata. Antes a tela dizia "copiado exatamente do seu documento" para
+  uma citação escolhida por semelhança de três palavras, sem nunca ter sido procurada no documento.
 
 ## v1.1.0 · 2026-09-15 · a sessão e o link deixam de ser credenciais soltas
 
