@@ -157,8 +157,15 @@ def build_router(get_attempt: Callable[[str], Optional[dict[str, Any]]], templat
         attempt = get_attempt(attempt_hash)
         if not attempt:
             raise HTTPException(status_code=404, detail="comprovante não encontrado")
-        payload = build_payload(attempt)
-        canonical, digest = payload_hash(payload)
+        # The record written down when the consent was earned wins over anything rebuilt now: a proof that
+        # changes when a database row changes is not a proof. Attempts from before this existed still rebuild.
+        gravado = attempt.get("registro") or {}
+        if gravado.get("canonical") and gravado.get("payload_sha256"):
+            canonical, digest = gravado["canonical"], gravado["payload_sha256"]
+            payload = json.loads(canonical)
+        else:
+            payload = build_payload(attempt)
+            canonical, digest = payload_hash(payload)
         ots = attempt.get("ots")  # bytes or None, stored by the service after stamping
         # A stamp only counts when it was made over this very record. A file on disk proves nothing:
         # if the payload changed after stamping, the proof belongs to a record that no longer exists.

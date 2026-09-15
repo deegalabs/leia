@@ -1117,3 +1117,65 @@ def test_a_text_task_is_not_judged_as_json():
     """T13 devolve markdown. Exigir JSON dela quebraria o resumo inteiro."""
     res = _rodar({"id": "T13_TESTE", "tipo_saida": "texto", "missao": "x"}, "# Resumo\n\nUma frase.")
     assert res["ok"] is True and res["parsed"].startswith("# Resumo")
+
+
+# ── O registro é gravado na aprovação, e diz a que documento se refere ────────
+
+def _tarefa_com_documento(hash_: str, pdf: bytes, resumo: str) -> Tarefa:
+    t = _tarefa_de_teste(hash_)
+    pasta = ws.folder(hash_)
+    pasta.mkdir(parents=True, exist_ok=True)
+    (pasta / "original.pdf").write_bytes(pdf)
+    (pasta / "resumo_humanizado.md").write_text(resumo, encoding="utf-8")
+    return t
+
+
+def test_the_receipt_says_which_document_and_which_explanation_it_is_about():
+    """Sem isso o comprovante prova que houve uma tentativa com N acertos, e nada mais. Ele não amarra o
+    entendimento ao documento que a pessoa leu, que é a afirmação central do produto."""
+    import core.attempts as tn
+    from leia.api_citizen import freeze_record, get_attempt
+    from leia.registry import sha256_hex
+
+    pdf, resumo = small_pdf("Contrato de teste do registro."), "# Explicação\n\nTexto simples."
+    t = _tarefa_com_documento("registro-completo", pdf, resumo)
+    tent = tn.record(t, {"1": 0, "2": 1, "3": 2}, QUESTOES)
+    freeze_record(t.hash, tent.numero, tent.hash_imutavel)
+
+    a = get_attempt(tent.hash_imutavel)
+    assert a["pdf_sha256"] == sha256_hex(pdf), "o comprovante não diz a que documento se refere"
+    assert a["resumo_sha256"] == sha256_hex(resumo), "o comprovante não diz que explicação foi lida"
+
+
+def test_the_record_does_not_change_when_the_database_changes():
+    """Registro de consentimento remontado do banco a cada visita não é registro: mudou a linha, mudou a prova,
+    e o carimbo de tempo passa a não corresponder a nada."""
+    import core.attempts as tn
+    from leia.api_citizen import freeze_record
+
+    t = _tarefa_com_documento("registro-imutavel", small_pdf("Outro contrato."), "# Explicação\n\nOutra.")
+    tent = tn.record(t, {"1": 0, "2": 1, "3": 2}, QUESTOES)
+    freeze_record(t.hash, tent.numero, tent.hash_imutavel)
+
+    antes = client.get(f"/verify/{tent.hash_imutavel}?format=json").json()
+    from core.db import Tentativa as _Tent
+
+    with Session(engine) as s:
+        linha = s.exec(select(_Tent).where(_Tent.hash_imutavel == tent.hash_imutavel)).first()
+        linha.acertos = 0
+        linha.aprovado = False
+        s.add(linha); s.commit()
+    depois = client.get(f"/verify/{tent.hash_imutavel}?format=json").json()
+
+    assert antes["canonical"] == depois["canonical"], "mexer no banco mudou o registro publicado"
+    assert antes["payloadHash"] == depois["payloadHash"]
+
+
+def test_an_attempt_recorded_before_this_change_still_verifies():
+    """Compatibilidade: comprovante que já circulou não pode parar de abrir."""
+    import core.attempts as tn
+
+    t = _tarefa_com_documento("registro-antigo", small_pdf("Contrato antigo."), "# Antiga\n\nx")
+    tent = tn.record(t, {"1": 0, "2": 1, "3": 2}, QUESTOES)   # sem freeze_record, como antes
+    r = client.get(f"/verify/{tent.hash_imutavel}?format=json")
+    assert r.status_code == 200 and r.json()["payloadHash"]

@@ -24,6 +24,12 @@ fecha um sentido, vira versão com tag anotada e release no GitHub.
   dela, era gravado no arquivo da etapa e entrava no contexto da seguinte. Agora ela falha, e o documento inteiro
   falha com ela, o que é melhor que uma explicação construída sobre lixo. Sete etapas passaram a declarar no
   protocolo quais campos precisam existir, e a saída é conferida contra isso.
+- O comprovante passou a dizer **a que documento e a que explicação** ele se refere, com o hash de cada um. Antes
+  esses dois campos existiam no registro publicado e saíam sempre vazios, então o comprovante provava que houve
+  uma tentativa com N acertos e nada mais, sem amarrar o entendimento ao documento que a pessoa leu.
+- O registro passou a ser gravado no momento em que a pessoa o conquistou, e nunca mais reconstruído. Antes ele era
+  remontado do banco a cada visita: mudou uma linha, mudou a prova, e o carimbo de tempo passava a corresponder a
+  um registro que não existia mais. Comprovantes emitidos antes desta mudança continuam abrindo.
 
 ### Por dentro
 - Existe uma bateria de avaliação do motor (`apps/llm-service/evals`). Ela mede, sobre casos gravados de tarefas

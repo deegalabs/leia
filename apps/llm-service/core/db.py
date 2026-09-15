@@ -81,6 +81,19 @@ class Tentativa(SQLModel, table=True):
     criada_em: datetime = Field(default_factory=datetime.utcnow)
 
 
+# LeIA: the consent record as it was published, frozen when the attempt was approved.
+# Rebuilding it from the database on every visit meant the record changed whenever a row changed, and the
+# timestamp then proved a record that no longer existed. New table, so no column migration is needed.
+class ConsentRecord(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    attempt_hash: str = Field(index=True, unique=True)
+    document_sha256: str = ""
+    summary_sha256: str = ""
+    canonical: str = ""
+    payload_sha256: str = ""
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
 # LeIA: the invite that governs a document link. Without one, the link works as it always did;
 # with one, the link can expire, be revoked, and be addressed to a single person.
 # New table, so create_all builds it on Postgres too: this needs no column migration.

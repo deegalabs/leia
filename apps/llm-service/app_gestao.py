@@ -726,8 +726,11 @@ async def api_quiz(
     erros = tn.review_points(tent, questoes)
     erros = [{"id": e.get("id"), "area": e.get("area"), "enunciado": e.get("enunciado"), "escolhida": e.get("escolhida")} for e in erros]  # LeIA: no answer key to the browser
 
-    if tent.aprovado:  # LeIA: public timestamp (OpenTimestamps) of the approved attempt, in background
-        from leia.api_citizen import stamp_attempt
+    if tent.aprovado:
+        # LeIA: the record is written down here, while the document and the explanation are still on disk,
+        # and never rebuilt afterwards. Then the public timestamp, in background, over that frozen record.
+        from leia.api_citizen import freeze_record, stamp_attempt
+        freeze_record(t.hash, tent.numero, tent.hash_imutavel)
         background.add_task(stamp_attempt, t.hash, tent.numero, tent.hash_imutavel)
 
     ws.record_event(t.hash, "tentativa",
