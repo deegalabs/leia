@@ -24,6 +24,7 @@ import core.workspace as ws
 from app_gestao import _read_artifact, _read_json, _permite_ver, create_pdf_task
 from core.auth import api_user
 from leia.api_citizen import inferences_of, public_events  # LeIA: no ip/ua in the JSON
+from leia import invites  # LeIA: the invite that governs the document link
 from core.db import Duvida, LogEvento, Tarefa, Tentativa, Usuario, get_session
 
 READY_STATUSES = ("pronta", "enviada", "assinada")
@@ -136,9 +137,43 @@ def get_task(tarefa_id: int, request: Request, u: Usuario = Depends(api_user),
                  "criada_em": a.criada_em.isoformat(), "hash_imutavel": a.hash_imutavel} for a in tn.list_all(t.id)]
     doubts = session.exec(select(Duvida).where(Duvida.tarefa_id == t.id).order_by(Duvida.criada_em)).all()   # type: ignore
     return {"tarefa": task_json(t), "link_cliente": client_link(request, t),
+            "convite": invites.to_json(invites.active_invite(session, t.id)),
             "resumo_md": (_read_artifact(t.hash, "resumo_humanizado.md") or "") if t.status in READY_STATUSES else None,
             "eventos": public_events(ws.read_events(t.hash), 20), "tentativas": attempts,
             "duvidas": [doubt_json(d) for d in doubts], "cidadao": cidadao, "advogado": advogado}
+
+
+class ConviteIn(BaseModel):
+    email: Optional[str] = None
+    validade_horas: Optional[int] = None
+
+
+def _owned(session: Session, u: Usuario, tarefa_id: int) -> Tarefa:
+    """Only whoever sent the document decides who may open it."""
+    t = session.get(Tarefa, tarefa_id)
+    if not t or t.advogado_id != u.id:
+        raise HTTPException(404, "Documento não encontrado")
+    return t
+
+
+@router.post("/api/tarefas/{tarefa_id}/convite")
+def issue_invite(tarefa_id: int, body: ConviteIn, u: Usuario = Depends(api_user),
+                 session: Session = Depends(get_session)):
+    t = _owned(session, u, tarefa_id)
+    inv = invites.issue(session, t, u, email=body.email, hours=body.validade_horas)
+    ws.record_event(t.hash, "convite_emitido", convite_id=inv.id, com_destinataria=bool(inv.email))
+    return invites.to_json(inv)
+
+
+@router.delete("/api/tarefas/{tarefa_id}/convite")
+def revoke_invite(tarefa_id: int, u: Usuario = Depends(api_user), session: Session = Depends(get_session)):
+    t = _owned(session, u, tarefa_id)
+    inv = invites.active_invite(session, t.id)
+    if inv is None:
+        raise HTTPException(404, "Este documento não tem convite para cancelar.")
+    invites.revoke(session, inv)
+    ws.record_event(t.hash, "convite_revogado", convite_id=inv.id)
+    return invites.to_json(inv)
 
 
 @router.post("/api/tarefas/{tarefa_id}/duvidas/{duvida_id}/responder")

@@ -31,6 +31,10 @@ export function Journey({ hash }: { hash: string }) {
   const [bound, setBound] = useState(false);
   const [binding, setBinding] = useState(false);
   const canBind = Boolean(task && authReady && usuario?.papel === "cidadao" && task.cidadao_vinculado === false && !bound);
+  /* LeIA: ler e perguntar não exigem conta, de propósito. O que exige é guardar o comprovante, porque ele
+     afirma que uma pessoa entendeu. Então aqui a gente avisa, não bloqueia. */
+  const addressedTo = task?.convite?.enderecado ? task.convite.para : null;
+  const maybeNotTheAddressee = Boolean(addressedTo && authReady && !task?.cidadao_vinculado);
   async function claim() {
     if (binding) return;
     setBinding(true);
@@ -50,9 +54,12 @@ export function Journey({ hash }: { hash: string }) {
         if (saved?.result?.aprovado) { setResult(saved.result); setStep({ kind: "result" }); return; }
         if (saved?.answers) setAnswers(saved.answers);
       } catch { /* ignore */ }
-    }).catch((e: Error) => {
+    }).catch((e: Error & { status?: number }) => {
       if (!alive) return;
-      if (e.message.includes("404")) { setError("Este link não existe ou foi digitado errado. Confira com quem enviou o documento."); return; }
+      if (e.status === 404) { setError("Este link não existe ou foi digitado errado. Confira com quem enviou o documento."); return; }
+      /* 403 é recusa explicada pelo serviço: link cancelado, vencido, ou endereçado a outra pessoa.
+         Insistir não muda nada, então a tela mostra o motivo e para. */
+      if (e.status === 403) { setError(e.message); return; }
       setError("Deu um problema do nosso lado, não foi você. Estamos tentando de novo.");
       setTimeout(() => setRetry((n) => n + 1), 4000);
     });
@@ -75,7 +82,12 @@ export function Journey({ hash }: { hash: string }) {
   async function send() {
     setSending(true);
     try { const r = await submitQuiz(hash, answers); setResult(r); setStep({ kind: "result" }); }
-    catch { setError("Deu um problema do nosso lado, não foi você. Tente de novo em instantes."); }
+    catch (e) {
+      /* 403 aqui é a recusa explicada pelo serviço: o comprovante afirma que uma pessoa entendeu, e quem
+         responde precisa ser ela. O texto vem de lá, já escrito para a cidadã ler. */
+      const err = e as Error & { status?: number };
+      setError(err.status === 403 ? err.message : "Deu um problema do nosso lado, não foi você. Tente de novo em instantes.");
+    }
     finally { setSending(false); }
   }
 
@@ -128,6 +140,12 @@ export function Journey({ hash }: { hash: string }) {
             </Card>
           )}
           {bound && <Card tone="soft" className="mt-4"><p>Pronto. Este documento agora aparece na sua lista.</p></Card>}
+          {maybeNotTheAddressee && !bound && (
+            <Card tone="pending" className="mt-4">
+              <h2 className="mb-1 text-[1.15rem]">Este documento foi enviado para {addressedTo}</h2>
+              <p className="text-[1rem]">Você pode ler tudo e tirar dúvidas do jeito que estiver, sem criar conta. Para guardar o comprovante no fim, é preciso entrar com esse e-mail.</p>
+            </Card>
+          )}
           <Card tone="soft" className="mt-4">
             <h2 className="mb-2 text-[1.15rem]">Quem está falando com você</h2>
             <p id="intro">Sou uma assistente automática. Explico o que está escrito neste documento. Não sou advogada e não dou conselho jurídico. Suas respostas ficam só com você.</p>

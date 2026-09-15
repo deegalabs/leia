@@ -11,7 +11,7 @@ export function Receipt({ attempt }: { attempt: string }) {
   useEffect(() => {
     let alive = true;
     const run = () => getVerify(attempt).then((d) => { if (alive) { setData(d); setError(null); } })
-      .catch((e: Error) => { if (alive) setError(e.message.includes("404") ? "Comprovante não encontrado." : "Deu um problema do nosso lado, não foi você. Estamos tentando de novo."); });
+      .catch((e: Error & { status?: number }) => { if (alive) setError(e.status === 404 ? "Comprovante não encontrado." : "Deu um problema do nosso lado, não foi você. Estamos tentando de novo."); });
     run();
     const id = setInterval(run, 30000);   /* the stamp arrives minutes later; keep refreshing while open */
     return () => { alive = false; clearInterval(id); };

@@ -784,3 +784,109 @@ def test_the_healthcheck_path_declared_to_the_host_is_really_served():
     caminho = achado.group(1)
     r = TestClient(main.app).get(caminho)
     assert r.status_code == 200, f"o deploy espera 200 em {caminho} e a aplicação responde {r.status_code}"
+
+
+# ── Convite: o link deixa de ser credencial de quem o tiver ───────────────────
+
+def _nova_tarefa(lawyer) -> dict:
+    return create_task(lawyer["token"], "Contrato com convite")
+
+
+def _convidar(lawyer, tarefa_id: int, **corpo) -> dict:
+    r = client.post(f"/api/tarefas/{tarefa_id}/convite", json=corpo, headers=bearer(lawyer["token"]))
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+def test_a_link_without_an_invite_keeps_working(lawyer_task):
+    """Compatibilidade: link que já circulou não pode parar de abrir por causa desta mudança."""
+    assert client.get(f"/api/t/{lawyer_task['hash']}").status_code == 200
+
+
+def test_only_whoever_sent_the_document_can_invite_or_revoke(lawyer, citizen):
+    t = _nova_tarefa(lawyer)
+    r = client.post(f"/api/tarefas/{t['id']}/convite", json={}, headers=bearer(citizen["token"]))
+    assert r.status_code in (403, 404), "uma conta qualquer conseguiu emitir convite para documento de outra pessoa"
+    _convidar(lawyer, t["id"])
+    r = client.delete(f"/api/tarefas/{t['id']}/convite", headers=bearer(citizen["token"]))
+    assert r.status_code in (403, 404), "uma conta qualquer conseguiu revogar o convite de outra pessoa"
+
+
+def test_a_revoked_invite_closes_the_link(lawyer):
+    t = _nova_tarefa(lawyer)
+    _convidar(lawyer, t["id"])
+    assert client.get(f"/api/t/{t['hash']}").status_code == 200
+    assert client.delete(f"/api/tarefas/{t['id']}/convite", headers=bearer(lawyer["token"])).status_code == 200
+    r = client.get(f"/api/t/{t['hash']}")
+    assert r.status_code == 403, "o link continuou abrindo depois de cancelado"
+    assert "cancel" in r.json()["detail"].lower()
+
+
+def test_an_expired_invite_closes_the_link(lawyer):
+    from datetime import datetime, timedelta
+
+    from core.db import Invite
+
+    t = _nova_tarefa(lawyer)
+    convite = _convidar(lawyer, t["id"], validade_horas=24)
+    with Session(engine) as s:
+        c = s.get(Invite, convite["id"])
+        c.expires_at = datetime.utcnow() - timedelta(minutes=1)
+        s.add(c); s.commit()
+    r = client.get(f"/api/t/{t['hash']}")
+    assert r.status_code == 403, "o link continuou abrindo depois de vencido"
+    assert "venc" in r.json()["detail"].lower() or "expir" in r.json()["detail"].lower()
+
+
+def test_an_addressed_invite_still_lets_anyone_read_and_ask(lawyer, citizen):
+    """Ler e perguntar não exige identidade. Exigir conta para ler é barreira para quem mais precisa,
+    e a pessoa pode estar num celular emprestado. O que a destinatária protege é o registro, não a leitura."""
+    t = _nova_tarefa(lawyer)
+    _convidar(lawyer, t["id"], email="outra.pessoa@teste.local")
+    assert client.get(f"/api/t/{t['hash']}").status_code == 200, "leitura bloqueada por causa da destinatária"
+    assert client.get(f"/api/t/{t['hash']}", headers=bearer(citizen["token"])).status_code == 200
+    assert client.get(f"/api/t/{t['hash']}/inferencias").status_code in (200, 409)
+
+
+def test_the_public_json_says_it_is_addressed_without_revealing_the_address(lawyer):
+    t = _nova_tarefa(lawyer)
+    _convidar(lawyer, t["id"], email="maria.silva@exemplo.local")
+    convite = client.get(f"/api/t/{t['hash']}").json().get("convite")
+    assert convite and convite["enderecado"] is True
+    assert "maria.silva" not in json.dumps(convite), "o endereço inteiro da destinatária vazou no JSON público"
+    assert convite["para"] and "***" in convite["para"]
+
+
+def test_only_the_addressed_person_produces_the_record(lawyer, citizen):
+    """O comprovante diz que uma pessoa entendeu. Quem não é ela não pode gerá-lo."""
+    t = _nova_tarefa(lawyer)
+    _convidar(lawyer, t["id"], email="outra.pessoa@teste.local")
+    assert client.post(f"/api/t/{t['hash']}/quiz", json={"respostas": {}}).status_code == 403
+    assert client.post(f"/api/t/{t['hash']}/quiz", json={"respostas": {}},
+                       headers=bearer(citizen["token"])).status_code == 403
+    assert client.post(f"/api/t/{t['hash']}/vincular", headers=bearer(citizen["token"])).status_code == 403
+
+
+def test_the_person_it_was_addressed_to_can_do_everything(lawyer, citizen):
+    t = _nova_tarefa(lawyer)
+    _convidar(lawyer, t["id"], email=citizen["usuario"]["email"])
+    assert client.get(f"/api/t/{t['hash']}", headers=bearer(citizen["token"])).status_code == 200
+    assert client.post(f"/api/t/{t['hash']}/vincular", headers=bearer(citizen["token"])).status_code == 200
+
+
+def test_a_cancelled_link_closes_reading_for_everyone(lawyer, citizen):
+    """Validade do link não é sobre identidade: cancelado ou vencido, não abre nem para quem tem conta."""
+    t = _nova_tarefa(lawyer)
+    _convidar(lawyer, t["id"], email=citizen["usuario"]["email"])
+    client.delete(f"/api/tarefas/{t['id']}/convite", headers=bearer(lawyer["token"]))
+    assert client.get(f"/api/t/{t['hash']}").status_code == 403
+    assert client.get(f"/api/t/{t['hash']}", headers=bearer(citizen["token"])).status_code == 403
+
+
+def test_the_invite_also_closes_the_answers_route(lawyer):
+    """De nada adianta fechar a leitura e deixar a gravação do registro aberta."""
+    t = _nova_tarefa(lawyer)
+    _convidar(lawyer, t["id"])
+    client.delete(f"/api/tarefas/{t['id']}/convite", headers=bearer(lawyer["token"]))
+    r = client.post(f"/api/t/{t['hash']}/quiz", json={"respostas": {}})
+    assert r.status_code == 403, "o registro pôde ser gravado por um link cancelado"

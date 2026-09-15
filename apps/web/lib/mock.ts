@@ -83,7 +83,11 @@ export type MockTask = {
   ready_at: number; eventos: MockEvent[]; tentativas: MockAttempt[]; duvidas: MockDoubt[];
   /* LeIA: visible preparation. How many of the 14 steps started and finished; externa = produced by the external flow (no steps) */
   etapas_iniciadas: number; etapas_feitas: number; externa: boolean;
+  /* LeIA: o convite que governa o link; ausente significa link aberto, como sempre foi */
+  convite?: MockInvite | null;
 };
+
+export type MockInvite = { id: number; email: string | null; expira_em: string | null; revogado_em: string | null; criado_em: string };
 
 /* LeIA: the 14 workflow steps in pt-BR (docs/API-V3-CONTRACT.md, "Preparação visível e tarefas do fluxo externo") and the
    seconds each one reports once finished (illustrative; the simulated pipeline is faster than the real one) */
@@ -234,7 +238,7 @@ export function taskDetail(u: MockUser, id: number) {
   if (!canSee(u, t)) throw fail(403, "sem acesso");
   return {
     tarefa: { id: t.id, hash: t.hash, titulo: t.titulo, status: t.status, criada_em: t.criada_em, atualizada_em: t.atualizada_em, origem: t.origem },
-    link_cliente: clientLink(t), resumo_md: hasContent(t) ? contentOf(t).resumo_md : null, eventos: t.eventos.slice(-20),
+    convite: t.convite ?? null, link_cliente: clientLink(t), resumo_md: hasContent(t) ? contentOf(t).resumo_md : null, eventos: t.eventos.slice(-20),
     tentativas: t.tentativas.map(({ numero, acertos, total, aprovado, criada_em, hash_imutavel, comprovante_token }) => ({ numero, acertos, total, aprovado, criada_em, hash_imutavel, comprovante_token })),
     duvidas: t.duvidas, cidadao: nameOf(t.cidadao_id), advogado: lawyerOf(t),
   };
@@ -256,9 +260,74 @@ const hasContent = (t: MockTask) => t.status === "pronta" || t.status === "envia
 export const isReleased = (t: MockTask) => t.status === "enviada" || t.status === "assinada" || (t.status === "pronta" && t.origem === "cidadao");
 export const inReview = (t: MockTask) => t.status === "pronta" && t.origem === "advogado";
 /* 409 body shared by the public routes while the lawyer reviews or the pipeline runs */
-export function publicGate(hash: string): Response | null {
+function ownedByMe(u: MockUser, id: number): MockTask {
+  const t = storeTaskById(id);
+  if (!t || t.dono_id !== u.id) throw fail(404, "Documento não encontrado");
+  return t;
+}
+
+export function issueInvite(u: MockUser, id: number, input: { email?: unknown; validade_horas?: unknown }): MockInvite {
+  const t = ownedByMe(u, id);
+  const horas = Math.max(1, Number(input.validade_horas) || 30 * 24);
+  const email = String(input.email ?? "").trim().toLowerCase() || null;
+  t.convite = { id: (t.convite?.id ?? 0) + 1, email, criado_em: nowIso(), revogado_em: null,
+                expira_em: new Date(Date.now() + horas * 3600_000).toISOString() };
+  return t.convite;
+}
+
+export function revokeInvite(u: MockUser, id: number): MockInvite {
+  const t = ownedByMe(u, id);
+  if (!t.convite) throw fail(404, "Este documento não tem convite para cancelar.");
+  t.convite.revogado_em = t.convite.revogado_em ?? nowIso();
+  return t.convite;
+}
+
+/* LeIA: mesma regra do serviço (apps/llm-service/leia/invites.py), em duas camadas.
+   Validade do link vale para todo mundo; a destinatária só vale para o que produz o comprovante. */
+const mine = (t: MockTask, visitor: MockUser | null) => Boolean(visitor && (visitor.id === t.dono_id || visitor.id === t.cidadao_id));
+
+export function inviteGate(t: MockTask, visitor: MockUser | null): Response | null {
+  if (mine(t, visitor)) return null;
+  const c = t.convite;
+  if (!c) return null;
+  if (c.revogado_em) return Response.json({ detail: "Este link foi cancelado por quem enviou o documento." }, { status: 403 });
+  if (c.expira_em && new Date(c.expira_em).getTime() <= Date.now()) {
+    return Response.json({ detail: "Este link venceu. Peça um novo a quem enviou o documento." }, { status: 403 });
+  }
+  return null;
+}
+
+/* Ler e perguntar não exigem conta. O comprovante exige, porque ele afirma que uma pessoa entendeu. */
+export function recipientGate(t: MockTask, visitor: MockUser | null): Response | null {
+  const invalid = inviteGate(t, visitor);
+  if (invalid) return invalid;
+  if (mine(t, visitor)) return null;
+  const c = t.convite;
+  if (!c?.email) return null;
+  if (!visitor) return Response.json({ detail: "Para guardar o comprovante, entre com o e-mail que recebeu este documento." }, { status: 403 });
+  if (visitor.email.trim().toLowerCase() !== c.email) {
+    return Response.json({ detail: "Este documento foi enviado para outra pessoa, então o comprovante não pode sair nesta conta." }, { status: 403 });
+  }
+  return null;
+}
+
+const maskedEmail = (email: string | null) => {
+  if (!email || !email.includes("@")) return null;
+  const [user, domain] = email.split("@");
+  return `${user.slice(0, 2)}***@${domain}`;
+};
+
+export function invitePublicJson(t: MockTask) {
+  const c = t.convite;
+  if (!c || c.revogado_em) return null;
+  return { enderecado: Boolean(c.email), para: maskedEmail(c.email), expira_em: c.expira_em };
+}
+
+export function publicGate(hash: string, visitor: MockUser | null = null, needsRecipient = false): Response | null {
   const t = storeTask(hash);
   if (!t) return Response.json({ detail: "não encontrado" }, { status: 404 });
+  const invite = needsRecipient ? recipientGate(t, visitor) : inviteGate(t, visitor);
+  if (invite) return invite;
   if (inReview(t)) return Response.json({ detail: "Em revisão pelo advogado" }, { status: 409 });
   if (!isReleased(t)) return Response.json({ detail: "ainda não está pronta" }, { status: 409 });
   return null;
@@ -331,9 +400,9 @@ export function publicTaskFor(hash: string) {
   /* LeIA: review gate. A lawyer-owned task in "pronta" answers "revisao" with no content until the lawyer approves. */
   /* LeIA: visible preparation. etapas with the 14 steps and every pipeline event (up to 60), like the service. */
   const progress = { etapas: stagesOf(t), eventos: t.eventos.slice(-60) };
-  if (inReview(t)) return { ...base, tarefa: { ...base.tarefa, status: "revisao" }, resumo_md: null, topicos: null, questoes: [], sem_perguntas: false, ...progress, ...publicTaskMeta(t) };
+  if (inReview(t)) return { ...base, tarefa: { ...base.tarefa, status: "revisao" }, resumo_md: null, topicos: null, questoes: [], sem_perguntas: false, ...progress, ...publicTaskMeta(t), convite: invitePublicJson(t) };
   const ready = isReleased(t);
-  return { ...base, resumo_md: ready ? base.resumo_md : "", topicos: ready ? base.topicos : null, questoes: ready ? base.questoes : [], sem_perguntas: ready && base.sem_perguntas, ...progress, ...publicTaskMeta(t) };
+  return { ...base, resumo_md: ready ? base.resumo_md : "", topicos: ready ? base.topicos : null, questoes: ready ? base.questoes : [], sem_perguntas: ready && base.sem_perguntas, ...progress, ...publicTaskMeta(t), convite: invitePublicJson(t) };
 }
 export function recordAttempt(hash: string, r: ReturnType<typeof evaluateQuiz>) {
   const t = storeTask(hash);

@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, ClipboardCheck, ExternalLink, Send } from "lucide-react";
-import { answerDoubt, clientLinkUrl, formatDateTime, getTaskDetail, type Doubt, type TaskDetail } from "@/lib/api";
+import { answerDoubt, clientLinkUrl, formatDateTime, getTaskDetail, issueInvite, revokeInvite, type Doubt, type Invite, type TaskDetail } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { fmt, m } from "@/lib/i18n";
 import { hasReview, isSettled, needsReview, statusInfo } from "@/lib/status";
@@ -83,6 +83,7 @@ function Body({ id }: { id: string }) {
               <LinkButton href={`/t/${data.tarefa.hash}`} variant="ghost" className="!w-auto"><ExternalLink size={18} aria-hidden /> {m.panel.openAsClient}</LinkButton>
             </div>
             <p className="mt-2"><LinkButton href={`/t/${data.tarefa.hash}/documento`} variant="ghost">Ver o documento com as marcações e o que a assistente concluiu</LinkButton></p>
+            <InviteControl id={id} invite={data.convite ?? null} onChange={() => setTick((n) => n + 1)} />
           </Card>
         )}
         {isCitizen && (
@@ -175,5 +176,57 @@ function DoubtItem({ taskId, d, canReply, onReplied }: { taskId: string; d: Doub
         </form>
       )}
     </li>
+  );
+}
+
+/* LeIA: o link deixou de ser credencial de quem o tiver. Aqui quem enviou o documento decide até quando ele
+   vale, para quem ele abre, e pode cancelá-lo (apps/llm-service/leia/invites.py). */
+function InviteControl({ id, invite, onChange }: { id: string; invite: Invite | null; onChange: () => void }) {
+  const [email, setEmail] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const t = m.panel.detail;
+
+  const revoked = Boolean(invite?.revogado_em);
+  const estado = revoked ? t.inviteRevoked
+    : invite?.email ? fmt(t.inviteAddressed, { email: invite.email })
+    : t.inviteAnyone;
+
+  async function run(action: () => Promise<unknown>) {
+    if (busy) return;
+    setBusy(true); setError(null);
+    try { await action(); setEmail(""); onChange(); }
+    catch { setError(t.inviteFailed); }
+    finally { setBusy(false); }
+  }
+
+  return (
+    <div className="mt-4 border-t border-line pt-3">
+      <h3 className="text-[1rem] font-bold">{t.inviteTitle}</h3>
+      <p className="mt-1 text-[0.95rem] text-ink-2">{estado}</p>
+      {invite && !revoked && invite.expira_em && (
+        <p className="text-[0.9rem] text-ink-3">{fmt(t.inviteUntil, { data: formatDateTime(invite.expira_em) })}</p>
+      )}
+      {!invite && <p className="mt-1 text-[0.9rem] text-ink-3">{t.inviteOpenHint}</p>}
+      {!revoked && (
+        <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto]">
+          <label className="grid gap-1">
+            <span className="text-[0.9rem] text-ink-2">{t.inviteEmailLabel}</span>
+            <input type="email" inputMode="email" autoComplete="off" value={email} placeholder={t.inviteEmailPlaceholder}
+              onChange={(e) => setEmail(e.target.value)}
+              className="min-h-[44px] rounded-button border border-line bg-surface px-3 text-[1rem]" />
+          </label>
+          <div className="flex flex-wrap items-end gap-2">
+            <Button variant="secondary" className="!w-auto" disabled={busy}
+              onClick={() => run(() => issueInvite(id, email.trim() ? { email: email.trim() } : {}))}>{t.inviteLimit}</Button>
+            {invite && (
+              <Button variant="ghost" className="!w-auto" disabled={busy}
+                onClick={() => run(() => revokeInvite(id))}>{t.inviteCancel}</Button>
+            )}
+          </div>
+        </div>
+      )}
+      {error && <p role="alert" className="mt-2 text-[0.95rem] text-danger">{error}</p>}
+    </div>
   );
 }

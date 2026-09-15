@@ -22,6 +22,8 @@ export type Task = {
   tem_advogado?: boolean;
   cidadao_vinculado?: boolean;
   duvidas_enviadas?: number;
+  /* LeIA: o convite que governa este link, sem revelar o endereço da destinatária */
+  convite?: { enderecado: boolean; para: string | null; expira_em: string | null } | null;
   /* LeIA: visible preparation (docs/API-V3-CONTRACT.md, "Preparação visível e tarefas do fluxo externo") */
   etapas?: Stage[];
   sem_perguntas?: boolean;
@@ -35,9 +37,15 @@ export type VerifyResult = {
   demo?: boolean;
 };
 
+/* The service explains its refusals in the "detail" field. Carrying that text through means the screen can
+   say "this link was cancelled" instead of a generic error it then retries forever. */
 async function check(r: Response) {
-  if (!r.ok) { const e: Error & { status?: number } = new Error(`HTTP ${r.status}`); e.status = r.status; throw e; }
-  return r;
+  if (r.ok) return r;
+  let detail = "";
+  try { detail = String(((await r.clone().json()) as { detail?: unknown })?.detail ?? ""); } catch { /* sem corpo JSON */ }
+  const e: Error & { status?: number } = new Error(detail.trim() || `HTTP ${r.status}`);
+  e.status = r.status;
+  throw e;
 }
 
 export async function getTask(hash: string): Promise<Task> {
@@ -117,9 +125,11 @@ export type TaskSummary = {
 export type ChatTurn = { role: "user" | "bot"; text: string };
 export type Doubt = { id: number; texto: string; contexto: ChatTurn[]; criada_em: string; respondida: boolean; resposta: string | null; respondida_em: string | null };
 export type TaskEvent = { tipo?: string; id?: string; idx?: number; total?: number; ts?: string; [k: string]: unknown };
+/* LeIA: o convite que governa o link do documento. Sem convite, o link abre para quem o tiver, como sempre foi. */
+export type Invite = { id: number; email: string | null; expira_em: string | null; revogado_em: string | null; criado_em: string };
 export type TaskDetail = {
   tarefa: { id: number; hash: string; titulo: string; status: TaskStatus; criada_em: string; atualizada_em: string; origem: "advogado" | "cidadao" };
-  link_cliente: string; resumo_md: string | null; eventos: TaskEvent[];
+  link_cliente: string; convite?: Invite | null; resumo_md: string | null; eventos: TaskEvent[];
   tentativas: { numero: number; acertos: number; total: number; aprovado: boolean; criada_em: string; hash_imutavel: string; comprovante_token?: string }[];
   duvidas: Doubt[]; cidadao: { nome: string } | null; advogado: { nome: string } | null;
 };
@@ -186,6 +196,15 @@ export async function getReview(id: string | number): Promise<Review> {
   const r = await check(await fetch(`/api/tarefas/${id}/revisao`, { headers: { Accept: "application/json" }, cache: "no-store" }));
   return r.json();
 }
+export async function issueInvite(id: string | number, input: { email?: string; validade_horas?: number } = {}): Promise<Invite> {
+  const r = await check(await fetch(`/api/tarefas/${id}/convite`, { method: "POST", headers: jsonHeaders(), body: JSON.stringify(input) }));
+  return r.json();
+}
+export async function revokeInvite(id: string | number): Promise<Invite> {
+  const r = await check(await fetch(`/api/tarefas/${id}/convite`, { method: "DELETE", headers: jsonHeaders() }));
+  return r.json();
+}
+
 export async function approveTask(id: string | number): Promise<{ ok: boolean; status: TaskStatus }> {
   const r = await check(await fetch(`/api/tarefas/${id}/aprovar`, { method: "POST", headers: jsonHeaders(), body: "{}" }));
   return r.json();

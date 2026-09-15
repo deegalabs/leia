@@ -27,8 +27,34 @@ invalida o anterior).
 | `POST /api/tarefas` | Bearer | multipart `titulo`, `pdf` | `{ id, hash, status: "criada" }` e agenda o pipeline. Dono = quem enviou. Se `cidadao`, também `cidadao_id` = ele |
 | `GET /api/tarefas/{id}` | Bearer (dono, admin ou cidadã vinculada) | | `{ tarefa: { id, hash, titulo, status, criada_em, atualizada_em, origem }, link_cliente, resumo_md \| null, eventos: [últimos 20], tentativas: [ { numero, acertos, total, aprovado, criada_em, hash_imutavel } ], duvidas: [ { id, texto, contexto, criada_em, respondida, resposta, respondida_em } ], cidadao, advogado }` |
 | `POST /api/tarefas/{id}/duvidas/{duvida_id}/responder` | Bearer (dono ou admin) | `{ resposta }` | `{ ok: true }`; marca `respondida=true`, `respondida_em` |
+| `POST /api/tarefas/{id}/convite` | Bearer (só quem enviou) | `{ email?, validade_horas? }` | `{ id, email, expira_em, revogado_em, criado_em }`; emitir de novo substitui o convite anterior; validade padrão de 30 dias |
+| `DELETE /api/tarefas/{id}/convite` | Bearer (só quem enviou) | | cancela o convite ativo; 404 quando não há convite |
 
-## Cidadã (rotas públicas, o hash é o segredo)
+## Cidadã (rotas públicas, governadas pelo convite)
+
+O hash já foi o segredo inteiro: quem tivesse o endereço abria o documento, para sempre, e não havia como
+desfazer. Agora o documento pode ter um **convite**, que acrescenta validade, cancelamento e, quando quem
+enviou sabe o endereço, uma destinatária única.
+
+Documento **sem convite** se comporta como sempre, para não quebrar link que já circulou. Quem enviou o
+documento e a cidadã já vinculada entram sempre.
+
+O convite trabalha em **duas camadas**, e a diferença é deliberada:
+
+| Camada | O que confere | Onde vale |
+|---|---|---|
+| Validade do link | cancelado, vencido | todas as rotas públicas, com ou sem conta |
+| Destinatária declarada | a conta é a do e-mail do convite | só `POST /api/t/{hash}/quiz` e `POST /api/t/{hash}/vincular` |
+
+**Ler e perguntar não exigem conta, de propósito.** Exigir cadastro para ler é barreira justamente para quem
+este produto atende, que pode estar num celular emprestado. O que a destinatária protege é o comprovante, que
+afirma que **uma pessoa** entendeu o documento. Quem não é ela lê tudo, tira dúvidas, e recebe 403 ao tentar
+gravar o registro.
+
+`GET /api/t/{hash}` traz `convite: { enderecado: bool, para: "ma***@exemplo.com" | null, expira_em } | null`,
+para a tela avisar antes de a pessoa responder. O endereço vai mascarado: serve para ela reconhecer o próprio
+e-mail, não para alguém coletá-lo.
+
 | Método e rota | Entrada | Saída |
 |---|---|---|
 | `GET /api/t/{hash}` | | como hoje **mais** `advogado: { nome } \| null` (nulo quando o dono é `cidadao`), `tem_advogado: bool`, `cidadao_vinculado: bool`, `duvidas_enviadas: n` |
