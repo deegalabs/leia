@@ -146,34 +146,92 @@ def _quotes(obj: Any, out: list[str]) -> list[str]:
     return out
 
 
-def topics_from_summary(resumo_md: str, memoria: Any, documento: str = "") -> Optional[list[dict[str, Any]]]:
-    """Sections of the plain-language summary, each with a literal quote from the memory.
+def _section_key(titulo: str) -> str:
+    """The heading as a comparable key: no accents, no emoji, no punctuation, one space between words.
+    The model writes the heading with an emoji in front, and that emoji is decoration, not identity."""
+    base = _norm(titulo or "")
+    return " ".join("".join(c if c.isalnum() or c.isspace() else " " for c in base).split())
 
-    The quote is what the citizen reads beside the explanation, presented as copied from the document, so it has
-    to survive two checks and not one. Word overlap only says which quote is about this topic; whether the quote
-    exists at all is decided by ``locate`` over the extracted text. Without the document there is nothing to
-    check against, and then no quote is shown."""
+
+_SECTION_SOURCES: Optional[dict[str, list[str]]] = None
+
+
+def section_sources() -> dict[str, list[str]]:
+    """Which memory classes each summary section is explaining, as declared in the protocol.
+
+    The section headings are fixed by the task that writes the summary, so this link is knowable, not
+    guessable. It lives next to that task in ``protocolo_pdf.json`` because the day the headings change the
+    link has to change with them."""
+    global _SECTION_SOURCES
+    if _SECTION_SOURCES is None:
+        _SECTION_SOURCES = {}
+        try:
+            from core.pipeline_pdf import PROTOCOLO_PDF
+
+            doc = json.loads(Path(PROTOCOLO_PDF).read_text(encoding="utf-8"))
+            for task in doc.get("tasks") or []:
+                mapa = task.get("ancoras_por_secao")
+                if isinstance(mapa, dict):
+                    _SECTION_SOURCES.update({_section_key(k): [str(v) for v in (vals or [])] for k, vals in mapa.items()})
+        except Exception:
+            pass
+    return _SECTION_SOURCES
+
+
+def _refs_of(sinteses_raw: list[tuple[str, Any]], classes: list[str]) -> list[str]:
+    """The memory items a synthesis says it used (``lastro``), for the classes this section explains."""
+    refs: list[str] = []
+    for cls, body in sinteses_raw or []:
+        if cls not in classes or not isinstance(body, dict):
+            continue
+        for value in body.values():
+            if isinstance(value, dict):
+                refs.extend(str(x) for x in (value.get("lastro") or []))
+    return refs
+
+
+def _quote_of(memoria: Any, ref: str) -> Optional[str]:
+    m = re.fullmatch(r"([a-z_]+)\[(\d+)\]", ref.strip())
+    if not m:
+        return None
+    mem = (memoria or {}).get("memoria_persistente", memoria) if isinstance(memoria, dict) else {}
+    items = mem.get(m.group(1)) if isinstance(mem, dict) else None
+    n = int(m.group(2))
+    if isinstance(items, list) and n < len(items) and isinstance(items[n], dict):
+        q = items[n].get("trecho_verbatim")
+        return q if isinstance(q, str) and q.strip() else None
+    return None
+
+
+def topics_from_summary(resumo_md: str, memoria: Any, documento: str = "",
+                        sinteses_raw: Optional[list[tuple[str, Any]]] = None) -> Optional[list[dict[str, Any]]]:
+    """Sections of the plain-language summary, each with the literal quote of what that section explains.
+
+    The quote is what the citizen reads beside the explanation, presented as copied from the document, so two
+    different things have to be true and both used to be guessed. Which quote belongs to this section now comes
+    from the protocol, which fixes the headings, plus the ``lastro`` the synthesis itself declares. Whether the
+    quote exists in the document is decided by ``locate``. A section with no declared source, or whose quote is
+    not found, shows no quote: word overlap once put a quote about the facts under "who is in this story", and a
+    checked excerpt about the wrong subject is its own kind of lie."""
     parts = [p.strip() for p in re.split(r"\n(?=##? )", resumo_md or "") if p.strip()]
     if not parts:
         return None
-    quotes = _quotes(memoria, [])
+    sources = section_sources()
     text_norm, idx = _norm_map(documento or "")
     topics = []
     for i, part in enumerate(parts, 1):
         m = re.match(r"^##? (.+)\n?([\s\S]*)$", part)
         titulo, texto = (m.group(1).strip(), m.group(2).strip()) if m else (f"Ponto {i}", part)
-        words = {w for w in _norm(texto).split() if len(w) > 4}
-        ranked = sorted(((len(words & {w for w in _norm(q).split() if len(w) > 4}), q) for q in quotes),
-                        key=lambda pair: pair[0], reverse=True)
         topic = {"id": i, "titulo": titulo, "explicacao_md": texto}
-        for overlap, q in ranked:
-            if overlap < 3:
-                break
-            found = locate(documento or "", text_norm, idx, q) if documento else None
-            if found:
-                topic["trecho"] = q
-                topic["conferencia"] = {"metodo": found["metodo"], "score": found["score"]}
-                break
+        classes = sources.get(_section_key(titulo)) or []
+        if classes and documento:
+            for ref in _refs_of(sinteses_raw or [], classes):
+                q = _quote_of(memoria, ref)
+                found = locate(documento, text_norm, idx, q) if q else None
+                if found:
+                    topic["trecho"] = q
+                    topic["conferencia"] = {"metodo": found["metodo"], "score": found["score"]}
+                    break
         topics.append(topic)
     return topics
 
@@ -338,7 +396,8 @@ async def api_cliente_json(hash_: str, visitante: Optional[Usuario] = Depends(op
     questoes = _public_questions(_read_json(t.hash, "questoes.json") or {})
     memoria = _read_json(t.hash, "memoria_persistente.json")
     documento = _read_artifact(t.hash, "texto_extraido.txt") or ""
-    return {**base, "resumo_md": resumo_md, "topicos": topics_from_summary(resumo_md, memoria, documento),
+    sinteses_raw = [(cls, _read_json(t.hash, name)) for name, cls in SYNTHESIS_FILES]
+    return {**base, "resumo_md": resumo_md, "topicos": topics_from_summary(resumo_md, memoria, documento, sinteses_raw),
             "questoes": questoes, "sem_perguntas": not questoes, "ultima_tentativa": ultima}
 
 

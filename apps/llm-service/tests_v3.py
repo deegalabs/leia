@@ -980,3 +980,68 @@ def test_the_citizen_never_reads_a_quote_that_is_not_in_the_document():
         {"campo": "x", "valor": "y", "trecho_verbatim": "o CONTRATANTE pagará multa de vinte por cento ao mês por atraso"}]}}
     topico = topics_from_summary(resumo, memoria, DOC_TEXT)[0]
     assert "trecho" not in topico, f"mostrou à cidadã um trecho que não está no documento: {topico.get('trecho')!r}"
+
+
+# ── De onde vem o trecho de cada tópico: declarado, não adivinhado ────────────
+
+RESUMO_ESTRUTURADO = """# Resumo em uma linha
+
+Uma pessoa contratou uma advogada e combinou pagar só se ganhar.
+
+## 👥 Quem está nesta história
+
+Duas pessoas: quem contratou e quem foi contratada.
+
+## 📖 O que aconteceu
+
+Elas assinaram um combinado sobre o pagamento.
+
+## 🤝 O que está sendo pedido
+
+Ela pede que o combinado seja respeitado.
+"""
+
+MEMORIA_ESTRUTURADA = {"memoria_persistente": {
+    "identificacao": [{"campo": "partes", "valor": "duas", "trecho_verbatim": "O CONTRATANTE pagará honorários de vinte por cento"}],
+    "pedidos": [{"campo": "pedido", "valor": "x", "trecho_verbatim": "As custas processuais correm por conta do CONTRATANTE"}],
+    "fatos": [{"campo": "inventado", "valor": "y", "trecho_verbatim": "cláusula de multa que não existe neste contrato"}],
+}}
+SINTESES_ESTRUTURADAS = [
+    ("identificacao", {"sintese": {"valor": "Quem é quem", "lastro": ["identificacao[0]"]}}),
+    ("fatos", {"sintese": {"valor": "O que aconteceu", "lastro": ["fatos[0]"]}}),
+    ("pedidos", {"sintese": {"valor": "O que se pede", "lastro": ["pedidos[0]"]}}),
+]
+
+
+def test_each_topic_takes_its_quote_from_the_section_it_belongs_to():
+    """A seção do resumo tem título fixo, definido no protocolo. Então de onde vem o trecho de cada uma é
+    coisa declarada, não adivinhada por palavras em comum, que já colocou o trecho dos fatos embaixo de
+    'quem está nesta história'."""
+    from leia.api_citizen import topics_from_summary
+
+    topicos = topics_from_summary(RESUMO_ESTRUTURADO, MEMORIA_ESTRUTURADA, DOC_TEXT, SINTESES_ESTRUTURADAS)
+    por_titulo = {t["titulo"]: t for t in topicos}
+
+    quem = por_titulo["👥 Quem está nesta história"]
+    assert quem.get("trecho") == "O CONTRATANTE pagará honorários de vinte por cento", \
+        f"pegou o trecho de outra seção: {quem.get('trecho')!r}"
+
+    pedido = por_titulo["🤝 O que está sendo pedido"]
+    assert pedido.get("trecho") == "As custas processuais correm por conta do CONTRATANTE"
+
+
+def test_a_section_whose_source_quote_is_not_in_the_document_shows_none():
+    from leia.api_citizen import topics_from_summary
+
+    topicos = topics_from_summary(RESUMO_ESTRUTURADO, MEMORIA_ESTRUTURADA, DOC_TEXT, SINTESES_ESTRUTURADAS)
+    aconteceu = [t for t in topicos if "O que aconteceu" in t["titulo"]][0]
+    assert "trecho" not in aconteceu, "mostrou um trecho que não está no documento"
+
+
+def test_a_section_with_no_declared_source_shows_no_quote():
+    """Resumo em uma linha fala do caso inteiro, não de uma cláusula. Sem fonte declarada, nada é mostrado,
+    em vez de pendurar ali o trecho que por acaso tiver mais palavras em comum."""
+    from leia.api_citizen import topics_from_summary
+
+    topicos = topics_from_summary(RESUMO_ESTRUTURADO, MEMORIA_ESTRUTURADA, DOC_TEXT, SINTESES_ESTRUTURADAS)
+    assert "trecho" not in topicos[0] and topicos[0]["titulo"] == "Resumo em uma linha"

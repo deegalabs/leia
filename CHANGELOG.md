@@ -16,6 +16,10 @@ fecha um sentido, vira versão com tag anotada e release no GitHub.
 - Na jornada, o trecho só aparece depois de ser encontrado no documento, e a frase muda conforme o método:
   cópia exata só é afirmada quando foi exata. Antes a tela dizia "copiado exatamente do seu documento" para
   uma citação escolhida por semelhança de três palavras, sem nunca ter sido procurada no documento.
+- De onde vem o trecho de cada tópico deixou de ser adivinhado. A tela escolhia, entre os trechos do documento,
+  aquele com mais palavras em comum com a explicação, o que colocava um trecho sobre os fatos embaixo de "quem
+  está nesta história". Agora cada seção declara no protocolo qual parte do documento ela explica, e o trecho vem
+  do que a própria síntese diz ter usado. Sem fonte declarada, ou sem achar no documento, nenhum trecho aparece.
 
 ## v1.1.0 · 2026-09-15 · a sessão e o link deixam de ser credenciais soltas
 
