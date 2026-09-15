@@ -26,7 +26,7 @@
 apps/llm-service/   serviço FastAPI: API, workflow de LLM, hash e ancoragem; HTML de transição (Carlos)
 apps/web/           interface Next.js: PWA da cidadã e painel do advogado (Daniel)
 prompts/            prompts e workflows do produto (Carlos) e registro dos prompts da construção (todos)
-docs/, evidence/    documentação e evidências (Vida, Camila, Caliane)
+docs/, evidence/    documentação e evidências (Dayane, Camila, Caliane)
 ```
 
 ## Subir o serviço (Carlos)

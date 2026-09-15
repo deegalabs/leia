@@ -17,7 +17,7 @@ estiverem no serviço real a tempo. Na auditoria rodam dois processos: serviço 
 | Segurança do conteúdo | `DOMPurify` (cdnjs) no `marked` da página do cliente; gabarito das perguntas fora do HTML (avaliação no servidor) | Carlos + Daniel | a fazer |
 | Registro público | OpenTimestamps (`opentimestamps-client`, sem carteira) sobre o `hash_imutavel` de cada tentativa aprovada; Polygon Amoy com `web3.py` + `ConsentRegistry` só se a carteira estiver financiada | Daniel | a fazer |
 | Comprovante e verificação | rota `/t/{hash}/comprovante` (hash, data, QR com `qrcode`, o que prova) e `/verify/{hash}` (JSON canônico, hash, prova OTS ou transação); PDF sem metadados (pypdf) | Daniel | a fazer |
-| Entrega ao auditor | `README.md` (rodar em 5 min), `.env.example`, `examples/contrato-honorarios.pdf`, roteiro de auditoria de 10 min, `docker compose up` se der tempo (senão `uvicorn`) | Daniel + Vida | a fazer |
+| Entrega ao auditor | `README.md` (rodar em 5 min), `.env.example`, `examples/contrato-honorarios.pdf`, roteiro de auditoria de 10 min, `docker compose up` se der tempo (senão `uvicorn`) | Daniel + Dayane | a fazer |
 | Depois do evento | Next.js responsivo (`apps/web`) consumindo a API; login e conferência da OAB; PWA; lote Merkle no registro | | roadmap |
 
 ## Como o código entra no repositório
@@ -63,10 +63,10 @@ O código do serviço ainda não chegou às 9h, então a interface foi construí
 | 09h00–09h45 | Página da cidadã: **feita** (`templates/leia/cliente.html`, testada no mock); Carlos aponta a rota `/t/{hash}` para ela quando o código chegar. Textos dos templates internos pela tabela (`apply_copy.py`); IP fora do painel | Daniel (página) + Carlos (rota) |
 | 09h45–10h15 | Comprovante e verificação: **feitos** (`leia/registry.py`, OTS testado, `scripts/verify_cli.py`); Carlos inclui o router e grava `ots` e `salt` na tentativa aprovada. Daniel testa a jornada no celular contra o mock e ajusta textos | Daniel + Carlos |
 | 09h00–10h15 (paralelo) | `examples/contrato-honorarios.pdf` anonimizado; textos em pt-BR revisados; roteiro de auditoria jurídica (o que dizer sobre "não aconselha", CED art. 9º e 48, LGPD); teste com 2 leigos na tela nova | Camila, Caliane |
-| 10h15–10h30 | README (instalar, rodar, testar em 5 min), `.env.example`, `MANIFEST.md`, push na pasta oficial, `scripts/tag-delivery.sh token-economy/v0.4.0 "Entrega 4: Produto"` | Vida + Daniel |
+| 10h15–10h30 | README (instalar, rodar, testar em 5 min), `.env.example`, `MANIFEST.md`, push na pasta oficial, `scripts/tag-delivery.sh token-economy/v0.4.0 "Entrega 4: Produto"` | Dayane + Daniel |
 | 10h30–14h30 | Auditoria com roteiro de 10 min (D1: trecho literal e recusa; D2: cliente no celular sem instrução; D3: workflow, prompts, memória persistente nos bastidores). Em paralelo, **sem tocar no que o auditor testa**: tópico por tela na página do cliente usando as seções `##` do resumo (se o Carlos expuser o lastro) | todos |
-| 13h00–14h15 | Slides (4) e vídeo da demo de 40 s | Vida, Caliane |
-| 14h30 | Entrega 5: slides na pasta oficial | Vida |
+| 13h00–14h15 | Slides (4) e vídeo da demo de 40 s | Dayane, Caliane |
+| 14h30 | Entrega 5: slides na pasta oficial | Dayane |
 | 16h30 | Pitch de 2 min | Caliane + Daniel |
 
 ## O que não entra hoje (dizer no pitch como próximo passo)

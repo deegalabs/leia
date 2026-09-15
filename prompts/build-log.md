@@ -2,7 +2,7 @@
 
 Ordem cronológica. Formato em [README.md](README.md) §2. Vale para todo o time, desde 12/09/2026.
 
-### 2026-09-12 09:30–11:50 · Gemini 3.6 Flash · Vida
+### 2026-09-12 09:30–11:50 · Gemini 3.6 Flash · Dayane
 **Objetivo:** gerar a primeira versão do texto do canvas (Entrega 1) a partir dos PDFs do briefing e do manual.
 **Prompt:** [a transcrever pela autora]
 **Resultado:** 7 blocos (problema, indicadores, sem IA, com IA, para quem, dados, ferramentas), usados como base do canvas manuscrito e de `docs/CANVAS.md`.

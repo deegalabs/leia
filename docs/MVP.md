@@ -8,8 +8,8 @@ Linha de corte: o que a evidência de cada entrega exige. Nada fora da coluna "e
 | Serviço de LLM | `POST /documents`, `/explain` com `quote` verificado, `/questions`, `/sessions`, `/answers` com rubrica, `/chat` com recusa; hash do payload em `/finalize` (ancoragem se pronta) | Carlos |
 | Interface | login Google (A0, C0), telas A1, A2, C1, C2, C3, C4, C5, A3 em texto; manifesto PWA e instalação; service worker fica para a V2 | Daniel |
 | Conteúdo | 3 PDFs anonimizados (procuração, honorários, acordo); perguntas e elementos esperados por cláusula; glossário | Camila, Caliane |
-| Testes internos | executar [INTERNAL-TESTS.md](INTERNAL-TESTS.md) sobre a V1; prints; relatório | Camila, Caliane, Vida |
-| Evidência | vídeo curto da V1 + relatório em `evidence/02-internal-tests/`; publicar na pasta oficial | Vida |
+| Testes internos | executar [INTERNAL-TESTS.md](INTERNAL-TESTS.md) sobre a V1; prints; relatório | Camila, Caliane, Dayane |
+| Evidência | vídeo curto da V1 + relatório em `evidence/02-internal-tests/`; publicar na pasta oficial | Dayane |
 
 Critério de pronto: um contrato de honorários real passa de A1 a A3 sem intervenção manual; toda seção exibida tem trecho
 literal; pergunta fora do documento é recusada; resposta vaga recebe nova explicação; hash gerado e reproduzível.
