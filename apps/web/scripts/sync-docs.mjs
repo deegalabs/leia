@@ -32,6 +32,8 @@ for (const [src, name] of DOCS) {
   const path = join(repo, src);
   if (!existsSync(path)) continue;
   let md = readFileSync(path, "utf8");
+  /* banner and badges are GitHub chrome: the documentation site has its own header */
+  md = md.replace(/<!--\s*github-only:start\s*-->[\s\S]*?<!--\s*github-only:end\s*-->\n?/g, "");
   md = md.replace(/<img[^>]*logo-dark\.jpg[^>]*>/g, "");
   /* markdown links to repository files */
   md = md.replace(/\]\(((?:\.\.\/|\.\/)?(?:docs\/)?[A-Za-z0-9_.\-]+\.md)(#[^)]*)?\)/g, (m, target, hash) => {

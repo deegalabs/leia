@@ -1,50 +1,88 @@
-# Como trabalhar neste repositório
+# Como contribuir
 
-## Fonte da verdade e publicação
-- **Regra do evento (Manual §2 e §5d; Regras do Jogo):** documentação e protótipo publicados **no repositório oficial da
-  OAB/PR, em pasta por equipe**. Esse repositório é a fonte da verdade e o lugar das entregas. Não há repositório
-  paralelo em outra organização.
-- **Situação em 12/09 (14h):** a conta `github.com/observatorio-oabpr` (Observatório da OAB Paraná) tem só a página
-  "Hackathon 2026. Em breve."; não há repositório com pastas de equipe nem instruções. Se a OAB abrir um repositório e
-  aceitar pull request, o caminho é fork → branch `team/token-economy` → PR com a pasta da equipe; se adicionar
-  colaboradores, `git subtree add` direto. Se apenas receber links, o repositório próprio da equipe é a publicação.
-- **Até a organização informar a URL e o nome da pasta:** o trabalho continua neste clone local, com commits normais.
-  Quando o repositório oficial estiver disponível, o histórico entra inteiro na pasta da equipe com `git subtree`:
-  ```bash
-  git clone <URL do repositório oficial> oab && cd oab
-  git subtree add --prefix=equipes/token-economy /caminho/para/leia main   # ajustar o nome da pasta ao padrão da OAB
-  git push
-  ```
-  Depois disso, todo mundo trabalha **dentro do clone do repositório oficial**, na pasta da equipe; o clone local antigo
-  é descartado.
-- **Tags de entrega** levam o prefixo da equipe para não colidir com outras equipes no mesmo repositório:
-  `token-economy/v0.1.0`, `token-economy/v0.2.0`, ... Se a organização não permitir tags, o `MANIFEST.md` de cada
-  pasta de evidência guarda o hash do commit da entrega, que é a referência estável.
+Este repositório é público e aceita contribuição. A regra é curta: ninguém escreve direto na `main`, toda mudança
+passa por pull request e todo pull request precisa de uma aprovação e da integração contínua verde.
 
-## Estrutura e donos
-```
-apps/llm-service/   serviço FastAPI: API, workflow de LLM, hash e ancoragem; HTML de transição (Carlos)
-apps/web/           interface Next.js: PWA da cidadã e painel do advogado (Daniel)
-prompts/            prompts e workflows do produto (Carlos) e registro dos prompts da construção (todos)
-docs/, evidence/    documentação e evidências (Dayane, Camila, Caliane)
-```
+## O caminho de uma mudança
 
-## Subir o serviço (Carlos)
+1. **Issue primeiro.** Use o modelo de [erro](../.github/ISSUE_TEMPLATE/erro.yml) ou de
+   [melhoria](../.github/ISSUE_TEMPLATE/melhoria.yml). Espere a issue ser aceita antes de escrever código.
+   Isso evita trabalho jogado fora quando a proposta esbarra em um limite do produto.
+2. **Branch a partir da `main`**, nomeada pelo tipo e pelo número da issue.
+   ```bash
+   git switch main && git pull
+   git switch -c fix/123-comprovante-sem-carimbo
+   ```
+   Prefixos: `feat/`, `fix/`, `docs/`, `chore/`, `refactor/`, `test/`.
+3. **Teste antes da correção.** Escreva o teste, rode, veja falhar pelo motivo certo, e só então mude o código.
+   Um teste que já nasce passando não prova nada e não deve entrar.
+4. **Commits em inglês**, [Conventional Commits](https://www.conventionalcommits.org/pt-br/), escopo no nome do app.
+   ```
+   fix(service): stop serving the answer key before the citizen answers
+   feat(web): let the citizen claim the document explicitly
+   docs: describe the review gate
+   ```
+   Sem linha de coautor. Commits pequenos, um assunto por commit.
+5. **Pull request** com o modelo preenchido, apontando a issue que ele fecha. A integração contínua roda sozinha
+   e a Vercel publica uma prévia da aplicação no próprio pull request.
+6. **Revisão.** Uma aprovação libera o merge. Depois do merge na `main`, aplicação e serviço sobem em produção
+   automaticamente.
+
+## Rodar e testar
+
 ```bash
-git clone <URL do repositório oficial> oab && cd oab/equipes/token-economy    # ou o clone local até a URL existir
-git checkout -b feat/llm-service
-mkdir -p apps/llm-service && cp -r /seu/projeto/* apps/llm-service/    # sem .env, sem .venv, sem __pycache__
-cp /seu/projeto/workflow.json prompts/workflow/v1-carlos.json          # toda versão nova do workflow entra aqui
-git add -A && git commit -m "feat(llm-service): initial fastapi service with html prototype"
-git push -u origin feat/llm-service
-```
-Depois: abrir pull request para `main` (ou avisar no grupo e fazer merge direto durante o evento). Obrigatório no
-`apps/llm-service/README.md`: comando para instalar e rodar, porta, variáveis de ambiente (`.env.example` sem valores),
-como testar com um PDF de `examples/`.
+# serviço
+cd apps/llm-service
+python3 -m venv .venv && . .venv/bin/activate
+pip install -r requirements.txt -r requirements-dev.txt
+python -m pytest -q tests_leia.py tests_v3.py
 
-## Regras rápidas
-- Commits pequenos, em inglês, Conventional Commits (`feat`, `fix`, `docs`, `chore`); nunca commitar `.env` ou chaves.
-- Nada de dado pessoal real em `examples/` ou `evidence/`: PDFs anonimizados.
-- Toda mudança de prompt ou workflow entra em `prompts/` com nome e versão; todo prompt usado na construção entra em
-  `prompts/build-log.md`.
-- Fechar entrega: `scripts/tag-delivery.sh token-economy/vX.Y.0 "Entrega N: ..."` (ver `docs/DELIVERIES.md`).
+# aplicação
+cd apps/web
+pnpm install
+pnpm test && pnpm lint && pnpm build
+```
+
+Sem chave de modelo dá para trabalhar na interface inteira: `pnpm dev` sozinho usa o mock em `apps/web/app/api/*`,
+e o serviço tem um mock equivalente em `uvicorn mock.app:app --port 8000`.
+
+## Estrutura
+
+```
+apps/web/           aplicação Next.js: jornada do cidadão, painel do advogado, comprovante, verificação, docs
+apps/llm-service/   serviço FastAPI: API v3, pipeline de LLM, registro público, carimbo de tempo
+docs/               documentação do produto; docs/brand é a marca, docs/design são as telas
+prompts/            prompts do produto, versionados
+examples/           PDFs fictícios para rodar sem dado de ninguém
+evidence/           evidências das entregas do hackathon, histórico, não se mexe
+scripts/            utilitários, entre eles a conferência de um registro fora do serviço
+```
+
+## Regras que não são preferência
+
+- **Idioma.** Interface e documentação em português simples, sem juridiquês e sem travessão. Código,
+  identificadores, nomes de arquivo, mensagens de commit e prompts em inglês.
+- **Nada de dado pessoal real.** Nem em `examples/`, nem em `evidence/`, nem em teste, nem em issue. Os PDFs
+  do repositório são fictícios.
+- **Segredo nunca entra no repositório.** Só variável de ambiente, com o modelo em `.env.example` e valor vazio.
+- **Afirmação sempre com trecho.** Nenhuma frase nova sobre o documento pode existir sem o trecho literal que a
+  sustenta. Pergunta fora do documento recebe recusa explícita.
+- **Nada pessoal no registro público.** O payload publicado carrega hashes, não texto.
+- **A plataforma não aconselha.** Não interpreta o caso concreto, não recomenda aceitar ou recusar, não substitui
+  o advogado. Ver [POSITIONING.md](/docs/posicionamento).
+- **Arquivo gerado não carrega metadado de ferramenta.** Vale para o comprovante em PDF e para qualquer imagem.
+- **Acessibilidade é requisito.** Alvo de toque grande, contraste medido, foco visível, movimento reduzido
+  respeitado. O piso é um celular básico, não um aparelho potente.
+
+## Segurança
+
+Falha que exponha dado ou permita produzir comprovante indevido não vira issue pública.
+Use o [relato privado](https://github.com/deegalabs/leia/security/advisories/new). O escopo está em
+[SECURITY.md](../.github/SECURITY.md).
+
+## Histórico
+
+O projeto nasceu no Hackathon da Cidadania OAB-PR, 6ª edição, em 12 e 13 de setembro de 2026. As entregas do evento
+estão registradas em [DELIVERIES.md](/docs/entregas), no [CHANGELOG.md](https://github.com/deegalabs/leia/blob/main/CHANGELOG.md) e na pasta `evidence/`,
+com a tag `token-economy/v0.1.0` marcando a primeira delas. Esse material é registro do que aconteceu e fica como
+está; o desenvolvimento seguiu a partir da versão `v1.0.0`.
