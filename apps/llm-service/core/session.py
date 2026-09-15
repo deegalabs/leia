@@ -14,7 +14,7 @@
 # ║   separada: vive em workspace/{hash}/ e nunca é lida por este módulo.    ║
 # ║   Isso garante que ela nunca vaza para o anexo do chat.                  ║
 # ║                                                                           ║
-# ║   A sessão morre com o login: encerrar_sessao() (logout) já zera o       ║
+# ║   A sessão morre com o login: end_session() (logout) já zera o       ║
 # ║   session_token do usuário; aqui apagamos também o arquivo associado.    ║
 # ╚══════════════════════════════════════════════════════════════════════════╝
 from __future__ import annotations
@@ -34,36 +34,36 @@ BASE = _WORKSPACE_BASE / "_sessoes"
 BASE.mkdir(parents=True, exist_ok=True)
 
 
-def _arquivo(token: str) -> Path:
+def _file(token: str) -> Path:
     # token já é um secrets.token_urlsafe(32) — seguro usar como nome de arquivo
     return BASE / f"{token}.json"
 
 
-def _vazio() -> dict:
+def _empty() -> dict:
     return {aba: None for aba in ABAS}
 
 
-def carregar(token: str) -> dict:
+def load(token: str) -> dict:
     """Carrega a memória de sessão (as 3 abas). Nunca inclui PDF assinado."""
-    p = _arquivo(token)
+    p = _file(token)
     if not p.exists():
-        return _vazio()
+        return _empty()
     try:
         dados = json.loads(p.read_text(encoding="utf-8"))
     except Exception:
-        return _vazio()
-    base = _vazio()
+        return _empty()
+    base = _empty()
     base.update({k: v for k, v in dados.items() if k in ABAS})
     return base
 
 
-def _salvar(token: str, dados: dict) -> None:
-    _arquivo(token).write_text(
+def _save(token: str, dados: dict) -> None:
+    _file(token).write_text(
         json.dumps(dados, ensure_ascii=False, indent=2), encoding="utf-8"
     )
 
 
-def registrar_destilacao(
+def record_distillation(
     token: str,
     aba: Aba,
     *,
@@ -81,40 +81,40 @@ def registrar_destilacao(
     """
     if aba not in ABAS:
         raise ValueError(f"aba inválida: {aba}")
-    dados = carregar(token)
+    dados = load(token)
     dados[aba] = {
         "hash": hash_,
         "titulo": titulo,
         "processado_em": datetime.utcnow().isoformat(),
         "resumo_estruturado": resumo_estruturado,
     }
-    _salvar(token, dados)
+    _save(token, dados)
     log.info("💾 memória de sessão atualizada | token=%s… | aba=%s | hash=%s",
              (token or "")[:8], aba, hash_)
 
 
-def limpar(token: str, aba: Optional[Aba] = None) -> None:
+def clear(token: str, aba: Optional[Aba] = None) -> None:
     """Limpa uma aba específica, ou a sessão inteira se aba=None."""
     if aba is None:
-        p = _arquivo(token)
+        p = _file(token)
         if p.exists():
             p.unlink()
         return
-    dados = carregar(token)
+    dados = load(token)
     dados[aba] = None
-    _salvar(token, dados)
+    _save(token, dados)
 
 
-def encerrar(token: str) -> None:
+def close(token: str) -> None:
     """Chamado no logout — a memória de sessão não sobrevive ao login."""
-    limpar(token)
+    clear(token)
 
 
 # ══════════════════════════════════════════════════════════════════════════
 #  ANEXO COMPARTILHADO — o processo estruturado (T6_FUSAO_MEMORIA) da aba
 #  que já tiver sido destilada, para acompanhar toda pergunta do usuário.
 # ══════════════════════════════════════════════════════════════════════════
-def anexo_compartilhado(token: str) -> Optional[dict]:
+def shared_attachment(token: str) -> Optional[dict]:
     """
     Retorna o "processo" (T6_FUSAO_MEMORIA) da destilação mais recente
     disponível nesta sessão — hoje, só a aba "chat" alimenta isso; as
@@ -126,7 +126,7 @@ def anexo_compartilhado(token: str) -> Optional[dict]:
     para o chat gravar o log de depuração (payload enviado/recebido do LLM)
     junto dos T*.json da mesma sessão de destilação.
     """
-    dados = carregar(token)
+    dados = load(token)
     for aba in ABAS:
         d = dados.get(aba)
         if d and d.get("resumo_estruturado") is not None:
@@ -138,12 +138,12 @@ def anexo_compartilhado(token: str) -> Optional[dict]:
     return None
 
 
-def resumo_abas_processadas(token: str) -> list[dict]:
+def processed_tabs_summary(token: str) -> list[dict]:
     """
     Lista curta (para o aviso "arquivo processado e compartilhado nesta
     sessão") com o essencial de cada aba já destilada.
     """
-    dados = carregar(token)
+    dados = load(token)
     out = []
     for aba in ABAS:
         d = dados.get(aba)

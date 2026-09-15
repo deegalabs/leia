@@ -164,7 +164,7 @@ def test_create_task_and_read_it(lawyer, lawyer_task):
     assert data["resumo_md"] is None and data["tentativas"] == [] and data["duvidas"] == []
     assert data["advogado"] == {"nome": "Dra. Ana"} and data["cidadao"] is None
     assert any(e["tipo"] == "pdf_salvo" for e in data["eventos"])
-    assert (ws.pasta(lawyer_task["hash"]) / "original.pdf").exists()
+    assert (ws.folder(lawyer_task["hash"]) / "original.pdf").exists()
 
     lst = client.get("/api/tarefas", headers=bearer(lawyer["token"])).json()["tarefas"]
     mine = [t for t in lst if t["id"] == lawyer_task["id"]]
@@ -215,7 +215,7 @@ def test_public_json_and_doubt_flow(lawyer, lawyer_task, citizen):
     doubt = r.json()
     assert doubt["id"] and doubt["criada_em"]
     assert client.get(f"/api/t/{h}").json()["duvidas_enviadas"] == 1
-    assert any(e["tipo"] == "duvida_enviada" for e in ws.ler_eventos(h))
+    assert any(e["tipo"] == "duvida_enviada" for e in ws.read_events(h))
     assert client.get("/api/t/nao-existe").status_code == 404
 
     detail = client.get(f"/api/tarefas/{lawyer_task['id']}", headers=bearer(lawyer["token"])).json()
@@ -263,7 +263,7 @@ FAKE_TEXT = "CLÁUSULA 2. O CONTRATANTE pagará honorários de vinte por cento a
 
 def fake_artifacts(h: str) -> None:
     """Workspace artifacts of a finished workflow, without the model."""
-    folder = ws.pasta(h)
+    folder = ws.folder(h)
     (folder / "resumo_humanizado.md").write_text("# Resumo em uma linha\nVocê paga só se ganhar.\n\n## O que aconteceu\nUm contrato.", encoding="utf-8")
     (folder / "questoes.json").write_text(json.dumps({"questoes": [
         {"id": 1, "area": "pedidos", "enunciado": "Quando você paga?", "alternativas": ["Sempre", "Só se ganhar", "Nunca", "Antes"],
@@ -361,7 +361,7 @@ def test_gate_holds_lawyer_task_until_approval(lawyer):
     r = client.post(f"/api/tarefas/{tid}/aprovar", headers=bearer(lawyer["token"]))
     assert r.status_code == 200 and r.json() == {"ok": True, "status": "enviada"}
     assert client.post(f"/api/tarefas/{tid}/aprovar", headers=bearer(lawyer["token"])).status_code == 409
-    assert any(e["tipo"] == "aprovada" and e.get("usuario_id") == lawyer["usuario"]["id"] for e in ws.ler_eventos(h))
+    assert any(e["tipo"] == "aprovada" and e.get("usuario_id") == lawyer["usuario"]["id"] for e in ws.read_events(h))
     with Session(engine) as s:
         assert s.get(Tarefa, tid).status == "enviada"
         assert s.exec(select(LogEvento).where(LogEvento.tarefa_id == tid, LogEvento.tipo == "aprovada")).first()
@@ -418,12 +418,12 @@ def test_failed_workflow_only_touches_its_own_task(lawyer):
         ta, tb = s.get(Tarefa, a["id"]), s.get(Tarefa, b["id"])
         assert ta.status == "falhou" and tb.status == "falhou"  # no key: each one fails on its own
         assert ta.workspace_path != tb.workspace_path
-    assert any(e["tipo"] in ("task_error", "erro_pipeline") for e in ws.ler_eventos(a["hash"]))
+    assert any(e["tipo"] in ("task_error", "erro_pipeline") for e in ws.read_events(a["hash"]))
 
 
 def test_inferences_are_verified_by_substring(tmp_path=None):
     """LeIA: inferences endpoint finds quotes with whitespace differences and reports unverified ones."""
-    from leia.api_cliente import build_inferences
+    from leia.api_citizen import build_inferences
     texto = "CLÁUSULA 2. O CONTRATANTE pagará honorários iniciais de\nR$ 1.500,00 em três parcelas."
     memoria = {"memoria_persistente": {"datas_valores": [
         {"campo": "valor_contrato", "valor": "R$ 1.500,00", "trecho_verbatim": "honorários iniciais de R$ 1.500,00"},
@@ -438,7 +438,7 @@ def test_inferences_are_verified_by_substring(tmp_path=None):
 def test_shuffle_keeps_answer_and_public_events_have_no_ip():
     """LeIA: alternatives shuffled per task with the right index remapped; public events carry no ip/ua."""
     from core.pipeline_pdf import _embaralhar_alternativas
-    from leia.api_cliente import public_events
+    from leia.api_citizen import public_events
     doc = {"questoes": [{"id": i, "alternativas": ["certa", "b", "c", "d"], "correta": 0} for i in range(1, 7)]}
     out = _embaralhar_alternativas(doc, "abc")
     assert all(q["alternativas"][q["correta"]] == "certa" for q in out["questoes"])
@@ -453,12 +453,12 @@ def test_shuffle_keeps_answer_and_public_events_have_no_ip():
 
 def staged_log(h: str, events: list[dict]) -> None:
     """Replace the workspace log with the given events (ip/ua included on purpose)."""
-    (ws.pasta(h) / "log.jsonl").write_text("".join(json.dumps(e, ensure_ascii=False) + "\n" for e in events), encoding="utf-8")
+    (ws.folder(h) / "log.jsonl").write_text("".join(json.dumps(e, ensure_ascii=False) + "\n" for e in events), encoding="utf-8")
 
 
 def test_steps_from_log_and_files(lawyer):
     """LeIA: etapas come from log.jsonl (T1 done, T2 running, others pending) and from the T*.json files."""
-    from leia.api_cliente import STEP_NAMES, build_steps
+    from leia.api_citizen import STEP_NAMES, build_steps
     assert len(STEP_NAMES) == 14 and list(STEP_NAMES)[0] == "T1_IDENTIFICADOR_PARTES" and list(STEP_NAMES)[-1] == "T14_QUESTOES"
     task = create_task(lawyer["token"], "Em preparo")
     h = task["hash"]
@@ -477,11 +477,11 @@ def test_steps_from_log_and_files(lawyer):
     assert all("ip" not in e and "ua" not in e for e in data["eventos"]) and data["eventos"][0]["tipo"] == "pipeline_start"
 
     # a file the log knows nothing about counts as done; an error in the log wins over a stale file
-    (ws.pasta(h) / "T3_IDENTIFICADOR_FATOS.json").write_text(json.dumps({"fatos": []}), encoding="utf-8")
-    (ws.pasta(h) / "T4_IDENTIFICADOR_FUNDAMENTOS.json").write_text(json.dumps({"fundamentos": []}), encoding="utf-8")
-    ws.registrar_evento(h, "task_start", id="T4_IDENTIFICADOR_FUNDAMENTOS", idx=4, total=16)
-    ws.registrar_evento(h, "task_error", id="T4_IDENTIFICADOR_FUNDAMENTOS", erro="x")
-    states = {e["id"]: e["estado"] for e in build_steps(ws.ler_eventos(h), ws.pasta(h))}
+    (ws.folder(h) / "T3_IDENTIFICADOR_FATOS.json").write_text(json.dumps({"fatos": []}), encoding="utf-8")
+    (ws.folder(h) / "T4_IDENTIFICADOR_FUNDAMENTOS.json").write_text(json.dumps({"fundamentos": []}), encoding="utf-8")
+    ws.record_event(h, "task_start", id="T4_IDENTIFICADOR_FUNDAMENTOS", idx=4, total=16)
+    ws.record_event(h, "task_error", id="T4_IDENTIFICADOR_FUNDAMENTOS", erro="x")
+    states = {e["id"]: e["estado"] for e in build_steps(ws.read_events(h), ws.folder(h))}
     assert states["T3_IDENTIFICADOR_FATOS"] == "concluida" and states["T4_IDENTIFICADOR_FUNDAMENTOS"] == "erro"
     assert states["T5_IDENTIFICADOR_PEDIDOS"] == "pendente"
     # every status carries etapas (a fresh task: 14 pending steps; nothing from an external flow: none)
@@ -505,7 +505,7 @@ def test_partial_inferences_while_processing(lawyer):
     """LeIA: during processando the inferences answer 200 with parcial true and the classes produced so far."""
     task = create_task(lawyer["token"], "Parcial")
     h = task["hash"]
-    folder = ws.pasta(h)
+    folder = ws.folder(h)
     folder.joinpath("texto_extraido.txt").unlink(missing_ok=True)  # the offline workflow already extracted it
     set_status(h, "criada")
     r = client.get(f"/api/t/{h}/inferencias")
@@ -540,7 +540,7 @@ EXTERNAL_TEXT = "Processo n. 1. Agravante: Ministério Público.\nO recurso não
 
 def external_artifacts(h: str) -> None:
     """Workspace of the external "Resumo estruturado" flow: only resumo_estruturado.json and its text."""
-    folder = ws.pasta(h)
+    folder = ws.folder(h)
     a = EXTERNAL_TEXT.index("O recurso não merece trânsito.")
     doc = {"processo": {
         "id_manifestacao": "x",
@@ -559,8 +559,8 @@ def external_artifacts(h: str) -> None:
                 "classe_i_decisao": [{"pos_trecho_verbatim": f"{a}:{a + 30}", "score_trecho_verbatim": 1.0, "todas_trecho_verbatim": f"[{a}:{a + 30}]"}]}}
     folder.joinpath("resumo_estruturado.json").write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
     folder.joinpath("resumo_estruturado_texto.txt").write_text(EXTERNAL_TEXT, encoding="utf-8")
-    ws.registrar_evento(h, "resumo_estruturado_start", tarefa_id=0)
-    ws.registrar_evento(h, "resumo_estruturado_done", tokens=10, elapsed=1.0)
+    ws.record_event(h, "resumo_estruturado_start", tarefa_id=0)
+    ws.record_event(h, "resumo_estruturado_done", tokens=10, elapsed=1.0)
 
 
 def test_external_flow_fallback(citizen):
@@ -568,7 +568,7 @@ def test_external_flow_fallback(citizen):
     task = create_task(citizen["token"], "Fluxo externo")
     h = task["hash"]
     for name in ("resumo_humanizado.md", "questoes.json", "memoria_persistente.json", "texto_extraido.txt"):
-        (ws.pasta(h) / name).unlink(missing_ok=True)
+        (ws.folder(h) / name).unlink(missing_ok=True)
     staged_log(h, [{"ts": "t", "tipo": "criada", "tarefa_id": task["id"]}])  # no trace of the offline local workflow
     external_artifacts(h)
     set_status(h, "pronta")
@@ -600,7 +600,7 @@ def test_external_flow_fallback(citizen):
 
 
 def test_parse_pos_and_value_text():
-    from leia.api_cliente import parse_pos, value_text
+    from leia.api_citizen import parse_pos, value_text
     assert parse_pos("0:0", 100) is None and parse_pos("[0:0;12:20]", 100) == [12, 20] and parse_pos("5:9, 12:20", 100) == [5, 9]
     assert parse_pos("5:200", 100) is None and parse_pos("7:7", 100) is None and parse_pos(None, 100) is None and parse_pos("a:b", 100) is None
     assert value_text('{"tipo": "lei", "norma": "CPC", "artigo": null}') == "lei, CPC"
@@ -690,25 +690,25 @@ QUESTOES = [{"id": 1, "correta": 0}, {"id": 2, "correta": 1}, {"id": 3, "correta
 
 
 def test_attempt_hash_carries_no_personal_data(lawyer):
-    import core.tentativas as tn
+    import core.attempts as tn
     t = _tarefa_de_teste("hash-tentativa-1")
-    tent = tn.registrar(t, {"1": 0, "2": 1, "3": 2}, QUESTOES, "203.0.113.7", "Mozilla/5.0 (Android)")
+    tent = tn.record(t, {"1": 0, "2": 1, "3": 2}, QUESTOES, "203.0.113.7", "Mozilla/5.0 (Android)")
     assert tent.ip is None and tent.user_agent is None, "IP e navegador continuam sendo gravados"
 
 
 def test_attempt_hash_is_reproducible_from_what_is_stored(lawyer):
-    import core.tentativas as tn
+    import core.attempts as tn
     t = _tarefa_de_teste("hash-tentativa-2")
-    tent = tn.registrar(t, {"1": 0, "2": 1, "3": 2}, QUESTOES, "203.0.113.7", "Mozilla/5.0")
-    recalculado = tn.hash_da_tentativa(t.hash, tent.numero, tent.respostas, tent.criada_em)
+    tent = tn.record(t, {"1": 0, "2": 1, "3": 2}, QUESTOES, "203.0.113.7", "Mozilla/5.0")
+    recalculado = tn.attempt_hash(t.hash, tent.numero, tent.respostas, tent.criada_em)
     assert recalculado == tent.hash_imutavel, "ninguém consegue recalcular o hash a partir do que está gravado"
 
 
 def test_attempt_hash_does_not_depend_on_the_client(lawyer):
-    import core.tentativas as tn
+    import core.attempts as tn
     t = _tarefa_de_teste("hash-tentativa-3")
-    a = tn.registrar(t, {"1": 0, "2": 1, "3": 2}, QUESTOES, "203.0.113.7", "Chrome")
-    b = tn.hash_da_tentativa(t.hash, a.numero, a.respostas, a.criada_em)
+    a = tn.record(t, {"1": 0, "2": 1, "3": 2}, QUESTOES, "203.0.113.7", "Chrome")
+    b = tn.attempt_hash(t.hash, a.numero, a.respostas, a.criada_em)
     assert a.hash_imutavel == b
     assert "PARA.AI" not in tn.PREIMAGE_SCHEMA, "a marca do produto de origem ainda está no hash"
 
@@ -716,32 +716,32 @@ def test_attempt_hash_does_not_depend_on_the_client(lawyer):
 # ── Teto de tentativas: o registro não pode ser obtido por tentativa e erro ───
 
 def test_attempts_are_capped_so_the_record_cannot_be_brute_forced(lawyer, monkeypatch):
-    import core.tentativas as tn
+    import core.attempts as tn
     monkeypatch.setenv("QUIZ_MAX_ATTEMPTS", "3")
     t = _tarefa_de_teste("hash-teto")
     erradas = {"1": 9, "2": 9, "3": 9}
     for n in range(3):
-        tent = tn.registrar(t, erradas, QUESTOES)
+        tent = tn.record(t, erradas, QUESTOES)
         assert tent.numero == n + 1 and not tent.aprovado
-    assert tn.tentativas_esgotadas(t.id) is True
-    with pytest.raises(tn.TentativasEsgotadas):
-        tn.registrar(t, {"1": 0, "2": 1, "3": 2}, QUESTOES)
+    assert tn.attempts_exhausted(t.id) is True
+    with pytest.raises(tn.AttemptsExhausted):
+        tn.record(t, {"1": 0, "2": 1, "3": 2}, QUESTOES)
 
 
 def test_the_cap_does_not_exist_before_it_is_reached(lawyer, monkeypatch):
-    import core.tentativas as tn
+    import core.attempts as tn
     monkeypatch.setenv("QUIZ_MAX_ATTEMPTS", "3")
     t = _tarefa_de_teste("hash-teto-2")
-    tn.registrar(t, {"1": 9, "2": 9, "3": 9}, QUESTOES)
-    assert tn.tentativas_esgotadas(t.id) is False
-    ok = tn.registrar(t, {"1": 0, "2": 1, "3": 2}, QUESTOES)
+    tn.record(t, {"1": 9, "2": 9, "3": 9}, QUESTOES)
+    assert tn.attempts_exhausted(t.id) is False
+    ok = tn.record(t, {"1": 0, "2": 1, "3": 2}, QUESTOES)
     assert ok.aprovado is True
 
 
 # ── Recarimbo: prova que não corresponde ao registro precisa ser refeita ──────
 
 def test_a_stale_proof_does_not_block_a_new_stamp(tmp_path, monkeypatch):
-    from leia import api_cliente as ac
+    from leia import api_citizen as ac
     from leia.registry import ots_digest
 
     chamadas = {"n": 0}
@@ -749,8 +749,8 @@ def test_a_stale_proof_does_not_block_a_new_stamp(tmp_path, monkeypatch):
     assert ots_digest(b"prova-falsa") is None, "uma prova ilegível não pode contar como carimbo válido"
 
     t = _tarefa_de_teste("hash-recarimbo")
-    import core.tentativas as tn
-    tent = tn.registrar(t, {"1": 0, "2": 1, "3": 2}, QUESTOES)
+    import core.attempts as tn
+    tent = tn.record(t, {"1": 0, "2": 1, "3": 2}, QUESTOES)
     caminho = ac._ots_path(t.hash, tent.numero)
     caminho.parent.mkdir(parents=True, exist_ok=True)
     caminho.write_bytes(b"prova-de-um-registro-que-nao-existe-mais")
@@ -772,7 +772,7 @@ def test_health_answers_without_credentials_and_says_nothing_else():
 
 
 def test_the_healthcheck_path_declared_to_the_host_is_really_served():
-    """O caminho que o host consulta vive em .railway/railway.ts, fora desta pasta.
+    """O caminho que o host consulta vive em .railway/railway.ts, fora desta folder.
     Se alguém remover a rota e esquecer a configuração, o deploy novo nunca assume e ninguém percebe."""
     import pathlib
     import re

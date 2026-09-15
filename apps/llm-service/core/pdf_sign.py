@@ -137,7 +137,7 @@ def _quebrar(txt: str, n: int) -> list[str]:
     return [txt[i:i+n] for i in range(0, len(txt), n)]
 
 
-def gerar_pdf_assinado(
+def build_signed_pdf(
     pdf_original: Path,
     pdf_saida: Path,
     dados: dict,

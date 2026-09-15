@@ -5,7 +5,7 @@ from pathlib import Path
 from pypdf import PdfReader
 
 
-def extrair_texto(caminho_pdf: Path) -> str:
+def extract_text(caminho_pdf: Path) -> str:
     """Retorna texto concatenado de todas as páginas com separador."""
     reader = PdfReader(str(caminho_pdf))
     partes = []

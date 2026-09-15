@@ -34,8 +34,8 @@ usar apenas o contexto, não inventar, linguagem simples, e encaminhar pedidos d
 tokens, resposta em SSE `data: {"t": ...}` e `data: {"done": true}`. Nada é gravado. É esse chat que o app usa.
 
 **Chat de bastidores** (`POST /api/chat`, `main.py:590-640`): para quem está logado no painel. A memória de sessão
-(`core/sessao.py`, arquivo `workspace/_sessoes/{token}.json`) guarda o T6 da última destilação feita pelo fluxo
-"Anexar PDF" da mesma sessão; `anexo_compartilhado(token)` devolve `{titulo, processo, hash}` (`core/sessao.py:112-136`)
+(`core/session.py`, arquivo `workspace/_sessoes/{token}.json`) guarda o T6 da última destilação feita pelo fluxo
+"Anexar PDF" da mesma sessão; `shared_attachment(token)` devolve `{titulo, processo, hash}` (`core/session.py:112-136`)
 e o objetivo da pergunta recebe `PROCESSO:` seguido do JSON do T6 (`main.py:606-621`). O agente `RESPOSTA_DOCUMENTO`
 (`protocolo.json`) responde só com base nesse processo. `limitar_timeline` (`main.py:207-243`, corrigido na v5) garante
 que a pergunta atual nunca é cortada do orçamento de contexto; cada chamada é gravada em

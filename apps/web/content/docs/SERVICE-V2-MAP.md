@@ -18,13 +18,13 @@ O serviço é um monólito FastAPI com três fluxos sobre um mesmo SQLite (`gest
    `BackgroundTask` roda `protocolo_pdf.json` em 14 chamadas sequenciais à Groq (`core/pipeline_pdf.py:199-358`) e grava
    `memoria_persistente.json`, `texto_tagueado.json`, `resumo_humanizado.md` e `questoes.json`.
 2. **Dois jobs em APIs externas** ("Resumo Estruturado" em `core/api.py`, "Jurisprudência" em
-   `core/api_jurisprudencia.py`): o PDF ou texto é enviado sem autenticação a `api.resumoestruturado.com.br` ou
+   `core/api_caselaw.py`): o PDF ou texto é enviado sem autenticação a `api.resumoestruturado.com.br` ou
    `api.jurisprudencia.com.br`, com polling até concluir.
 3. **Página pública da cidadã** `GET /t/{hash}` (`app_gestao.py:815-857`): resumo em markdown, quiz de múltipla escolha,
    chat em SSE e download de um PDF "assinado" após aprovação.
 
 Além disso, `main.py:471-563` serve o chat de bastidores para quem está logado (`index.html`), com agentes definidos em
-`protocolo.json` e uma memória de sessão por login (`core/sessao.py`).
+`protocolo.json` e uma memória de sessão por login (`core/session.py`).
 
 Módulos:
 
@@ -35,18 +35,18 @@ Módulos:
 | `core/db.py` | modelos SQLModel `Usuario`, `Tarefa`, `LogEvento`, `Tentativa` (`:16-59`), engine SQLite (`:9-10`), migrações idempotentes (`:71-109`) |
 | `core/auth.py` | PBKDF2 (`:10-16`), login que gira `session_token` (`:30-36`), dependência `usuario_atual` por cookie `sessao` (`:44-53`) |
 | `core/workspace.py` | pasta por tarefa, `meta.json`, `log.jsonl` (`:6-37`) |
-| `core/sessao.py` | memória de sessão em `workspace/_sessoes/{token}.json` (`:29-35`), anexo compartilhado do chat (`:111-121`) |
-| `core/tentativas.py` | grava tentativa do quiz, calcula `aprovado` e `hash_imutavel` (`:21-72`), lista erros (`:93-117`) |
+| `core/session.py` | memória de sessão em `workspace/_sessoes/{token}.json` (`:29-35`), anexo compartilhado do chat (`:111-121`) |
+| `core/attempts.py` | grava tentativa do quiz, calcula `aprovado` e `hash_imutavel` (`:21-72`), lista erros (`:93-117`) |
 | `core/pipeline_pdf.py` | executa `protocolo_pdf.json` (`:246-358`), uma chamada Groq por task (`:84-114`) |
 | `core/pdf_extract.py` | extração de texto com pypdf (`:8-19`); sem OCR |
 | `core/pdf_sign.py` | carimbo na página 1 e página de assinatura com reportlab + pypdf (`:20-168`) |
-| `core/api.py`, `core/api_jurisprudencia.py` | clientes httpx dos jobs externos |
+| `core/api.py`, `core/api_caselaw.py` | clientes httpx dos jobs externos |
 | `protocolo.json` | 1 agente do chat de bastidores (`:1-9`) |
 | `protocolo_pdf.json` | workflow T1..T14 (`:19-185`) |
 | `protocolo_jurisprudencia.json` | 8 agentes; nenhum arquivo `.py`/`.html` o referencia (não está ligado) |
 | `templates/*.html` | `index.html` (bastidores), `login.html`, `dashboard.html`, `tarefa_nova.html`, `tarefa_detalhe.html`, `cliente_aguarde.html`, `cliente_view.html` |
 | `static/` | `logo.svg`, `logo_inline.svg` |
-| `_legacy/app_orquestrador_groq.py`, `protocolo.json.bak_historia_infantil`, `core/pd_extract.py` (0 bytes) | não importados por nada |
+| `_legacy/app_orquestrador_groq.py`, `protocolo.json.bak_historia_infantil`, `core/pd_extract.py` (0 bytes, removido) | não importados por nada |
 
 Como sobe hoje:
 
@@ -55,9 +55,9 @@ Como sobe hoje:
 - Dependências pip puras (`requirements.txt:1-9`: fastapi, uvicorn[standard], jinja2, python-multipart, groq, sqlmodel,
   pypdf, reportlab, httpx). Não há `python-dotenv`, `Dockerfile`, `Procfile`, `runtime.txt` nem `pyproject`.
 - Só três leituras de ambiente em todo o código: `API_KEY` (`main.py:26-29`), `RESUMO_ESTRUTURADO_API_BASE`
-  (`core/api.py:25-28`) e `JURISPRUDENCIA_API_BASE` (`core/api_jurisprudencia.py:19-22`).
+  (`core/api.py:25-28`) e `JURISPRUDENCIA_API_BASE` (`core/api_caselaw.py:19-22`).
 - Caminhos relativos ao diretório de trabalho (CWD): `gestao.db` (`core/db.py:9-10`), `workspace/`
-  (`core/workspace.py:6-7`, criado no import), `workspace/_sessoes/` (`core/sessao.py:29-30`), `protocolo_pdf.json`
+  (`core/workspace.py:6-7`, criado no import), `workspace/_sessoes/` (`core/session.py:29-30`), `protocolo_pdf.json`
   (`core/pipeline_pdf.py:38`) e `templates` em `app_gestao.py:30`. Já `main.py` resolve `templates`, `static`,
   `protocolo.json`, `help.md` e `contexto_persistente.json` contra `BASE_DIR` (pasta do arquivo, `main.py:39-48`). Rodar
   com CWD diferente da raiz do serviço divide o app em dois.
@@ -77,7 +77,7 @@ quando `papel != "advogado"` (`app_gestao.py:60-61`).
 |---|---|---|---|---|---|
 | GET | `/login` (`app_gestao.py:67-73`) | nenhuma | query `erro` opcional | HTML `login.html` | nenhum |
 | POST | `/login` (`:76-87`) | nenhuma | form `email`, `senha` | 303 para `/dashboard` com `Set-Cookie: sessao=<token_urlsafe(32)>; HttpOnly; SameSite=Lax` (`:86`, sem `Secure`, sem `Max-Age`); falha: 303 para `/login?erro=credenciais` (`:84`) | grava `Usuario.session_token` (`core/auth.py:34-35`) |
-| POST | `/logout` (`:90-104`) | cookie lido à mão (`:95`) | nenhuma | 303 para `/login`, cookie apagado | `session_token=None`; apaga `workspace/_sessoes/{token}.json` (`core/sessao.py:102-104`) |
+| POST | `/logout` (`:90-104`) | cookie lido à mão (`:95`) | nenhuma | 303 para `/login`, cookie apagado | `session_token=None`; apaga `workspace/_sessoes/{token}.json` (`core/session.py:102-104`) |
 
 ### 2.2 Painel
 
@@ -129,12 +129,12 @@ Tarefas criadas por este fluxo nunca rodam o pipeline local: não têm `resumo_h
 | Método | Rota | Auth | Entrada | Saída | Efeitos |
 |---|---|---|---|---|---|
 | GET | `/t/{hash}` (`app_gestao.py:815-857`) | nenhuma | | 404 "Link inválido ou expirado" (`:822-823`); se `status` não está em `("pronta", "enviada", "assinada")` (`:825`): HTML `cliente_aguarde.html` com `<meta http-equiv="refresh" content="5">` (`cliente_aguarde.html:7`); senão HTML `cliente_view.html` com `tarefa`, `resumo_md`, `questoes` (JSON completo, inclusive `correta` e `justificativa`), `memoria`, `ultima_tentativa` (a última por `numero`, `:836-837`), `erros_ultima`, `historico` | `log.jsonl` `cliente_abriu {ip, ua[:200]}` (`:841-843`) |
-| POST | `/api/t/{hash}/quiz` (`:863-908`) | nenhuma | JSON `{"respostas": {"<id da questão como string>": <índice 0-3>}}`; 404 hash inválido (`:872`); 409 "Questões não disponíveis" (`:877`) | `{"numero": int, "acertos": int, "total": int, "aprovado": bool, "hash_imutavel": sha256 hex, "ts": iso, "erros": [{"id", "area", "enunciado", "escolhida", "correta", "justificativa", "alternativas"}], "pode_baixar_pdf": bool}` (`:899-908`; `erros` em `core/tentativas.py:93-117`) | grava `Tentativa` com `ip` e `user_agent` (`:880-883`); `log.jsonl` `tentativa`; primeira aprovação muda `status` para `"assinada"` e grava `LogEvento` (`:891-897`). Sem limite de tentativas |
+| POST | `/api/t/{hash}/quiz` (`:863-908`) | nenhuma | JSON `{"respostas": {"<id da questão como string>": <índice 0-3>}}`; 404 hash inválido (`:872`); 409 "Questões não disponíveis" (`:877`) | `{"numero": int, "acertos": int, "total": int, "aprovado": bool, "hash_imutavel": sha256 hex, "ts": iso, "erros": [{"id", "area", "enunciado", "escolhida", "correta", "justificativa", "alternativas"}], "pode_baixar_pdf": bool}` (`:899-908`; `erros` em `core/attempts.py:93-117`) | grava `Tentativa` com `ip` e `user_agent` (`:880-883`); `log.jsonl` `tentativa`; primeira aprovação muda `status` para `"assinada"` e grava `LogEvento` (`:891-897`). Sem limite de tentativas |
 | POST | `/api/t/{hash}/chat` (`:914-973`) | nenhuma | JSON `{"mensagem": str}`; 400 se vazia (`:926`) | `text/event-stream`: `data: {"t": "<token>"}\n\n` por token (`:962-963`), depois `data: {"done": true}\n\n` (`:964`); em exceção `data: {"error": "..."}\n\n` (`:966-967`); cabeçalhos `Cache-Control: no-cache`, `X-Accel-Buffering: no` (`:972`) | chamada Groq `openai/gpt-oss-120b`, `temperature=0.3`, `max_completion_tokens=1500` (`:949-955`); system prompt fixo + `resumo_humanizado.md` + `memoria_persistente.json[:12000]` (`:928-942`); um turno só; nada é gravado |
-| GET | `/t/{hash}/pdf-assinado` (`:993-1019`) | nenhuma; 403 a menos que a melhor tentativa (maior `acertos`, `core/tentativas.py:84-90`) esteja aprovada (`:1002-1004`) | | `application/pdf` chamado `{hash}_assinado.pdf`: PDF original com carimbo na página 1 e página final com `titulo`, hash da tarefa, rodada, `ts`, `acertos/total`, IP, navegador (`user_agent[:70]`) e `hash_imutavel` (`core/pdf_sign.py:99-122`) | regenera `pdf_assinado.pdf` a cada download (`:1011-1012`); `log.jsonl` `pdf_assinado_baixado` |
+| GET | `/t/{hash}/pdf-assinado` (`:993-1019`) | nenhuma; 403 a menos que a melhor tentativa (maior `acertos`, `core/attempts.py:84-90`) esteja aprovada (`:1002-1004`) | | `application/pdf` chamado `{hash}_assinado.pdf`: PDF original com carimbo na página 1 e página final com `titulo`, hash da tarefa, rodada, `ts`, `acertos/total`, IP, navegador (`user_agent[:70]`) e `hash_imutavel` (`core/pdf_sign.py:99-122`) | regenera `pdf_assinado.pdf` a cada download (`:1011-1012`); `log.jsonl` `pdf_assinado_baixado` |
 
 Observação: a página `cliente_view.html` usa a **última** tentativa (`app_gestao.py:837`) para o cartão de assinatura,
-mas o PDF usa a **melhor** (`:1001`); `melhor` não tem desempate (`core/tentativas.py:84-90`).
+mas o PDF usa a **melhor** (`:1001`); `melhor` não tem desempate (`core/attempts.py:84-90`).
 
 ### 2.7 Bastidores e chat de quem está logado
 
@@ -161,14 +161,14 @@ mas o PDF usa a **melhor** (`:1001`); `melhor` não tem desempate (`core/tentati
 | `tentativa` (`:48-59`) | `id`, `tarefa_id`, `numero` (sequencial por tarefa), `respostas` (JSON `{"<id>": idx}` com `sort_keys`), `acertos`, `total` (= `len(questoes)`), `aprovado`, `hash_imutavel`, `ip`, `user_agent` (<= 300), `criada_em` |
 
 Valores de `status` efetivamente gravados: `criada` (`app_gestao.py:169, 291, 422, 559, 684, 730`), `processando`
-(`core/pipeline_pdf.py:228`, `core/api.py:162`, `core/api_jurisprudencia.py:129`), `pronta` (`pipeline_pdf.py:338`,
-`api.py:235`, `api_jurisprudencia.py:202`), `falhou` (`pipeline_pdf.py:236, 251, 297`; `api.py:170, 178, 191, 211, 224`;
-`api_jurisprudencia.py:137, 145, 158, 178, 191`), `assinada` (`app_gestao.py:892`). `enviada` só aparece na tupla de
+(`core/pipeline_pdf.py:228`, `core/api.py:162`, `core/api_caselaw.py:129`), `pronta` (`pipeline_pdf.py:338`,
+`api.py:235`, `api_caselaw.py:202`), `falhou` (`pipeline_pdf.py:236, 251, 297`; `api.py:170, 178, 191, 211, 224`;
+`api_caselaw.py:137, 145, 158, 178, 191`), `assinada` (`app_gestao.py:892`). `enviada` só aparece na tupla de
 `app_gestao.py:825` e nunca é gravado. Não existe `concluida`.
 
 Datas são `datetime.utcnow()` sem fuso (naive UTC) em todos os modelos.
 
-### 3.2 Tentativa e `hash_imutavel` (`core/tentativas.py:21-72`)
+### 3.2 Tentativa e `hash_imutavel` (`core/attempts.py:21-72`)
 
 ```
 aprovado = acertos >= max(1, int(total * 0.83))                       # :49, comentário diz "10/12"; int(12*0.83) = 9
@@ -190,7 +190,7 @@ tratar `X-Forwarded-For`.
 A quantidade é inconsistente no próprio prompt: nome "T14 · 3 Perguntas Fáceis" (`:167`), missão "GERE 3 PERGUNTAS",
 "DISTRIBUIÇÃO OBRIGATÓRIA (total: 3)" cujos itens somam 3+4+2+2+1 = 12, contrato "id: inteiro sequencial 1 a 6" e
 "EXATAMENTE 6 objetos". A nova rodada pede 12 (`app_gestao.py:752`); a página diz "10 de 12" (`cliente_view.html:248, 497`)
-e "≥ 10/12" (`:310`). A correção usa `len(questoes)` em tempo de execução (`core/tentativas.py:40`).
+e "≥ 10/12" (`:310`). A correção usa `len(questoes)` em tempo de execução (`core/attempts.py:40`).
 
 ### 3.4 `memoria_persistente.json` (saída da T6, `protocolo_pdf.json:77-85`; gravado em `core/pipeline_pdf.py:317-319`)
 
@@ -243,11 +243,11 @@ Esquema definido pela API externa; o que o `index.html` espera (`:1437-1443, 153
 
 Com fallback para o layout `{identificacao, datas_valores, fatos, fundamentos, pedidos}` ou chave/valor genérico.
 
-### 3.8 Job externo (`core/api.py:41-107`; `core/api_jurisprudencia.py:35-74`)
+### 3.8 Job externo (`core/api.py:41-107`; `core/api_caselaw.py:35-74`)
 
 | Chamada | Corpo | Resposta |
 |---|---|---|
-| `POST /submit` | multipart `file=(nome, bytes, application/pdf)` ou `text=<str>`; resumo acrescenta `enable_synthesis="true"`, `reasoning_effort="medium"`, `modo_disparo="paralelo"` (`api.py:45-57`); jurisprudência acrescenta `consulta` (`api_jurisprudencia.py:45-47`) | `{"job_id": str, "total_steps": int}` gravado em `resumo_estruturado_job.json` / `jurisprudencia_job.json` |
+| `POST /submit` | multipart `file=(nome, bytes, application/pdf)` ou `text=<str>`; resumo acrescenta `enable_synthesis="true"`, `reasoning_effort="medium"`, `modo_disparo="paralelo"` (`api.py:45-57`); jurisprudência acrescenta `consulta` (`api_caselaw.py:45-47`) | `{"job_id": str, "total_steps": int}` gravado em `resumo_estruturado_job.json` / `jurisprudencia_job.json` |
 | `GET /status/{job_id}` | | `{"status": "done"\|"error"\|outro, "current_step", "step_index", "total_steps", "tokens_total", "elapsed", "error"}` |
 | `GET /result/{job_id}` | | `{"dados_llm", "doc_text", "tokens_total", "elapsed"}` gravado em `resumo_estruturado.json` + `resumo_estruturado_texto.txt` (ou `jurisprudencia_resultado.json` + `jurisprudencia_texto.txt`) |
 | `POST /jobs/{job_id}/rerun/{step_id}` | | repassado |
@@ -265,7 +265,7 @@ Linha `{"ts": iso utc, "tipo": str, ...extras}`. Tipos: `criada{tarefa_id, advog
 ### 3.10 Outros arquivos
 
 - `meta.json` (`app_gestao.py:176-184, 298-305, 429-437, 566-573, 738-745`): `{hash, titulo, advogado: {id, email, nome}, pdf_nome, pdf_bytes?, consulta?, criada_em, origem?}`; clones: `{hash, titulo, clone_de, clone_hash, rodada, criada_em}`.
-- `workspace/_sessoes/{token}.json` (`core/sessao.py:26-35, 62-87`): `{jurisprudencia, resumo_estruturado, chat}`, cada parte `null` ou `{hash, titulo, processado_em, resumo_estruturado}`; na aba `chat`, `resumo_estruturado = {memoria_persistente, resumo_humanizado}` (`core/pipeline_pdf.py:344-356`).
+- `workspace/_sessoes/{token}.json` (`core/session.py:26-35, 62-87`): `{jurisprudencia, resumo_estruturado, chat}`, cada parte `null` ou `{hash, titulo, processado_em, resumo_estruturado}`; na aba `chat`, `resumo_estruturado = {memoria_persistente, resumo_humanizado}` (`core/pipeline_pdf.py:344-356`).
 - `contexto_persistente.json` (`main.py:180-202`): lista global `{role, content ("[USUARIO] ..." ou "[<agente>] ..."), timestamp, agent?}`; hoje contém `[]`.
 - `texto_tagueado.json` (T12, `protocolo_pdf.json:143-151`): `{"_ui": {classe: [{pos: "a:b", categoria, cor}]}}` com cores fixas por classe.
 
@@ -307,7 +307,7 @@ a tarefa fica `processando` para sempre e `reprocessar` responde 409 (`app_gesta
 dado dentro de `<data_user>` e uma instrução fixa pede "Execute a missão agora" (`:57-59, 146`); é a única defesa contra
 injeção de prompt.
 
-Job externo (`core/api.py:135-249`, `core/api_jurisprudencia.py:101-216`): `POST /submit` sem autenticação ("API pública,
+Job externo (`core/api.py:135-249`, `core/api_caselaw.py:101-216`): `POST /submit` sem autenticação ("API pública,
 sem chave", `api.py:22`); polling `GET /status/{job_id}` a cada 1,5 s até `done`/`error` ou 600 s (`api.py:30-31`), erros de
 status são engolidos e o loop continua; depois `GET /result/{job_id}` e gravação dos arquivos. Timeouts httpx de 60 s
 (submit/result) e 30 s (status/rerun). Os hosts padrão não foram verificados como existentes.
@@ -322,24 +322,24 @@ status são engolidos e o loop continua; depois `GET /result/{job_id}` e gravaç
 | `main.py:571` | `host="0.0.0.0", port=8000, reload=True` | `PORT` (Railway injeta), `HOST`, `UVICORN_RELOAD` | não | `8000`, `0.0.0.0`, `false` | contornado pelo start command (`repo:railway.toml:7`); o bloco `__main__` continua |
 | `core/db.py:9-10` | `Path("gestao.db")` relativo ao CWD | `DB_PATH` (ou `DATA_DIR`) | não | `$DATA_DIR/gestao.db`, com `DATA_DIR=/data` no Railway | feito (`repo:core/db.py:10`) |
 | `core/workspace.py:6` | `Path("workspace")` relativo ao CWD | `WORKSPACE_DIR` (ou `DATA_DIR`) | não | `$DATA_DIR/workspace` | feito (`repo:core/workspace.py:7`) |
-| `core/sessao.py:29` | `Path("workspace") / "_sessoes"` (re-hardcoda `workspace`) | derivar de `WORKSPACE_DIR` | não | `$WORKSPACE_DIR/_sessoes` | **pendente**: com `DATA_DIR=/data` os arquivos de sessão ainda caem em `./workspace/_sessoes` |
+| `core/session.py:29` | `Path("workspace") / "_sessoes"` (re-hardcoda `workspace`) | derivar de `WORKSPACE_DIR` | não | `$WORKSPACE_DIR/_sessoes` | **pendente**: com `DATA_DIR=/data` os arquivos de sessão ainda caem em `./workspace/_sessoes` |
 | `core/pipeline_pdf.py:38` | `Path("protocolo_pdf.json")` relativo ao CWD | `PDF_PROTOCOL_FILE` | não | `<BASE_DIR>/protocolo_pdf.json` | pendente (funciona se o CWD for a raiz do serviço) |
 | `main.py:32-34` | `protocolo.json`, `help.md`, `contexto_persistente.json` em `BASE_DIR` (`protocolo.json` é reescrito por `POST /api/protocolo`) | `CHAT_PROTOCOL_FILE`, `HELP_FILE`, `PERSISTENT_CONTEXT_FILE` | não | mover os dois graváveis para `$DATA_DIR` | pendente |
 | `app_gestao.py:30` vs `main.py:46` | `Jinja2Templates("templates")` (CWD) e `BASE_DIR/"templates"` | `TEMPLATES_DIR` | não | `<BASE_DIR>/templates` | pendente (só importa se o CWD mudar) |
 | `main.py:44` e `app_gestao.py` inteiro | sem `CORSMiddleware` | `CORS_ORIGINS` | sim para o app Next | `http://localhost:3000` | feito (`repo:main.py:44-49`) |
 | `app_gestao.py:623` | `link_cliente = request.base_url + /t/{hash}` | `CLIENT_APP_URL` | não | vazio = o próprio serviço | feito (`repo:app_gestao.py:624`) |
 | `core/auth.py:45`, `app_gestao.py:86, 95, 192, 310, 442, 504, 524`, `main.py:539` | cookie `sessao`; `httponly=True, samesite="lax"`, sem `secure`, sem `max_age` | `SESSION_COOKIE_SECURE` | não | `true` atrás de HTTPS | pendente |
-| `core/tentativas.py:49` | `0.83` (`int(total*0.83)`) | `QUIZ_PASS_RATIO` | não | `0.83` (alinhar com a cópia "10 de 12" de `cliente_view.html:248, 310, 497`) | pendente |
-| `core/tentativas.py:25` | prefixo `PARA.AI\|` do hash | `ATTEMPT_HASH_PREFIX` | não | `LEIA\|` (decisão de produto: ver seção 9) | pendente |
+| `core/attempts.py:49` | `0.83` (`int(total*0.83)`) | `QUIZ_PASS_RATIO` | não | `0.83` (alinhar com a cópia "10 de 12" de `cliente_view.html:248, 310, 497`) | pendente |
+| `core/attempts.py:25` | prefixo `PARA.AI\|` do hash | `ATTEMPT_HASH_PREFIX` | não | `LEIA\|` (decisão de produto: ver seção 9) | pendente |
 | `app_gestao.py:954-955` | `temperature=0.3`, `max_completion_tokens=1500` (chat da cidadã) | `CITIZEN_CHAT_TEMPERATURE`, `CITIZEN_CHAT_MAX_TOKENS` | não | `0.3`, `1500` | pendente |
 | `app_gestao.py:930` | `[:12000]` da memória no system prompt | `CITIZEN_CHAT_MEMORY_CHARS` | não | `12000` | pendente |
 | `app_gestao.py:932-942` | system prompt do chat da cidadã inline | `CITIZEN_CHAT_PROMPT_FILE` (versionar em `prompts/`) | não | arquivo em `prompts/workflow/` | pendente |
 | `core/pipeline_pdf.py:97-98` | `temperature 0.0`, `max_completion_tokens 8000` | `PIPELINE_TEMPERATURE`, `PIPELINE_MAX_TOKENS` | não | `0.0`, `8000` | pendente |
 | `main.py:291`, `:205`, `:249`, `:35-36` | `temperature=1`, `max_completion_tokens=6048`; limites 12000/12 e 15000/20; `DELAY_ENTRE_AGENTES=0.2`; `STOP_PIPELINE:` | `CHAT_TEMPERATURE`, `CHAT_MAX_TOKENS`, `CHAT_CONTEXT_MAX_CHARS`, `CHAT_CONTEXT_MAX_MSGS`, `AGENT_DELAY_SECONDS` | não | os atuais | pendente (bastidores, baixa prioridade) |
 | `core/api.py:25-28` | `https://api.resumoestruturado.com.br` | `RESUMO_ESTRUTURADO_API_BASE` | não | já lida do ambiente | ok |
-| `core/api_jurisprudencia.py:19-22` | `https://api.jurisprudencia.com.br` | `JURISPRUDENCIA_API_BASE` | não | já lida do ambiente | ok |
-| `core/api.py:30-31`, `core/api_jurisprudencia.py:24-25` | `POLL_INTERVAL=1.5`, `POLL_TIMEOUT=600.0` | `EXTERNAL_POLL_INTERVAL`, `EXTERNAL_POLL_TIMEOUT` | não | `1.5`, `600` | pendente |
-| `core/api.py:64, 73, 82, 91, 103`; `core/api_jurisprudencia.py:54, 62, 70` | httpx `timeout=60.0` / `30.0` | `EXTERNAL_HTTP_TIMEOUT` | não | `60` | pendente |
+| `core/api_caselaw.py:19-22` | `https://api.jurisprudencia.com.br` | `JURISPRUDENCIA_API_BASE` | não | já lida do ambiente | ok |
+| `core/api.py:30-31`, `core/api_caselaw.py:24-25` | `POLL_INTERVAL=1.5`, `POLL_TIMEOUT=600.0` | `EXTERNAL_POLL_INTERVAL`, `EXTERNAL_POLL_TIMEOUT` | não | `1.5`, `600` | pendente |
+| `core/api.py:64, 73, 82, 91, 103`; `core/api_caselaw.py:54, 62, 70` | httpx `timeout=60.0` / `30.0` | `EXTERNAL_HTTP_TIMEOUT` | não | `60` | pendente |
 | `core/api.py:45-47` | `enable_synthesis=True`, `reasoning_effort="medium"`, `modo_disparo="paralelo"` | `RESUMO_REASONING_EFFORT`, `RESUMO_MODO_DISPARO` | não | os atuais | pendente |
 | `core/auth.py:10` | `_ITERS = 200_000` | `PBKDF2_ITERATIONS` | não | `200000` | pendente |
 | `main.py:18-22` | `logging.basicConfig(level=INFO)` | `LOG_LEVEL` | não | `INFO` | pendente |
@@ -359,20 +359,20 @@ Lista consolidada de variáveis (nome, obrigatória, padrão, o que substitui):
 | `ADMIN_NAME` | não | `Administrador` | `main.py:65` |
 | `DATA_DIR` | não | `.` (Railway: `/data`) | raiz de `gestao.db` e `workspace/` |
 | `DB_PATH` | não | `$DATA_DIR/gestao.db` | `core/db.py:9-10` |
-| `WORKSPACE_DIR` | não | `$DATA_DIR/workspace` | `core/workspace.py:6`, `core/sessao.py:29` |
+| `WORKSPACE_DIR` | não | `$DATA_DIR/workspace` | `core/workspace.py:6`, `core/session.py:29` |
 | `PORT` | não (Railway injeta) | `8000` | `main.py:571` |
 | `CORS_ORIGINS` | sim para o app | `http://localhost:3000` | ausência de `CORSMiddleware` |
 | `CLIENT_APP_URL` | não | vazio (usa `request.base_url`) | `app_gestao.py:623` |
 | `BASE_URL` | não | `http://localhost:8000` | URL pública no QR do comprovante (`leia/registry.py`, já nosso) |
 | `OTS_ENABLED` | não | `true` | carimbo OpenTimestamps (`leia/registry.py`, já nosso) |
 | `SESSION_COOKIE_SECURE` | não | `true` em produção | `app_gestao.py:86` |
-| `QUIZ_PASS_RATIO` | não | `0.83` | `core/tentativas.py:49` |
-| `ATTEMPT_HASH_PREFIX` | não | `PARA.AI` | `core/tentativas.py:25` |
+| `QUIZ_PASS_RATIO` | não | `0.83` | `core/attempts.py:49` |
+| `ATTEMPT_HASH_PREFIX` | não | `PARA.AI` | `core/attempts.py:25` |
 | `CITIZEN_CHAT_TEMPERATURE`, `CITIZEN_CHAT_MAX_TOKENS`, `CITIZEN_CHAT_MEMORY_CHARS` | não | `0.3`, `1500`, `12000` | `app_gestao.py:954-955, 930` |
 | `PIPELINE_TEMPERATURE`, `PIPELINE_MAX_TOKENS` | não | `0.0`, `8000` | `core/pipeline_pdf.py:97-98` |
 | `PDF_PROTOCOL_FILE` | não | `<BASE_DIR>/protocolo_pdf.json` | `core/pipeline_pdf.py:38` |
 | `RESUMO_ESTRUTURADO_API_BASE`, `JURISPRUDENCIA_API_BASE` | não | os hosts atuais | já lidas |
-| `EXTERNAL_POLL_INTERVAL`, `EXTERNAL_POLL_TIMEOUT`, `EXTERNAL_HTTP_TIMEOUT` | não | `1.5`, `600`, `60` | `core/api.py:30-31, 64-103`; `core/api_jurisprudencia.py:24-25, 54-70` |
+| `EXTERNAL_POLL_INTERVAL`, `EXTERNAL_POLL_TIMEOUT`, `EXTERNAL_HTTP_TIMEOUT` | não | `1.5`, `600`, `60` | `core/api.py:30-31, 64-103`; `core/api_caselaw.py:24-25, 54-70` |
 | `LOG_LEVEL` | não | `INFO` | `main.py:18-22` |
 | `BRAND_NAME` | não | `LeIA` | strings `Para.AI` / `AI Forensics` |
 
@@ -381,8 +381,8 @@ Lista consolidada de variáveis (nome, obrigatória, padrão, o que substitui):
 | O quê | Caminho (v2) | Onde no código | Volume? |
 |---|---|---|---|
 | SQLite: usuários e hashes de senha, tokens de sessão, tarefas, eventos, tentativas com IP e user-agent | `./gestao.db` (CWD) | `core/db.py:9-10, 106-109` | **sim** |
-| Workspace por tarefa: `original.pdf`, `meta.json`, `log.jsonl`, `texto_extraido.txt`, `T1_...T14_*.json`, `memoria_persistente.json`, `texto_tagueado.json`, `resumo_humanizado.md`, `questoes.json`, `pdf_assinado.pdf`, `resumo_estruturado_job.json`, `resumo_estruturado.json`, `resumo_estruturado_texto.txt`, `jurisprudencia_job.json`, `jurisprudencia_resultado.json`, `jurisprudencia_texto.txt` (e, na cópia, `tentativa_N.ots`) | `./workspace/{hash}/` (CWD; `Tarefa.workspace_path` guarda esse caminho relativo) | `core/workspace.py:6-30`; `app_gestao.py:163, 285, 413, 553, 724, 1011, 1043`; `core/pipeline_pdf.py:241, 304, 318, 322, 331, 334`; `core/api.py:184, 229, 231`; `core/api_jurisprudencia.py:151, 196, 198` | **sim** (sem ele todo `/t/{hash}` morre a cada deploy) |
-| Memória de sessão por login | `./workspace/_sessoes/{session_token}.json` | `core/sessao.py:29-35, 90-99` | não (apagada no logout) |
+| Workspace por tarefa: `original.pdf`, `meta.json`, `log.jsonl`, `texto_extraido.txt`, `T1_...T14_*.json`, `memoria_persistente.json`, `texto_tagueado.json`, `resumo_humanizado.md`, `questoes.json`, `pdf_assinado.pdf`, `resumo_estruturado_job.json`, `resumo_estruturado.json`, `resumo_estruturado_texto.txt`, `jurisprudencia_job.json`, `jurisprudencia_resultado.json`, `jurisprudencia_texto.txt` (e, na cópia, `tentativa_N.ots`) | `./workspace/{hash}/` (CWD; `Tarefa.workspace_path` guarda esse caminho relativo) | `core/workspace.py:6-30`; `app_gestao.py:163, 285, 413, 553, 724, 1011, 1043`; `core/pipeline_pdf.py:241, 304, 318, 322, 331, 334`; `core/api.py:184, 229, 231`; `core/api_caselaw.py:151, 196, 198` | **sim** (sem ele todo `/t/{hash}` morre a cada deploy) |
+| Memória de sessão por login | `./workspace/_sessoes/{session_token}.json` | `core/session.py:29-35, 90-99` | não (apagada no logout) |
 | Histórico global do chat de bastidores | `<BASE_DIR>/contexto_persistente.json` | `main.py:34, 180-202` | não |
 | Protocolo do chat, reescrito em tempo de execução | `<BASE_DIR>/protocolo.json` | `main.py:32, 169-177` | só se a edição por `POST /api/protocolo` tiver que sobreviver ao deploy |
 | Workflow do PDF (leitura) | `./protocolo_pdf.json` (CWD) | `core/pipeline_pdf.py:38, 248` | não (parte da imagem) |
@@ -456,11 +456,11 @@ O cliente em `apps/web/lib/api.ts` espera:
 
 | Chamada do app | Tipo esperado (`api.ts`) | Fonte na v2 | Fonte na cópia `apps/llm-service` |
 |---|---|---|---|
-| `GET {API_BASE}/api/t/{hash}` (`api.ts:31-34`) | `Task {tarefa {hash, titulo, status}, resumo_md, topicos \| null, questoes [{id, enunciado, alternativas, area}], ultima_tentativa \| null, eventos?}` | **não existe** | `repo:leia/api_cliente.py:80-93`: monta exatamente esse JSON a partir de `Tarefa`, `resumo_humanizado.md`, `questoes.json` (sem `correta`/`justificativa`, `:27-30`), `memoria_persistente.json` e `tn.listar` (última tentativa); `eventos` = últimos 8 do `log.jsonl` (`:85`); antes de pronta devolve `resumo_md: null, topicos: null, questoes: []` (`:86-87`) |
+| `GET {API_BASE}/api/t/{hash}` (`api.ts:31-34`) | `Task {tarefa {hash, titulo, status}, resumo_md, topicos \| null, questoes [{id, enunciado, alternativas, area}], ultima_tentativa \| null, eventos?}` | **não existe** | `repo:leia/api_citizen.py:80-93`: monta exatamente esse JSON a partir de `Tarefa`, `resumo_humanizado.md`, `questoes.json` (sem `correta`/`justificativa`, `:27-30`), `memoria_persistente.json` e `tn.listar` (última tentativa); `eventos` = últimos 8 do `log.jsonl` (`:85`); antes de pronta devolve `resumo_md: null, topicos: null, questoes: []` (`:86-87`) |
 | `POST /api/t/{hash}/quiz` (`api.ts:36-41`) | `QuizResult = Attempt & {comprovante_token?, erros [{id, area?, enunciado?, escolhida?}]}` | `app_gestao.py:863-908` devolve tudo isso e mais: `ts`, `pode_baixar_pdf` e, em cada erro, `correta`, `justificativa`, `alternativas` (gabarito) | igual |
 | `POST /api/t/{hash}/chat` (`api.ts:44-68`) | SSE `{t}` e `{error}`; ignora o resto | `app_gestao.py:958-967` envia `{t}`, `{done: true}`, `{error}` | igual |
-| `GET /verify/{hash_imutavel}?format=json` (`api.ts:70-74`) | `{payload, canonical, payloadHash, otsPresent}` | **não existe** | `repo:leia/registry.py:160-167` com adaptador `get_attempt` (`repo:leia/api_cliente.py:100-111`) |
-| `topicsOf(task)` (`api.ts:81-89`) | `topicos[]` ou divisão de `resumo_md` por `#`/`##` | só o markdown da T13 | `topics_from_summary` (`repo:leia/api_cliente.py:57-77`): seções `##` da história + o `trecho_verbatim` da memória com mais palavras em comum (>= 3), sem `clausula` |
+| `GET /verify/{hash_imutavel}?format=json` (`api.ts:70-74`) | `{payload, canonical, payloadHash, otsPresent}` | **não existe** | `repo:leia/registry.py:160-167` com adaptador `get_attempt` (`repo:leia/api_citizen.py:100-111`) |
+| `topicsOf(task)` (`api.ts:81-89`) | `topicos[]` ou divisão de `resumo_md` por `#`/`##` | só o markdown da T13 | `topics_from_summary` (`repo:leia/api_citizen.py:57-77`): seções `##` da história + o `trecho_verbatim` da memória com mais palavras em comum (>= 3), sem `clausula` |
 
 Para onde apontar: `NEXT_PUBLIC_API_BASE` = URL do serviço no Railway (`apps/web/.env.example`), e `CORS_ORIGINS` no
 serviço com a origem da Vercel.
@@ -481,16 +481,16 @@ precisa de uma checagem server-side (substring, ou `pos_trecho_verbatim` contra 
 
 ### 8.4 Lacunas para o app Next
 
-- `GET /api/t/{hash}` público: ausente na v2; presente na cópia (`repo:leia/api_cliente.py`). Precisa entrar na v2 do
+- `GET /api/t/{hash}` público: ausente na v2; presente na cópia (`repo:leia/api_citizen.py`). Precisa entrar na v2 do
   Carlos ou a cópia é o que vai ao ar.
 - CORS: ausente na v2; presente na cópia.
 - Resposta do quiz vaza o gabarito (`erros[].correta`, `justificativa`, `alternativas`) e a página do serviço embute
   `data-correta` no HTML. Para o app Next basta não renderizar, mas o JSON continua público: remover no servidor
-  (`core/tentativas.py:108-116`).
+  (`core/attempts.py:108-116`).
 - Sem status de falha exposto de forma útil: com `falhou`, a cópia devolve `questoes: []` e `topicos: null`
-  (`repo:leia/api_cliente.py:86-87`) e o app fica repetindo a espera a cada 8 s (`Journey.tsx:63`).
+  (`repo:leia/api_citizen.py:86-87`) e o app fica repetindo a espera a cada 8 s (`Journey.tsx:63`).
 - `eventos[]` da espera trazem `id` (`T1_...` a `T14_...`), `idx` e `total`; o app lê `step` (`Journey.tsx:80`), que não existe.
-- `ultima_tentativa` é a última por `numero` (`repo:leia/api_cliente.py:93`, como em `app_gestao.py:837`), enquanto o PDF
+- `ultima_tentativa` é a última por `numero` (`repo:leia/api_citizen.py:93`, como em `app_gestao.py:837`), enquanto o PDF
   assinado usa a melhor. O app só olha `aprovado` (`Journey.tsx:42`), então funciona, mas os dois cartões podem divergir.
 - Chat sem citação: a resposta é texto livre, a recusa ("não foi informado") depende só do prompt (`app_gestao.py:932-942`)
   e nada é gravado. ADR-0004 (citação literal e recusa explícita) não é atendido pelo serviço; o app não tem como
@@ -508,24 +508,24 @@ precisa de uma checagem server-side (substring, ou `pos_trecho_verbatim` contra 
 
 | Dado | Onde é coletado | Onde fica | Quem vê |
 |---|---|---|---|
-| IP e user-agent da cidadã | ao abrir a página (`app_gestao.py:841-843`) e a cada tentativa (`:880-883`, `core/tentativas.py:53-54, 66-68`) | `log.jsonl` (`ua[:200]`), tabela `tentativa` (`ua[:300]`), preimage do `hash_imutavel` (`tentativas.py:25`) e **em claro na página de assinatura do PDF** (`core/pdf_sign.py:105-106`) | quem baixa o PDF: a cidadã (`/t/{hash}/pdf-assinado`, público) e quem enviou (`/tarefas/{id}/pdf-assinado`) |
+| IP e user-agent da cidadã | ao abrir a página (`app_gestao.py:841-843`) e a cada tentativa (`:880-883`, `core/attempts.py:53-54, 66-68`) | `log.jsonl` (`ua[:200]`), tabela `tentativa` (`ua[:300]`), preimage do `hash_imutavel` (`attempts.py:25`) e **em claro na página de assinatura do PDF** (`core/pdf_sign.py:105-106`) | quem baixa o PDF: a cidadã (`/t/{hash}/pdf-assinado`, público) e quem enviou (`/tarefas/{id}/pdf-assinado`) |
 | PDF original e texto extraído | upload (`app_gestao.py:163, 285, 413, 553`), extração (`core/pipeline_pdf.py:241`) | `workspace/{hash}/original.pdf`, `texto_extraido.txt`, copiados a cada nova rodada (`:724`); embutidos no PDF assinado | quem tem o link; `index.html:1892` diz "o PDF em si não é guardado", o que não bate com o código |
-| Nomes das partes, datas, valores, fatos | T1..T5 transcrevem ao pé da letra (`protocolo_pdf.json:22-74`) | `T1_...T6_*.json`, `memoria_persistente.json`, a história da T13 (usa nomes próprios, `:161`), o system prompt do chat (`app_gestao.py:928-942`), a memória de sessão (`core/sessao.py:62-87`) | texto inteiro vai à Groq (`core/pipeline_pdf.py:145-146`); nos fluxos externos, o PDF inteiro vai sem autenticação a terceiros (`core/api.py:59-65`, `core/api_jurisprudencia.py:49-55`) |
+| Nomes das partes, datas, valores, fatos | T1..T5 transcrevem ao pé da letra (`protocolo_pdf.json:22-74`) | `T1_...T6_*.json`, `memoria_persistente.json`, a história da T13 (usa nomes próprios, `:161`), o system prompt do chat (`app_gestao.py:928-942`), a memória de sessão (`core/session.py:62-87`) | texto inteiro vai à Groq (`core/pipeline_pdf.py:145-146`); nos fluxos externos, o PDF inteiro vai sem autenticação a terceiros (`core/api.py:59-65`, `core/api_caselaw.py:49-55`) |
 | Identidade de quem enviou (id, e-mail, nome) | `meta.json` (`app_gestao.py:179, 301, 432, 569`) | `workspace/{hash}/meta.json`, baixável por `/tarefas/{id}/artefato/meta.json` | usuários logados |
 | Perguntas de quem está logado ao chat de bastidores | `main.py:365-370, 447-454` | `contexto_persistente.json`, um arquivo para todos | qualquer usuário logado via `GET /api/contexto` (`main.py:503-505`) |
-| Tokens de sessão | `core/auth.py:34` | em claro no banco e como nome de arquivo em `workspace/_sessoes` (`core/sessao.py:33-35`); cookie sem `Secure` e sem validade (`app_gestao.py:86`) | |
+| Tokens de sessão | `core/auth.py:34` | em claro no banco e como nome de arquivo em `workspace/_sessoes` (`core/session.py:33-35`); cookie sem `Secure` e sem validade (`app_gestao.py:86`) | |
 | Chave Groq e senha do admin | `main.py:28`, `main.py:63-68` | no fonte, no `.pyc` e no log | quem lê o repositório |
 
 Pontos de decisão para o produto:
 
-- O `hash_imutavel` inclui IP e user-agent sem salt (`core/tentativas.py:25`): quem tiver o PDF recalcula o hash, e o
+- O `hash_imutavel` inclui IP e user-agent sem salt (`core/attempts.py:25`): quem tiver o PDF recalcula o hash, e o
   hash "prova" dados pessoais. Diverge de SPEC-001 (hash salgado sem nada pessoal). A cópia contorna gerando um payload
-  canônico próprio (`repo:leia/registry.py:48-72`) com `salt = hash_imutavel[:40]` (`repo:leia/api_cliente.py:110`), mas
+  canônico próprio (`repo:leia/registry.py:48-72`) com `salt = hash_imutavel[:40]` (`repo:leia/api_citizen.py:110`), mas
   o `hash_imutavel` original continua sendo gravado e impresso.
 - O link `/t/{hash}` e suas APIs (quiz, chat, PDF) não expiram e não têm autenticação: quem tem o hash pode enviar
   tentativas que mudam o status para `assinada`, conversar sobre o documento e baixar o PDF com IP e navegador da
   pessoa que respondeu.
-- O gabarito viaja ao navegador (`cliente_view.html:253, 268`) e na resposta do quiz (`core/tentativas.py:108-116`).
+- O gabarito viaja ao navegador (`cliente_view.html:253, 268`) e na resposta do quiz (`core/attempts.py:108-116`).
 - O chat público é um endpoint de LLM sem limite e sem autenticação (`app_gestao.py:914-973`), com custo e superfície
   de injeção (o resumo e a memória derivados do PDF entram no system prompt).
 - O PDF assinado sai do pypdf/reportlab com metadados padrão (`core/pdf_sign.py:140-168` nunca toca `writer.metadata`)
@@ -546,15 +546,15 @@ está no fonte: rotacionar a chave na Groq antes do primeiro push.
    `GET /api/t/{hash}`, CORS e variáveis de ambiente, ou você prefere aplicar essas mudanças na sua árvore e reenviar?
 2. Quantas questões a T14 deve gerar de fato (3, 6 ou 12)? O prompt diz as três coisas (`protocolo_pdf.json:167-173`), a
    nova rodada pede 12 (`app_gestao.py:752`) e a página diz "10 de 12" (`cliente_view.html:248`). Com 12 o limiar
-   `int(12*0.83)` aprova com 9, não 10 (`core/tentativas.py:49`).
-3. Podemos tirar `correta`, `justificativa` e `alternativas` de `erros[]` na resposta do quiz (`core/tentativas.py:108-116`)
+   `int(12*0.83)` aprova com 9, não 10 (`core/attempts.py:49`).
+3. Podemos tirar `correta`, `justificativa` e `alternativas` de `erros[]` na resposta do quiz (`core/attempts.py:108-116`)
    e `data-correta` do HTML? O app não precisa deles e o JSON é público.
 4. Podemos expor as sínteses T7..T11 (com `lastro`) e a `memoria_persistente` em uma rota JSON pública sem dados de quem
    enviou, ou consolidá-las em um `topicos.json` no fim do pipeline (`core/pipeline_pdf.py:313-334`)? É o que dá ao app o
    "trecho original" por tópico com lastro real, no lugar do casamento por palavras da cópia.
 5. Aceita adicionar no pipeline uma conferência de que cada `trecho_verbatim` existe em `texto_extraido.txt` (substring
    ou `pos_trecho_verbatim`), marcando os que falham? Hoje nada confere (`core/`), e o app promete "copiado exatamente".
-6. `hash_imutavel` com IP, user-agent e timestamp sem salt (`core/tentativas.py:21-26`), e IP e navegador impressos no
+6. `hash_imutavel` com IP, user-agent e timestamp sem salt (`core/attempts.py:21-26`), e IP e navegador impressos no
    PDF (`core/pdf_sign.py:105-106`): podemos trocar pelo payload canônico salgado de SPEC-001 e tirar IP/UA do PDF? E
    manter `ip`/`user_agent` só no banco, ou nem isso?
 7. `request.client.host` (`app_gestao.py:842, 880`) atrás do proxy do Railway vira o IP interno a menos que o uvicorn suba
@@ -563,7 +563,7 @@ está no fonte: rotacionar a chave na Groq antes do primeiro push.
    (`app_gestao.py:583, 694, 755`), então não atualizam a aba `chat` da memória de sessão; é intencional?
 9. Os hosts `api.resumoestruturado.com.br` e `api.jurisprudencia.com.br` existem e respondem hoje? Se não, tiramos as
    abas do painel para a auditoria ou deixamos com aviso?
-10. `protocolo_jurisprudencia.json`, `_legacy/`, `protocolo.json.bak_historia_infantil` e `core/pd_extract.py` (0 bytes)
+10. `protocolo_jurisprudencia.json`, `_legacy/`, `protocolo.json.bak_historia_infantil` e `core/pd_extract.py` (0 bytes, removido)
     não são usados por nada; podemos deixar fora do repositório público?
 11. `POST /api/protocolo` reescreve `protocolo.json` no diretório do código (`main.py:172`) e `GET /api/contexto` mostra o
     histórico de todos os usuários (`main.py:180-185, 503-505`): manter assim para a demo ou desligar as duas rotas?

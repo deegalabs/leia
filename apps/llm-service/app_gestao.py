@@ -21,12 +21,12 @@ from core.db import (Usuario, Tarefa, LogEvento, Tentativa,
 from core.db import Duvida                       # LeIA: doubts sent by the citizen
 from leia.pipeline import run_pipeline           # LeIA: semaphore around the workflow
 from leia.ratelimit import rate_limit            # LeIA: per-IP limit on public write routes
-from core.auth import (autenticar, encerrar_sessao, usuario_atual,
-                       criar_usuario_inicial, hash_senha)
+from core.auth import (authenticate, end_session, current_user,
+                       create_initial_user, hash_password)
 from core import workspace as ws
-from core import sessao as sess
-from core import tentativas as tn
-from core.pdf_sign import gerar_pdf_assinado
+from core import session as sess
+from core import attempts as tn
+from core.pdf_sign import build_signed_pdf
 
 log = logging.getLogger("gestao")
 
@@ -41,8 +41,8 @@ def _ok_pdf(up: UploadFile) -> bool:
     return (up.filename or "").lower().endswith(".pdf")
 
 
-def _ler_artefato(hash_: str, nome: str) -> Optional[str]:
-    p = ws.pasta(hash_) / nome
+def _read_artifact(hash_: str, nome: str) -> Optional[str]:
+    p = ws.folder(hash_) / nome
     if not p.exists():
         return None
     try:
@@ -51,8 +51,8 @@ def _ler_artefato(hash_: str, nome: str) -> Optional[str]:
         return None
 
 
-def _ler_json(hash_: str, nome: str):
-    txt = _ler_artefato(hash_, nome)
+def _read_json(hash_: str, nome: str):
+    txt = _read_artifact(hash_, nome)
     if txt is None:
         return None
     try:
@@ -84,8 +84,8 @@ async def create_pdf_task(
     if not _ok_pdf(pdf):
         raise HTTPException(400, "Envie um PDF.")
 
-    h = ws.novo_hash()
-    pasta = ws.pasta(h)
+    h = ws.new_hash()
+    folder = ws.folder(h)
 
     conteudo = await pdf.read()
     # LeIA: size cap and real PDF check (the extension alone is not enough)
@@ -95,7 +95,7 @@ async def create_pdf_task(
         raise HTTPException(400, "Este arquivo não é um PDF.")
     if not conteudo:
         raise HTTPException(400, "O arquivo está vazio.")
-    (pasta / "original.pdf").write_bytes(conteudo)
+    (folder / "original.pdf").write_bytes(conteudo)
 
     titulo_final = (titulo or "").strip()[:200] or (pdf.filename or "documento")[:200]
     t = Tarefa(
@@ -104,14 +104,14 @@ async def create_pdf_task(
         advogado_id=u.id,
         status="criada",
         pdf_nome=pdf.filename,
-        workspace_path=str(pasta),
+        workspace_path=str(folder),
         rodada=1,
         origem=origem,
         cidadao_id=cidadao_id,
     )
     session.add(t); session.commit(); session.refresh(t)
 
-    ws.salvar_meta(h, {
+    ws.save_meta(h, {
         "hash": h,
         "titulo": t.titulo,
         "advogado": {"id": u.id, "email": u.email, "nome": u.nome},
@@ -120,8 +120,8 @@ async def create_pdf_task(
         "criada_em": t.criada_em.isoformat(),
         "origem": origem,
     })
-    ws.registrar_evento(h, "criada", tarefa_id=t.id, advogado_id=u.id)
-    ws.registrar_evento(h, "pdf_salvo", nome=pdf.filename, bytes=len(conteudo))
+    ws.record_event(h, "criada", tarefa_id=t.id, advogado_id=u.id)
+    ws.record_event(h, "pdf_salvo", nome=pdf.filename, bytes=len(conteudo))
 
     session.add(LogEvento(tarefa_id=t.id, tipo="criada",
                           payload=f'{{"hash":"{h}"}}'))
@@ -142,7 +142,7 @@ async def api_pdf_destilar(
     request: Request,
     bg: BackgroundTasks,
     pdf: UploadFile = File(...),
-    u: Usuario = Depends(usuario_atual),
+    u: Usuario = Depends(current_user),
     session: Session = Depends(get_session),
 ):
     """
@@ -156,8 +156,8 @@ async def api_pdf_destilar(
     if not _ok_pdf(pdf):
         raise HTTPException(400, "Envie um PDF.")
 
-    h = ws.novo_hash()
-    pasta_ws = ws.pasta(h)
+    h = ws.new_hash()
+    folder = ws.folder(h)
 
     conteudo = await pdf.read()
     # LeIA: size cap and real PDF check (the extension alone is not enough)
@@ -165,7 +165,7 @@ async def api_pdf_destilar(
         raise HTTPException(413, "Arquivo grande demais. Envie um PDF de até %s MB." % os.getenv("MAX_UPLOAD_MB", "15"))
     if not conteudo.startswith(b"%PDF"):
         raise HTTPException(400, "Este arquivo não é um PDF.")
-    (pasta_ws / "original.pdf").write_bytes(conteudo)
+    (folder / "original.pdf").write_bytes(conteudo)
 
     t = Tarefa(
         hash=h,
@@ -173,12 +173,12 @@ async def api_pdf_destilar(
         advogado_id=u.id,
         status="criada",
         pdf_nome=pdf.filename,
-        workspace_path=str(pasta_ws),
+        workspace_path=str(folder),
         rodada=1,
     )
     session.add(t); session.commit(); session.refresh(t)
 
-    ws.salvar_meta(h, {
+    ws.save_meta(h, {
         "hash": h,
         "titulo": t.titulo,
         "advogado": {"id": u.id, "email": u.email, "nome": u.nome},
@@ -187,8 +187,8 @@ async def api_pdf_destilar(
         "criada_em": t.criada_em.isoformat(),
         "origem": "chat_destilacao",
     })
-    ws.registrar_evento(h, "criada", tarefa_id=t.id, advogado_id=u.id)
-    ws.registrar_evento(h, "pdf_salvo", nome=pdf.filename, bytes=len(conteudo))
+    ws.record_event(h, "criada", tarefa_id=t.id, advogado_id=u.id)
+    ws.record_event(h, "pdf_salvo", nome=pdf.filename, bytes=len(conteudo))
 
     session.add(LogEvento(tarefa_id=t.id, tipo="criada",
                           payload=f'{{"hash":"{h}"}}'))
@@ -209,7 +209,7 @@ async def api_pdf_destilar(
 @router.get("/api/pdf/{hash_}/destilado")
 async def api_pdf_destilado(
     hash_: str,
-    u: Usuario = Depends(usuario_atual),
+    u: Usuario = Depends(current_user),
     session: Session = Depends(get_session),
 ):
     """
@@ -225,15 +225,15 @@ async def api_pdf_destilado(
     return {
         "status": t.status,
         "titulo": t.titulo,
-        "memoria": _ler_json(hash_, "memoria_persistente.json"),
-        "resumo": _ler_artefato(hash_, "resumo_humanizado.md"),
+        "memoria": _read_json(hash_, "memoria_persistente.json"),
+        "resumo": _read_artifact(hash_, "resumo_humanizado.md"),
     }
 
 
 @router.get("/api/pdf/{hash_}/log")
 async def api_pdf_log(
     hash_: str,
-    u: Usuario = Depends(usuario_atual),
+    u: Usuario = Depends(current_user),
     session: Session = Depends(get_session),
 ):
     """
@@ -246,7 +246,7 @@ async def api_pdf_log(
         raise HTTPException(404)
 
     eventos = [
-        e for e in ws.ler_eventos(hash_)
+        e for e in ws.read_events(hash_)
         if e.get("tipo") in (
             "pipeline_start", "texto_extraido", "task_start",
             "task_done", "task_error", "erro_extracao",
@@ -268,7 +268,7 @@ async def api_resumo_estruturado_submit(
     bg: BackgroundTasks,
     pdf: Optional[UploadFile] = File(default=None),
     texto: Optional[str] = Form(default=None),
-    u: Usuario = Depends(usuario_atual),
+    u: Usuario = Depends(current_user),
     session: Session = Depends(get_session),
 ):
     """
@@ -282,15 +282,15 @@ async def api_resumo_estruturado_submit(
     if pdf and pdf.filename and not _ok_pdf(pdf):
         raise HTTPException(400, "Envie um PDF.")
 
-    h = ws.novo_hash()
-    pasta_ws = ws.pasta(h)
+    h = ws.new_hash()
+    folder = ws.folder(h)
 
     pdf_bytes: Optional[bytes] = None
     nome_pdf: Optional[str] = None
     if pdf and pdf.filename:
         pdf_bytes = await pdf.read()
         nome_pdf = pdf.filename
-        (pasta_ws / "original.pdf").write_bytes(pdf_bytes)
+        (folder / "original.pdf").write_bytes(pdf_bytes)
 
     t = Tarefa(
         hash=h,
@@ -298,12 +298,12 @@ async def api_resumo_estruturado_submit(
         advogado_id=u.id,
         status="criada",
         pdf_nome=nome_pdf,
-        workspace_path=str(pasta_ws),
+        workspace_path=str(folder),
         rodada=1,
     )
     session.add(t); session.commit(); session.refresh(t)
 
-    ws.salvar_meta(h, {
+    ws.save_meta(h, {
         "hash": h,
         "titulo": t.titulo,
         "advogado": {"id": u.id, "email": u.email, "nome": u.nome},
@@ -311,13 +311,13 @@ async def api_resumo_estruturado_submit(
         "criada_em": t.criada_em.isoformat(),
         "origem": "resumo_estruturado_api_externa",
     })
-    ws.registrar_evento(h, "criada", tarefa_id=t.id, advogado_id=u.id)
+    ws.record_event(h, "criada", tarefa_id=t.id, advogado_id=u.id)
     session.add(LogEvento(tarefa_id=t.id, tipo="criada", payload=f'{{"hash":"{h}"}}'))
     session.commit()
 
     token = u.session_token
-    from core.api import executar_resumo_estruturado
-    bg.add_task(executar_resumo_estruturado, t.id, pdf_bytes, texto,
+    from core.api import run_structured_summary
+    bg.add_task(run_structured_summary, t.id, pdf_bytes, texto,
                 nome_pdf or "documento.pdf", token)
 
     log.info("📁 [resumo estruturado · API externa] Tarefa criada | id=%s hash=%s", t.id, h)
@@ -327,7 +327,7 @@ async def api_resumo_estruturado_submit(
 @router.get("/api/resumo-estruturado/{hash_}/status")
 async def api_resumo_estruturado_status(
     hash_: str,
-    u: Usuario = Depends(usuario_atual),
+    u: Usuario = Depends(current_user),
     session: Session = Depends(get_session),
 ):
     """Eventos do acompanhamento do job na API externa (resumo_estruturado_*)."""
@@ -336,7 +336,7 @@ async def api_resumo_estruturado_status(
         raise HTTPException(404)
 
     eventos = [
-        e for e in ws.ler_eventos(hash_)
+        e for e in ws.read_events(hash_)
         if str(e.get("tipo", "")).startswith("resumo_estruturado")
     ]
     return {"status": t.status, "eventos": eventos}
@@ -345,7 +345,7 @@ async def api_resumo_estruturado_status(
 @router.get("/api/resumo-estruturado/{hash_}/resultado")
 async def api_resumo_estruturado_resultado(
     hash_: str,
-    u: Usuario = Depends(usuario_atual),
+    u: Usuario = Depends(current_user),
     session: Session = Depends(get_session),
 ):
     """Devolve o resultado já salvo no workspace (dados_llm + doc_text)."""
@@ -356,8 +356,8 @@ async def api_resumo_estruturado_resultado(
     return {
         "status": t.status,
         "titulo": t.titulo,
-        "dados_llm": _ler_json(hash_, "resumo_estruturado.json"),
-        "doc_text": _ler_artefato(hash_, "resumo_estruturado_texto.txt"),
+        "dados_llm": _read_json(hash_, "resumo_estruturado.json"),
+        "doc_text": _read_artifact(hash_, "resumo_estruturado_texto.txt"),
     }
 
 
@@ -365,7 +365,7 @@ async def api_resumo_estruturado_resultado(
 async def api_resumo_estruturado_rerun(
     hash_: str,
     step_id: str,
-    u: Usuario = Depends(usuario_atual),
+    u: Usuario = Depends(current_user),
     session: Session = Depends(get_session),
 ):
     """Proxy para /jobs/{job_id}/rerun/{step_id} na API externa."""
@@ -373,7 +373,7 @@ async def api_resumo_estruturado_rerun(
     if not t or not _permite_ver(u, t):
         raise HTTPException(404)
 
-    job = _ler_json(hash_, "resumo_estruturado_job.json") or {}
+    job = _read_json(hash_, "resumo_estruturado_job.json") or {}
     job_id = job.get("job_id")
     if not job_id:
         raise HTTPException(409, "Nenhum job da API externa associado a esta tarefa.")
@@ -396,7 +396,7 @@ async def api_jurisprudencia_submit(
     pdf: Optional[UploadFile] = File(default=None),
     texto: Optional[str] = Form(default=None),
     consulta: Optional[str] = Form(default=None),
-    u: Usuario = Depends(usuario_atual),
+    u: Usuario = Depends(current_user),
     session: Session = Depends(get_session),
 ):
     """
@@ -410,15 +410,15 @@ async def api_jurisprudencia_submit(
     if pdf and pdf.filename and not _ok_pdf(pdf):
         raise HTTPException(400, "Envie um PDF.")
 
-    h = ws.novo_hash()
-    pasta_ws = ws.pasta(h)
+    h = ws.new_hash()
+    folder = ws.folder(h)
 
     pdf_bytes: Optional[bytes] = None
     nome_pdf: Optional[str] = None
     if pdf and pdf.filename:
         pdf_bytes = await pdf.read()
         nome_pdf = pdf.filename
-        (pasta_ws / "original.pdf").write_bytes(pdf_bytes)
+        (folder / "original.pdf").write_bytes(pdf_bytes)
 
     titulo = (nome_pdf or (consulta or "").strip()[:60]
               or (texto or "").strip()[:60] or "pesquisa de jurisprudência")[:200]
@@ -429,12 +429,12 @@ async def api_jurisprudencia_submit(
         advogado_id=u.id,
         status="criada",
         pdf_nome=nome_pdf,
-        workspace_path=str(pasta_ws),
+        workspace_path=str(folder),
         rodada=1,
     )
     session.add(t); session.commit(); session.refresh(t)
 
-    ws.salvar_meta(h, {
+    ws.save_meta(h, {
         "hash": h,
         "titulo": t.titulo,
         "advogado": {"id": u.id, "email": u.email, "nome": u.nome},
@@ -443,13 +443,13 @@ async def api_jurisprudencia_submit(
         "criada_em": t.criada_em.isoformat(),
         "origem": "jurisprudencia_api_externa",
     })
-    ws.registrar_evento(h, "criada", tarefa_id=t.id, advogado_id=u.id)
+    ws.record_event(h, "criada", tarefa_id=t.id, advogado_id=u.id)
     session.add(LogEvento(tarefa_id=t.id, tipo="criada", payload=f'{{"hash":"{h}"}}'))
     session.commit()
 
     token = u.session_token
-    from core.api_jurisprudencia import executar_jurisprudencia
-    bg.add_task(executar_jurisprudencia, t.id, pdf_bytes, texto, consulta,
+    from core.api_caselaw import run_caselaw
+    bg.add_task(run_caselaw, t.id, pdf_bytes, texto, consulta,
                 nome_pdf or "documento.pdf", token)
 
     log.info("📁 [jurisprudência · API externa] Tarefa criada | id=%s hash=%s", t.id, h)
@@ -459,7 +459,7 @@ async def api_jurisprudencia_submit(
 @router.get("/api/jurisprudencia/{hash_}/status")
 async def api_jurisprudencia_status(
     hash_: str,
-    u: Usuario = Depends(usuario_atual),
+    u: Usuario = Depends(current_user),
     session: Session = Depends(get_session),
 ):
     """Eventos do acompanhamento do job na API externa (jurisprudencia_*)."""
@@ -468,7 +468,7 @@ async def api_jurisprudencia_status(
         raise HTTPException(404)
 
     eventos = [
-        e for e in ws.ler_eventos(hash_)
+        e for e in ws.read_events(hash_)
         if str(e.get("tipo", "")).startswith("jurisprudencia")
     ]
     return {"status": t.status, "eventos": eventos}
@@ -477,7 +477,7 @@ async def api_jurisprudencia_status(
 @router.get("/api/jurisprudencia/{hash_}/resultado")
 async def api_jurisprudencia_resultado(
     hash_: str,
-    u: Usuario = Depends(usuario_atual),
+    u: Usuario = Depends(current_user),
     session: Session = Depends(get_session),
 ):
     """Devolve o resultado já salvo no workspace (dados_llm + doc_text)."""
@@ -488,8 +488,8 @@ async def api_jurisprudencia_resultado(
     return {
         "status": t.status,
         "titulo": t.titulo,
-        "dados_llm": _ler_json(hash_, "jurisprudencia_resultado.json"),
-        "doc_text": _ler_artefato(hash_, "jurisprudencia_texto.txt"),
+        "dados_llm": _read_json(hash_, "jurisprudencia_resultado.json"),
+        "doc_text": _read_artifact(hash_, "jurisprudencia_texto.txt"),
     }
 
 
@@ -501,7 +501,7 @@ async def api_jurisprudencia_resultado(
 # ══════════════════════════════════════════════════════════════════════════
 @router.get("/api/sessao/memoria")
 async def api_sessao_memoria(
-    u: Usuario = Depends(usuario_atual),
+    u: Usuario = Depends(current_user),
 ):
     """
     Devolve o estado atual da memória de sessão: quais abas já têm uma
@@ -510,15 +510,15 @@ async def api_sessao_memoria(
     """
     token = u.session_token
     return {
-        "processadas": sess.resumo_abas_processadas(token),
-        "anexo": sess.anexo_compartilhado(token),
+        "processadas": sess.processed_tabs_summary(token),
+        "anexo": sess.shared_attachment(token),
     }
 
 
 @router.post("/api/sessao/memoria/limpar")
 async def api_sessao_memoria_limpar(
     aba: Optional[str] = Form(default=None),
-    u: Usuario = Depends(usuario_atual),
+    u: Usuario = Depends(current_user),
 ):
     """
     Limpa a memória de sessão. Se `aba` vier informado
@@ -528,18 +528,18 @@ async def api_sessao_memoria_limpar(
     if aba is not None and aba not in sess.ABAS:
         raise HTTPException(400, f"aba inválida: {aba}")
     token = u.session_token
-    sess.limpar(token, aba)  # type: ignore[arg-type]
+    sess.clear(token, aba)  # type: ignore[arg-type]
     return {"message": "✅ Memória de sessão limpa" + (f" (aba: {aba})" if aba else "")}
 
 
 # ══════════════════════════════════════════════════════════════════════════
 #  REPROCESSAR (reroda pipeline do zero, mesma rodada)
 # ══════════════════════════════════════════════════════════════════════════
-@router.post("/tarefas/{tarefa_id}/reprocessar")
-async def reprocessar(
+@router.post("/tarefas/{tarefa_id}/reprocess")
+async def reprocess(
     tarefa_id: int,
     bg: BackgroundTasks,
-    u: Usuario = Depends(usuario_atual),
+    u: Usuario = Depends(current_user),
     session: Session = Depends(get_session),
 ):
     t = session.get(Tarefa, tarefa_id)
@@ -554,20 +554,20 @@ async def reprocessar(
         "texto_extraido.txt", "memoria_persistente.json", "texto_tagueado.json",
         "resumo_humanizado.md", "questoes.json", "pdf_assinado.pdf",
     ):
-        p = ws.pasta(t.hash) / nome
+        p = ws.folder(t.hash) / nome
         if p.exists():
             p.unlink()
 
-    for p in ws.pasta(t.hash).glob("T*.json"):
+    for p in ws.folder(t.hash).glob("T*.json"):
         p.unlink()
 
     t.status = "criada"
     t.atualizada_em = datetime.utcnow()
     session.add(t)
-    session.add(LogEvento(tarefa_id=t.id, tipo="reprocessar", payload=None))
+    session.add(LogEvento(tarefa_id=t.id, tipo="reprocess", payload=None))
     session.commit()
 
-    ws.registrar_evento(t.hash, "reprocessar")
+    ws.record_event(t.hash, "reprocess")
 
     from main import groq_client
     bg.add_task(run_pipeline, t.id, groq_client, "")   # LeIA: bounded by PIPELINE_CONCURRENCY
@@ -583,7 +583,7 @@ async def reprocessar(
 async def nova_rodada(
     tarefa_id: int,
     bg: BackgroundTasks,
-    u: Usuario = Depends(usuario_atual),
+    u: Usuario = Depends(current_user),
     session: Session = Depends(get_session),
 ):
     t = session.get(Tarefa, tarefa_id)
@@ -595,12 +595,12 @@ async def nova_rodada(
     rodada_anterior = t.rodada or 1
     nova_rodada_n = rodada_anterior + 1
 
-    h = ws.novo_hash()
-    nova_pasta = ws.pasta(h)
+    h = ws.new_hash()
+    new_folder = ws.folder(h)
     pdf_orig = Path(t.workspace_path) / "original.pdf"
     if not pdf_orig.exists():
         raise HTTPException(500, "PDF original não encontrado")
-    shutil.copy(pdf_orig, nova_pasta / "original.pdf")
+    shutil.copy(pdf_orig, new_folder / "original.pdf")
 
     novo = Tarefa(
         hash=h,
@@ -608,13 +608,13 @@ async def nova_rodada(
         advogado_id=t.advogado_id,
         status="criada",
         pdf_nome=t.pdf_nome,
-        workspace_path=str(nova_pasta),
+        workspace_path=str(new_folder),
         clone_de=t.id,
         rodada=nova_rodada_n,
     )
     session.add(novo); session.commit(); session.refresh(novo)
 
-    ws.salvar_meta(h, {
+    ws.save_meta(h, {
         "hash": h,
         "titulo": novo.titulo,
         "clone_de": t.id,
@@ -622,7 +622,7 @@ async def nova_rodada(
         "rodada": nova_rodada_n,
         "criada_em": novo.criada_em.isoformat(),
     })
-    ws.registrar_evento(h, "clonada", origem=t.hash, rodada=nova_rodada_n)
+    ws.record_event(h, "clonada", origem=t.hash, rodada=nova_rodada_n)
 
     from main import groq_client
     variacao = (
@@ -643,7 +643,7 @@ async def nova_rodada(
 async def baixar_artefato(
     tarefa_id: int,
     nome: str,
-    u: Usuario = Depends(usuario_atual),
+    u: Usuario = Depends(current_user),
     session: Session = Depends(get_session),
 ):
     t = session.get(Tarefa, tarefa_id)
@@ -659,7 +659,7 @@ async def baixar_artefato(
     if nome not in permitidos and not nome.startswith("T"):
         raise HTTPException(400, "Nome não permitido")
 
-    p = ws.pasta(t.hash) / nome
+    p = ws.folder(t.hash) / nome
     if not p.exists():
         raise HTTPException(404, "Artefato não existe")
 
@@ -672,14 +672,14 @@ async def baixar_artefato(
 @router.get("/api/tarefas/{tarefa_id}/status")
 async def api_status(
     tarefa_id: int,
-    u: Usuario = Depends(usuario_atual),
+    u: Usuario = Depends(current_user),
     session: Session = Depends(get_session),
 ):
     t = session.get(Tarefa, tarefa_id)
     if not t or not _permite_ver(u, t):
         raise HTTPException(404)
 
-    eventos = ws.ler_eventos(t.hash)
+    eventos = ws.read_events(t.hash)
     return {
         "status": t.status,
         "atualizada_em": t.atualizada_em.isoformat(),
@@ -702,31 +702,31 @@ async def api_quiz(
     if not t:
         raise HTTPException(404, "Link inválido")
 
-    from leia.api_cliente import GATE_MESSAGE, is_gated   # LeIA: local import (leia.api_cliente imports this module)
+    from leia.api_citizen import GATE_MESSAGE, is_gated   # LeIA: local import (leia.api_citizen imports this module)
     if is_gated(t):   # LeIA: lawyer review gate, the citizen only answers after the lawyer approves
         raise HTTPException(409, GATE_MESSAGE)
 
-    questoes_doc = _ler_json(t.hash, "questoes.json") or {}
+    questoes_doc = _read_json(t.hash, "questoes.json") or {}
     questoes = questoes_doc.get("questoes", [])
     if not questoes:
         raise HTTPException(409, "Questões não disponíveis")
 
     respostas = payload.get("respostas") or {}
     try:
-        tent = tn.registrar(t, respostas, questoes)
-    except tn.TentativasEsgotadas:
+        tent = tn.record(t, respostas, questoes)
+    except tn.AttemptsExhausted:
         # Não é reprovação: a explicação continua aberta. O que não acontece mais é gerar
         # registro de compreensão por tentativa e erro.
         raise HTTPException(429, "Você já conferiu algumas vezes. Para não registrar algo que talvez "
                                  "ainda não esteja claro, fale com quem enviou o documento.")
-    erros = tn.analisar_erros(tent, questoes)
+    erros = tn.review_points(tent, questoes)
     erros = [{"id": e.get("id"), "area": e.get("area"), "enunciado": e.get("enunciado"), "escolhida": e.get("escolhida")} for e in erros]  # LeIA: no answer key to the browser
 
     if tent.aprovado:  # LeIA: public timestamp (OpenTimestamps) of the approved attempt, in background
-        from leia.api_cliente import stamp_attempt
+        from leia.api_citizen import stamp_attempt
         background.add_task(stamp_attempt, t.hash, tent.numero, tent.hash_imutavel)
 
-    ws.registrar_evento(t.hash, "tentativa",
+    ws.record_event(t.hash, "tentativa",
                         numero=tent.numero, acertos=tent.acertos,
                         total=tent.total, aprovado=tent.aprovado,
                         hash=tent.hash_imutavel)
@@ -764,7 +764,7 @@ async def api_cliente_chat(
     if not t:
         raise HTTPException(404, "Link inválido")
 
-    from leia.api_cliente import GATE_MESSAGE, is_gated   # LeIA: local import (leia.api_cliente imports this module)
+    from leia.api_citizen import GATE_MESSAGE, is_gated   # LeIA: local import (leia.api_citizen imports this module)
     if is_gated(t):   # LeIA: lawyer review gate, no chat before the lawyer approves
         raise HTTPException(409, GATE_MESSAGE)
 
@@ -772,8 +772,8 @@ async def api_cliente_chat(
     if not pergunta:
         raise HTTPException(400, "Mensagem vazia")
 
-    resumo = _ler_artefato(t.hash, "resumo_humanizado.md") or ""
-    memoria = _ler_json(t.hash, "memoria_persistente.json") or {}
+    resumo = _read_artifact(t.hash, "resumo_humanizado.md") or ""
+    memoria = _read_json(t.hash, "memoria_persistente.json") or {}
     memoria_str = json.dumps(memoria, ensure_ascii=False, indent=2)[:int(os.getenv("CITIZEN_CHAT_MEMORY_CHARS", "12000"))]
 
     system_prompt = (
@@ -840,7 +840,7 @@ def _dados_assinatura(t: Tarefa, melhor: Tentativa) -> dict:
 @router.get("/tarefas/{tarefa_id}/pdf-assinado")
 async def admin_baixar_pdf_assinado(
     tarefa_id: int,
-    u: Usuario = Depends(usuario_atual),
+    u: Usuario = Depends(current_user),
     session: Session = Depends(get_session),
 ):
     t = session.get(Tarefa, tarefa_id)
@@ -849,7 +849,7 @@ async def admin_baixar_pdf_assinado(
     if not _permite_ver(u, t):
         raise HTTPException(403)
 
-    melhor = tn.melhor(t.id)
+    melhor = tn.best(t.id)
     if not melhor or not melhor.aprovado:
         raise HTTPException(403, "Sem tentativa aprovada")
 
@@ -859,8 +859,8 @@ async def admin_baixar_pdf_assinado(
 
     dados = _dados_assinatura(t, melhor)
     saida = Path(t.workspace_path) / "pdf_assinado.pdf"
-    gerar_pdf_assinado(pdf_orig, saida, dados)
-    ws.registrar_evento(t.hash, "pdf_assinado_admin",
+    build_signed_pdf(pdf_orig, saida, dados)
+    ws.record_event(t.hash, "pdf_assinado_admin",
                         tentativa=melhor.numero)
     return FileResponse(
         saida,

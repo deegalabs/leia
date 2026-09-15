@@ -26,10 +26,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlmodel import Session, func, select
 
-import core.tentativas as tn
+import core.attempts as tn
 import core.workspace as ws
-from app_gestao import _ler_artefato, _ler_json
-from core.auth import usuario_api
+from app_gestao import _read_artifact, _read_json
+from core.auth import api_user
 from core.db import Duvida, Tarefa, Tentativa, Usuario, engine, get_session
 from leia.ratelimit import rate_limit
 from leia.registry import build_payload, ots_digest, ots_stamp, payload_hash
@@ -37,7 +37,7 @@ from leia.registry import build_payload, ots_digest, ots_stamp, payload_hash
 READY_STATUSES = ("pronta", "enviada", "assinada")
 GATE_MESSAGE = "Em revisão pelo advogado"
 PUBLIC_EVENT_TYPES = {"criada", "pdf_salvo", "pipeline_start", "texto_extraido", "task_start", "task_done", "task_error",
-                      "erro_extracao", "pipeline_done", "tentativa", "carimbo_publico", "duvida_enviada", "reprocessar",
+                      "erro_extracao", "pipeline_done", "tentativa", "carimbo_publico", "duvida_enviada", "reprocess",
                       "aprovada",
                       # external "Resumo estruturado" flow (core/api.py): job progress, no personal data
                       "resumo_estruturado_start", "resumo_estruturado_job", "resumo_estruturado_status",
@@ -301,9 +301,9 @@ async def api_cliente_json(hash_: str, session: Session = Depends(get_session)):
     t = _task_or_404(session, hash_)
     lawyer = lawyer_of(session, t)
     doubts = session.exec(select(func.count(Duvida.id)).where(Duvida.tarefa_id == t.id)).one()
-    events = ws.ler_eventos(t.hash)
+    events = ws.read_events(t.hash)
     base = {"tarefa": {"hash": t.hash, "titulo": t.titulo, "status": t.status}, "eventos": public_events(events, PUBLIC_EVENT_LIMIT),
-            "etapas": build_steps(events, ws.pasta(t.hash)),
+            "etapas": build_steps(events, ws.folder(t.hash)),
             "advogado": {"nome": lawyer.nome} if lawyer else None, "tem_advogado": lawyer is not None,
             "cidadao_vinculado": t.cidadao_id is not None, "duvidas_enviadas": int(doubts or 0)}
     if is_gated(t):
@@ -311,18 +311,18 @@ async def api_cliente_json(hash_: str, session: Session = Depends(get_session)):
         return {**base, "resumo_md": None, "topicos": None, "questoes": [], "ultima_tentativa": None}
     if t.status not in READY_STATUSES:
         return {**base, "resumo_md": None, "topicos": None, "questoes": [], "ultima_tentativa": None}
-    lista = tn.listar(t.id)
+    lista = tn.list_all(t.id)
     ultima = _public_attempt(lista[-1] if lista else None)
-    resumo_md = _ler_artefato(t.hash, "resumo_humanizado.md")
+    resumo_md = _read_artifact(t.hash, "resumo_humanizado.md")
     if resumo_md is None:
-        externo = _ler_json(t.hash, EXTERNAL_RESULT_FILE)
+        externo = _read_json(t.hash, EXTERNAL_RESULT_FILE)
         if externo is not None:
             # external flow: no local explanation nor questions; the journey ends without the check
             resumo_md, topicos = external_summary(externo)
             return {**base, "resumo_md": resumo_md, "topicos": topicos, "questoes": [], "sem_perguntas": True, "ultima_tentativa": ultima}
         resumo_md = ""
-    questoes = _public_questions(_ler_json(t.hash, "questoes.json") or {})
-    memoria = _ler_json(t.hash, "memoria_persistente.json")
+    questoes = _public_questions(_read_json(t.hash, "questoes.json") or {})
+    memoria = _read_json(t.hash, "memoria_persistente.json")
     return {**base, "resumo_md": resumo_md, "topicos": topics_from_summary(resumo_md, memoria),
             "questoes": questoes, "sem_perguntas": not questoes, "ultima_tentativa": ultima}
 
@@ -342,26 +342,26 @@ async def api_cliente_duvida(hash_: str, body: DuvidaIn, session: Session = Depe
         contexto = json.dumps(keep, ensure_ascii=False)
     d = Duvida(tarefa_id=t.id, texto=texto, contexto=contexto)
     session.add(d); session.commit(); session.refresh(d)
-    ws.registrar_evento(t.hash, "duvida_enviada", duvida_id=d.id, chars=len(texto))
+    ws.record_event(t.hash, "duvida_enviada", duvida_id=d.id, chars=len(texto))
     return {"id": d.id, "criada_em": d.criada_em.isoformat()}
 
 
 @router.post("/api/t/{hash_}/vincular")
-async def api_cliente_vincular(hash_: str, u: Usuario = Depends(usuario_api), session: Session = Depends(get_session)):
+async def api_cliente_vincular(hash_: str, u: Usuario = Depends(api_user), session: Session = Depends(get_session)):
     if u.papel != "cidadao":
         raise HTTPException(403, "Só uma conta de cidadã pode se vincular a um documento.")
     t = _task_or_404(session, hash_)
     if t.cidadao_id is None:
         t.cidadao_id = u.id
         session.add(t); session.commit()
-        ws.registrar_evento(t.hash, "cidadao_vinculado", cidadao_id=u.id)
+        ws.record_event(t.hash, "cidadao_vinculado", cidadao_id=u.id)
     elif t.cidadao_id != u.id:
         raise HTTPException(409, "Este documento já está vinculado a outra conta.")
     return {"ok": True}
 
 
 def _ots_path(tarefa_hash: str, numero: int):
-    return ws.pasta(tarefa_hash) / f"tentativa_{numero}.ots"
+    return ws.folder(tarefa_hash) / f"tentativa_{numero}.ots"
 
 
 def get_attempt(hash_imutavel: str) -> Optional[dict[str, Any]]:
@@ -392,7 +392,7 @@ def stamp_attempt(tarefa_hash: str, numero: int, hash_imutavel: str) -> None:
     proof = ots_stamp(digest)
     if proof:
         _ots_path(tarefa_hash, numero).write_bytes(proof)
-        ws.registrar_evento(tarefa_hash, "carimbo_publico", numero=numero, payload_hash=digest)
+        ws.record_event(tarefa_hash, "carimbo_publico", numero=numero, payload_hash=digest)
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -559,15 +559,15 @@ async def api_cliente_inferencias(hash_: str, session: Session = Depends(get_ses
 def inferences_of(t: Tarefa) -> dict[str, Any]:
     """Inference body of a finished task from its workspace artifacts (shared with the lawyer review route).
     Without ``memoria_persistente.json`` but with ``resumo_estruturado.json`` (external flow) the body comes from the latter."""
-    memoria = _ler_json(t.hash, "memoria_persistente.json")
-    texto = _ler_artefato(t.hash, "texto_extraido.txt")
+    memoria = _read_json(t.hash, "memoria_persistente.json")
+    texto = _read_artifact(t.hash, "texto_extraido.txt")
     if memoria is None:
-        externo = _ler_json(t.hash, EXTERNAL_RESULT_FILE)
+        externo = _read_json(t.hash, EXTERNAL_RESULT_FILE)
         if externo is not None:
-            texto = texto if texto is not None else (_ler_artefato(t.hash, EXTERNAL_TEXT_FILE) or "")
+            texto = texto if texto is not None else (_read_artifact(t.hash, EXTERNAL_TEXT_FILE) or "")
             return {**build_external_inferences(texto, externo), "parcial": False}
-    sinteses_raw = [(cls, _ler_json(t.hash, name)) for name, cls in SYNTHESIS_FILES]
-    return {**build_inferences(texto or "", memoria, _ler_json(t.hash, "texto_tagueado.json"), sinteses_raw), "parcial": False}
+    sinteses_raw = [(cls, _read_json(t.hash, name)) for name, cls in SYNTHESIS_FILES]
+    return {**build_inferences(texto or "", memoria, _read_json(t.hash, "texto_tagueado.json"), sinteses_raw), "parcial": False}
 
 
 def partial_inferences_of(t: Tarefa) -> dict[str, Any]:
@@ -575,11 +575,11 @@ def partial_inferences_of(t: Tarefa) -> dict[str, Any]:
     already exist (each one ``{"<classe>": [itens]}``), plus the syntheses of T7..T11 when present."""
     mem: dict[str, list[Any]] = {}
     for name in FRAGMENT_FILES:
-        doc = _ler_json(t.hash, name)
+        doc = _read_json(t.hash, name)
         if isinstance(doc, dict):
             for cls, items in doc.items():
                 if cls in CLASS_LABELS and isinstance(items, list):
                     mem.setdefault(cls, []).extend(items)
-    sinteses_raw = [(cls, _ler_json(t.hash, name)) for name, cls in SYNTHESIS_FILES]
-    return {**build_inferences(_ler_artefato(t.hash, "texto_extraido.txt") or "", {"memoria_persistente": mem}, None, sinteses_raw),
+    sinteses_raw = [(cls, _read_json(t.hash, name)) for name, cls in SYNTHESIS_FILES]
+    return {**build_inferences(_read_artifact(t.hash, "texto_extraido.txt") or "", {"memoria_persistente": mem}, None, sinteses_raw),
             "parcial": True}

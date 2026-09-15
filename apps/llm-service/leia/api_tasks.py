@@ -19,11 +19,11 @@ from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPExcepti
 from pydantic import BaseModel, Field
 from sqlmodel import Session, func, select
 
-import core.tentativas as tn
+import core.attempts as tn
 import core.workspace as ws
-from app_gestao import _ler_artefato, _ler_json, _permite_ver, create_pdf_task
-from core.auth import usuario_api
-from leia.api_cliente import inferences_of, public_events  # LeIA: no ip/ua in the JSON
+from app_gestao import _read_artifact, _read_json, _permite_ver, create_pdf_task
+from core.auth import api_user
+from leia.api_citizen import inferences_of, public_events  # LeIA: no ip/ua in the JSON
 from core.db import Duvida, LogEvento, Tarefa, Tentativa, Usuario, get_session
 
 READY_STATUSES = ("pronta", "enviada", "assinada")
@@ -79,7 +79,7 @@ def task_json(t: Tarefa) -> dict[str, Any]:
 
 
 @router.get("/api/tarefas")
-def list_tasks(request: Request, u: Usuario = Depends(usuario_api), session: Session = Depends(get_session)):
+def list_tasks(request: Request, u: Usuario = Depends(api_user), session: Session = Depends(get_session)):
     q = select(Tarefa).order_by(Tarefa.criada_em.desc())   # type: ignore
     if u.papel == "advogado":
         q = q.where(Tarefa.advogado_id == u.id)
@@ -110,7 +110,7 @@ def list_tasks(request: Request, u: Usuario = Depends(usuario_api), session: Ses
 
 @router.post("/api/tarefas", status_code=201, dependencies=[Depends(rate_limit)])
 async def create_task(bg: BackgroundTasks, titulo: str = Form(""), pdf: UploadFile = File(...),
-                      u: Usuario = Depends(usuario_api), session: Session = Depends(get_session)):
+                      u: Usuario = Depends(api_user), session: Session = Depends(get_session)):
     is_citizen = u.papel == "cidadao"
     t = await create_pdf_task(session, u, titulo, pdf, bg,
                               origem="cidadao" if is_citizen else "advogado",
@@ -128,21 +128,21 @@ def _load_visible(session: Session, u: Usuario, tarefa_id: int) -> Tarefa:
 
 
 @router.get("/api/tarefas/{tarefa_id}")
-def get_task(tarefa_id: int, request: Request, u: Usuario = Depends(usuario_api),
+def get_task(tarefa_id: int, request: Request, u: Usuario = Depends(api_user),
              session: Session = Depends(get_session)):
     t = _load_visible(session, u, tarefa_id)
     cidadao, advogado = people(session, t)
     attempts = [{"numero": a.numero, "acertos": a.acertos, "total": a.total, "aprovado": a.aprovado,
-                 "criada_em": a.criada_em.isoformat(), "hash_imutavel": a.hash_imutavel} for a in tn.listar(t.id)]
+                 "criada_em": a.criada_em.isoformat(), "hash_imutavel": a.hash_imutavel} for a in tn.list_all(t.id)]
     doubts = session.exec(select(Duvida).where(Duvida.tarefa_id == t.id).order_by(Duvida.criada_em)).all()   # type: ignore
     return {"tarefa": task_json(t), "link_cliente": client_link(request, t),
-            "resumo_md": (_ler_artefato(t.hash, "resumo_humanizado.md") or "") if t.status in READY_STATUSES else None,
-            "eventos": public_events(ws.ler_eventos(t.hash), 20), "tentativas": attempts,
+            "resumo_md": (_read_artifact(t.hash, "resumo_humanizado.md") or "") if t.status in READY_STATUSES else None,
+            "eventos": public_events(ws.read_events(t.hash), 20), "tentativas": attempts,
             "duvidas": [doubt_json(d) for d in doubts], "cidadao": cidadao, "advogado": advogado}
 
 
 @router.post("/api/tarefas/{tarefa_id}/duvidas/{duvida_id}/responder")
-def answer_doubt(tarefa_id: int, duvida_id: int, body: RespostaIn, u: Usuario = Depends(usuario_api),
+def answer_doubt(tarefa_id: int, duvida_id: int, body: RespostaIn, u: Usuario = Depends(api_user),
                  session: Session = Depends(get_session)):
     t = _load_visible(session, u, tarefa_id)
     if not can_manage(u, t):
@@ -154,7 +154,7 @@ def answer_doubt(tarefa_id: int, duvida_id: int, body: RespostaIn, u: Usuario = 
     d.respondida = True
     d.respondida_em = datetime.utcnow()
     session.add(d); session.commit()
-    ws.registrar_evento(t.hash, "duvida_respondida", duvida_id=d.id, por=u.id)
+    ws.record_event(t.hash, "duvida_respondida", duvida_id=d.id, por=u.id)
     return {"ok": True}
 
 
@@ -169,7 +169,7 @@ def review_questions(doc: Any) -> list[dict[str, Any]]:
 
 
 @router.get("/api/tarefas/{tarefa_id}/revisao")
-def review_task(tarefa_id: int, request: Request, u: Usuario = Depends(usuario_api),
+def review_task(tarefa_id: int, request: Request, u: Usuario = Depends(api_user),
                 session: Session = Depends(get_session)):
     t = _load_visible(session, u, tarefa_id)
     if not can_manage(u, t):
@@ -178,13 +178,13 @@ def review_task(tarefa_id: int, request: Request, u: Usuario = Depends(usuario_a
         raise HTTPException(409, "A explicação ainda está sendo preparada")
     return {"tarefa": {"id": t.id, "hash": t.hash, "titulo": t.titulo, "status": t.status, "origem": t.origem or "advogado"},
             "inferencias": {"tarefa": {"hash": t.hash, "titulo": t.titulo}, **inferences_of(t)},
-            "resumo_md": _ler_artefato(t.hash, "resumo_humanizado.md") or "",
-            "questoes": review_questions(_ler_json(t.hash, "questoes.json") or {}),
+            "resumo_md": _read_artifact(t.hash, "resumo_humanizado.md") or "",
+            "questoes": review_questions(_read_json(t.hash, "questoes.json") or {}),
             "link_cliente": client_link(request, t)}
 
 
 @router.post("/api/tarefas/{tarefa_id}/aprovar")
-def approve_task(tarefa_id: int, u: Usuario = Depends(usuario_api), session: Session = Depends(get_session)):
+def approve_task(tarefa_id: int, u: Usuario = Depends(api_user), session: Session = Depends(get_session)):
     t = _load_visible(session, u, tarefa_id)
     if not can_manage(u, t):
         raise HTTPException(403, "Só quem enviou o documento pode aprovar")
@@ -195,5 +195,5 @@ def approve_task(tarefa_id: int, u: Usuario = Depends(usuario_api), session: Ses
     session.add(t)
     session.add(LogEvento(tarefa_id=t.id, tipo="aprovada", payload=json.dumps({"usuario_id": u.id})))
     session.commit()
-    ws.registrar_evento(t.hash, "aprovada", usuario_id=u.id)
+    ws.record_event(t.hash, "aprovada", usuario_id=u.id)
     return {"ok": True, "status": "enviada"}
