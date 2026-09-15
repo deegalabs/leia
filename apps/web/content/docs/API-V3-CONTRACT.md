@@ -36,9 +36,24 @@ O hash já foi o segredo inteiro: quem tivesse o endereço abria o documento, pa
 desfazer. Agora o documento pode ter um **convite**, que acrescenta validade, cancelamento e, quando quem
 enviou sabe o endereço, uma destinatária única.
 
-Documento **sem convite** se comporta como sempre, para não quebrar link que já circulou. Com convite, toda
-rota pública responde **403** com o motivo em `detail`: cancelado, vencido, ou endereçado a outra pessoa.
-Quem enviou o documento e a cidadã já vinculada entram sempre.
+Documento **sem convite** se comporta como sempre, para não quebrar link que já circulou. Quem enviou o
+documento e a cidadã já vinculada entram sempre.
+
+O convite trabalha em **duas camadas**, e a diferença é deliberada:
+
+| Camada | O que confere | Onde vale |
+|---|---|---|
+| Validade do link | cancelado, vencido | todas as rotas públicas, com ou sem conta |
+| Destinatária declarada | a conta é a do e-mail do convite | só `POST /api/t/{hash}/quiz` e `POST /api/t/{hash}/vincular` |
+
+**Ler e perguntar não exigem conta, de propósito.** Exigir cadastro para ler é barreira justamente para quem
+este produto atende, que pode estar num celular emprestado. O que a destinatária protege é o comprovante, que
+afirma que **uma pessoa** entendeu o documento. Quem não é ela lê tudo, tira dúvidas, e recebe 403 ao tentar
+gravar o registro.
+
+`GET /api/t/{hash}` traz `convite: { enderecado: bool, para: "ma***@exemplo.com" | null, expira_em } | null`,
+para a tela avisar antes de a pessoa responder. O endereço vai mascarado: serve para ela reconhecer o próprio
+e-mail, não para alguém coletá-lo.
 
 | Método e rota | Entrada | Saída |
 |---|---|---|

@@ -60,21 +60,54 @@ def to_json(inv: Optional[Invite]) -> Optional[dict]:
             "criado_em": inv.created_at.isoformat()}
 
 
-def ensure_open(session: Session, t: Tarefa, visitor: Optional[Usuario]) -> None:
-    """Raises when this visitor may not open this document. Silent when there is no invite."""
-    if visitor is not None and visitor.id in (t.advogado_id, t.cidadao_id):
-        return  # whoever sent it, and whoever it already belongs to, always get in
+def masked(email: Optional[str]) -> Optional[str]:
+    """A hint, not the address: enough for the person to recognise their own e-mail, not enough to collect it."""
+    if not email or "@" not in email:
+        return None
+    user, _, domain = email.partition("@")
+    return f"{user[:2]}***@{domain}"
 
+
+def public_json(session: Session, t: Tarefa) -> Optional[dict]:
+    """What the citizen's screen needs to know about the invite, and nothing more."""
+    inv = active_invite(session, t.id)
+    if inv is None or inv.revoked_at is not None:
+        return None
+    return {"enderecado": bool(inv.email), "para": masked(inv.email),
+            "expira_em": inv.expires_at.isoformat() if inv.expires_at else None}
+
+
+def _mine(t: Tarefa, visitor: Optional[Usuario]) -> bool:
+    return visitor is not None and visitor.id in (t.advogado_id, t.cidadao_id)
+
+
+def ensure_valid(session: Session, t: Tarefa, visitor: Optional[Usuario] = None) -> None:
+    """Whether the link still works at all. This is about the link, not about who is holding it,
+    so it applies to reading, asking and everything else, with or without an account."""
+    if _mine(t, visitor):
+        return
     inv = active_invite(session, t.id)
     if inv is None:
         return
-
     if inv.revoked_at is not None:
         raise HTTPException(403, "Este link foi cancelado por quem enviou o documento.")
     if inv.expires_at is not None and inv.expires_at <= datetime.utcnow():
         raise HTTPException(403, "Este link venceu. Peça um novo a quem enviou o documento.")
-    if inv.email:
-        if visitor is None:
-            raise HTTPException(403, "Este documento foi enviado para uma pessoa. Entre com o e-mail que recebeu o convite.")
-        if normalize_email(visitor.email) != inv.email:
-            raise HTTPException(403, "Este documento foi enviado para outra pessoa.")
+
+
+def ensure_recipient(session: Session, t: Tarefa, visitor: Optional[Usuario]) -> None:
+    """Only for what produces the record or ties the document to an account.
+
+    Reading and asking stay open to whoever holds a valid link, on purpose: requiring an account to read is a
+    barrier for exactly the person this is for, who may be on a borrowed phone. What the addressee protects is
+    the receipt, which claims that one named person understood the document."""
+    ensure_valid(session, t, visitor)
+    if _mine(t, visitor):
+        return
+    inv = active_invite(session, t.id)
+    if inv is None or not inv.email:
+        return
+    if visitor is None:
+        raise HTTPException(403, "Para guardar o comprovante, entre com o e-mail que recebeu este documento.")
+    if normalize_email(visitor.email) != inv.email:
+        raise HTTPException(403, "Este documento foi enviado para outra pessoa, então o comprovante não pode sair nesta conta.")

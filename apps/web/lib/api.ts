@@ -22,6 +22,8 @@ export type Task = {
   tem_advogado?: boolean;
   cidadao_vinculado?: boolean;
   duvidas_enviadas?: number;
+  /* LeIA: o convite que governa este link, sem revelar o endereço da destinatária */
+  convite?: { enderecado: boolean; para: string | null; expira_em: string | null } | null;
   /* LeIA: visible preparation (docs/API-V3-CONTRACT.md, "Preparação visível e tarefas do fluxo externo") */
   etapas?: Stage[];
   sem_perguntas?: boolean;

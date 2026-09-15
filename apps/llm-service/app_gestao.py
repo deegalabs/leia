@@ -704,7 +704,7 @@ async def api_quiz(
         raise HTTPException(404, "Link inválido")
 
     from leia import invites
-    invites.ensure_open(session, t, visitante)
+    invites.ensure_recipient(session, t, visitante)   # LeIA: o comprovante afirma que uma pessoa entendeu
 
     from leia.api_citizen import GATE_MESSAGE, is_gated   # LeIA: local import (leia.api_citizen imports this module)
     if is_gated(t):   # LeIA: lawyer review gate, the citizen only answers after the lawyer approves
@@ -768,7 +768,7 @@ async def api_cliente_chat(
     from leia import invites
     t = session.exec(select(Tarefa).where(Tarefa.hash == hash_)).first()
     if t:
-        invites.ensure_open(session, t, visitante)
+        invites.ensure_valid(session, t, visitante)
     if not t:
         raise HTTPException(404, "Link inválido")
 

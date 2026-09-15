@@ -301,14 +301,15 @@ class DuvidaIn(BaseModel):
 async def api_cliente_json(hash_: str, visitante: Optional[Usuario] = Depends(optional_api_user),
                            session: Session = Depends(get_session)):
     t = _task_or_404(session, hash_)
-    invites.ensure_open(session, t, visitante)
+    invites.ensure_valid(session, t, visitante)
     lawyer = lawyer_of(session, t)
     doubts = session.exec(select(func.count(Duvida.id)).where(Duvida.tarefa_id == t.id)).one()
     events = ws.read_events(t.hash)
     base = {"tarefa": {"hash": t.hash, "titulo": t.titulo, "status": t.status}, "eventos": public_events(events, PUBLIC_EVENT_LIMIT),
             "etapas": build_steps(events, ws.folder(t.hash)),
             "advogado": {"nome": lawyer.nome} if lawyer else None, "tem_advogado": lawyer is not None,
-            "cidadao_vinculado": t.cidadao_id is not None, "duvidas_enviadas": int(doubts or 0)}
+            "cidadao_vinculado": t.cidadao_id is not None, "duvidas_enviadas": int(doubts or 0),
+            "convite": invites.public_json(session, t)}
     if is_gated(t):
         base["tarefa"]["status"] = "revisao"
         return {**base, "resumo_md": None, "topicos": None, "questoes": [], "ultima_tentativa": None}
@@ -334,7 +335,7 @@ async def api_cliente_json(hash_: str, visitante: Optional[Usuario] = Depends(op
 async def api_cliente_duvida(hash_: str, body: DuvidaIn, visitante: Optional[Usuario] = Depends(optional_api_user),
                              session: Session = Depends(get_session)):
     t = _task_or_404(session, hash_)
-    invites.ensure_open(session, t, visitante)
+    invites.ensure_valid(session, t, visitante)
     if lawyer_of(session, t) is None:
         raise HTTPException(409, "Este documento não tem um advogado para receber a dúvida.")
     texto = body.texto.strip()
@@ -356,7 +357,7 @@ async def api_cliente_vincular(hash_: str, u: Usuario = Depends(api_user), sessi
     if u.papel != "cidadao":
         raise HTTPException(403, "Só uma conta de cidadã pode se vincular a um documento.")
     t = _task_or_404(session, hash_)
-    invites.ensure_open(session, t, u)
+    invites.ensure_recipient(session, t, u)
     if t.cidadao_id is None:
         t.cidadao_id = u.id
         session.add(t); session.commit()
@@ -554,7 +555,7 @@ async def api_cliente_inferencias(hash_: str, visitante: Optional[Usuario] = Dep
     t = session.exec(select(Tarefa).where(Tarefa.hash == hash_)).first()
     if not t:
         raise HTTPException(404, "Link inválido ou expirado")
-    invites.ensure_open(session, t, visitante)
+    invites.ensure_valid(session, t, visitante)
     if is_gated(t):
         raise HTTPException(409, GATE_MESSAGE)
     if t.status in READY_STATUSES:
