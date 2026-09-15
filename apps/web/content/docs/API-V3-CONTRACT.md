@@ -74,7 +74,17 @@ A busca tem três estágios, e o item diz qual deles achou:
 | `normalizado` | igual, ignorando espaços e maiúsculas | 1.0 |
 | `aproximado` | semelhança acima de 0,82 numa janela do texto | a semelhança medida |
 
-Sem nenhum dos três, `conferido` é falso, `pos` é nulo e `conferencia` não vem. Na jornada, o tópico só recebe `trecho` quando ele foi encontrado, e a frase que a tela exibe muda conforme o método: cópia exata só é afirmada quando foi exata.
+Sem nenhum dos três, `conferido` é falso, `pos` é nulo e `conferencia` não vem.
+
+### De onde vem o trecho de cada tópico
+
+Os títulos das seções do resumo são fixos: quem os define é a tarefa que escreve o resumo, em `protocolo_pdf.json`.
+Por isso o vínculo entre seção e trecho é **declarado** ali, no campo `ancoras_por_secao`, e não reconstruído depois
+por semelhança de palavras. O trecho sai do `lastro` que a própria síntese daquela classe declara ter usado, e
+ainda precisa passar pela conferência acima.
+
+Seção sem fonte declarada não recebe trecho. "Resumo em uma linha" é assim de propósito: ela conta o caso inteiro,
+não uma cláusula. Trecho conferido embaixo do assunto errado é uma mentira diferente, e não menos grave. Na jornada, o tópico só recebe `trecho` quando ele foi encontrado, e a frase que a tela exibe muda conforme o método: cópia exata só é afirmada quando foi exata.
 
 ## Banco e escala
 - `DATABASE_URL` (Postgres, `postgresql+psycopg://...`) quando definido; senão SQLite em `DB_PATH`. Tabelas via
