@@ -1,0 +1,8 @@
+{
+  "name": "leia-infra",
+  "private": true,
+  "description": "Railway infrastructure as code for the LeIA project. Not the application; apps/web and apps/llm-service have their own manifests.",
+  "devDependencies": {
+    "railway": "^3.11.0"
+  }
+}
