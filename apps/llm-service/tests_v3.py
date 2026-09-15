@@ -757,3 +757,25 @@ def test_a_stale_proof_does_not_block_a_new_stamp(tmp_path, monkeypatch):
 
     ac.stamp_attempt(t.hash, tent.numero, tent.hash_imutavel)
     assert chamadas["n"] == 1, "a prova velha impediu o recarimbo"
+
+
+# ── Sinal de vida: sem ele o deploy automático não sabe se a versão nova subiu ─
+
+def test_health_answers_without_credentials_and_says_nothing_else():
+    fresh = TestClient(main.app)
+    r = fresh.get("/health")
+    assert r.status_code == 200, "sem sinal de vida o deploy automático derruba a versão nova"
+    assert r.json().get("status") == "ok"
+    texto = r.text.lower()
+    for vazamento in ("groq", "gsk_", "database_url", "admin", "senha", "password", "token"):
+        assert vazamento not in texto, f"o sinal de vida é público e está mostrando {vazamento}"
+
+
+def test_the_healthcheck_path_declared_to_the_host_is_really_served():
+    import pathlib
+    import tomllib
+
+    cfg = tomllib.loads(pathlib.Path(__file__).with_name("railway.toml").read_text(encoding="utf-8"))
+    caminho = cfg["deploy"]["healthcheckPath"]
+    r = TestClient(main.app).get(caminho)
+    assert r.status_code == 200, f"o deploy espera 200 em {caminho} e a aplicação responde {r.status_code}"

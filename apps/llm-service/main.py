@@ -94,6 +94,13 @@ app.include_router(auth_router)
 app.include_router(tarefas_router)
 
 
+# LeIA: liveness signal for the host. The new version only takes over when this answers,
+# so it must not depend on the model, on the database or on any credential.
+@app.get("/health", include_in_schema=False)
+def health() -> dict:
+    return {"status": "ok"}
+
+
 # ══════════════════════════════════════════════════════════════════════════
 #  JSON → TEXTO HUMANO
 # ══════════════════════════════════════════════════════════════════════════
