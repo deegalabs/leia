@@ -162,7 +162,7 @@ assistente está marcando, com score quando existir; e explicar por que um link 
 chega sem explicação.
 
 **Causa do link sem explicação.** O fluxo "Resumo estruturado" do painel do Carlos manda o PDF a uma API externa e grava
-só `resumo_estruturado.json` (`core/api.py:229`); a página da cidadã e o nosso JSON leem `resumo_humanizado.md` e
+só `resumo_estruturado.json` (o fluxo externo, já removido); a página da cidadã e o nosso JSON leem `resumo_humanizado.md` e
 `questoes.json`, que só o pipeline local (T1..T14, fluxo "Anexar PDF" / "Nova tarefa") produz. Resultado: `pronta` sem
 explicação nem perguntas ("resumo indisponível", `app_gestao.py:608-610`).
 

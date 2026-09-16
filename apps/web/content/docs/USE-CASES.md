@@ -272,27 +272,6 @@ sequenceDiagram
   end
 ```
 
-### Fluxo externo "Resumo estruturado" (sem as 14 etapas)
-```mermaid
-sequenceDiagram
-  actor A as Advogado
-  participant G as Painel interno do serviço
-  participant S as Serviço
-  participant E as api.resumoestruturado.com.br
-  participant W as App web
-  actor C as Cidadã
-  A->>G: envia o PDF e pede o Resumo estruturado
-  G->>S: job externo
-  S->>E: envia o documento e consulta o status até concluir
-  E-->>S: resumo_estruturado.json (classes com posições e scores, resposta_final)
-  Note over S: Esse fluxo não roda as 14 etapas: não há resumo humanizado nem perguntas.
-  A->>C: envia o link /t/{hash}
-  C->>W: abre o link
-  W->>S: GET /api/t/{hash}
-  S-->>W: resposta_final como explicação, classes como tópicos com score, sem_perguntas
-  W-->>C: explicação e tópicos, a jornada termina sem perguntas e sem comprovante
-```
-
 ### UC-12. Auditar a fidelidade
 Sem diagrama: o auditor segue `docs/AUDIT-GUIDE.md` (perguntas fora do documento, PDF com instrução escondida,
 resposta vaga), roda `tests_leia.py` e `tests_v3.py` no serviço e lê, por documento, os artefatos de cada etapa em

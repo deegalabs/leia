@@ -45,7 +45,6 @@ O convite trabalha em **duas camadas**, e a diferença é deliberada:
 |---|---|---|
 | Validade do link | cancelado, vencido | todas as rotas públicas, com ou sem conta |
 | Destinatária declarada | a conta é a do e-mail do convite | só `POST /api/t/{hash}/quiz` e `POST /api/t/{hash}/vincular` |
-| Convite existe | há convite vivo para este documento | só `POST /api/t/{hash}/vincular` |
 
 **Ler e perguntar não exigem conta, de propósito.** Exigir cadastro para ler é barreira justamente para quem
 este produto atende, que pode estar num celular emprestado. O que a destinatária protege é o comprovante, que
@@ -60,8 +59,7 @@ e-mail, não para alguém coletá-lo.
 |---|---|---|
 | `GET /api/t/{hash}` | | como hoje **mais** `advogado: { nome } \| null` (nulo quando o dono é `cidadao`), `tem_advogado: bool`, `cidadao_vinculado: bool`, `duvidas_enviadas: n` |
 | `POST /api/t/{hash}/duvida` | `{ texto, contexto?: [ { role: "user" \| "bot", text } ] }` | `{ id, criada_em }`; 409 se a tarefa não tem advogado; limitado por IP |
-| `POST /api/t/{hash}/vincular` | Bearer (`cidadao`) | `{ ok: true }`; define `tarefa.cidadao_id` se ainda vazio; **403 quando o documento não tem convite**, porque vincular é virar dona do documento e quem chega depois recebe 409 |
-| `DELETE /api/tarefas/{id}/cidadao` | Bearer (dono) | `{ ok: true }`; desfaz o vínculo, para que um vínculo errado não tranque a destinatária legítima; **409 se já houver tentativa**, porque a tentativa pertence à tarefa e a próxima conta herdaria o comprovante da anterior |
+| `POST /api/t/{hash}/vincular` | Bearer (`cidadao`) | `{ ok: true }`; define `tarefa.cidadao_id` se ainda vazio |
 | `GET /api/t/{hash}/inferencias` | | `{ tarefa, texto (texto extraído), classes: [ { classe, rotulo, cor, itens: [ { ref, campo, valor, trecho, pos: [inicio, fim] \| null, conferido, conferencia: { metodo, score } \| ausente, cor } ] } ], sinteses: [ { classe, rotulo, texto, lastro[] } ], total, conferidos }`; 409 enquanto não está pronta |
 
 ### Quem confere o trecho
@@ -164,7 +162,7 @@ assistente está marcando, com score quando existir; e explicar por que um link 
 chega sem explicação.
 
 **Causa do link sem explicação.** O fluxo "Resumo estruturado" do painel do Carlos manda o PDF a uma API externa e grava
-só `resumo_estruturado.json` (`core/api.py:229`); a página da cidadã e o nosso JSON leem `resumo_humanizado.md` e
+só `resumo_estruturado.json` (o fluxo externo, já removido); a página da cidadã e o nosso JSON leem `resumo_humanizado.md` e
 `questoes.json`, que só o pipeline local (T1..T14, fluxo "Anexar PDF" / "Nova tarefa") produz. Resultado: `pronta` sem
 explicação nem perguntas ("resumo indisponível", `app_gestao.py:608-610`).
 

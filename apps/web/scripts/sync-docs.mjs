@@ -14,14 +14,14 @@ const DOCS = [
   ["README.md", "README.md"], ["docs/POSITIONING.md", "POSITIONING.md"], ["docs/USE-CASES.md", "USE-CASES.md"],
   ["docs/SCREENS.md", "SCREENS.md"], ["docs/DOCUMENT-TYPES.md", "DOCUMENT-TYPES.md"], ["docs/STATUS.md", "STATUS.md"], ["docs/ARCHITECTURE.md", "ARCHITECTURE.md"],
   ["docs/API-V3-CONTRACT.md", "API-V3-CONTRACT.md"], ["docs/SERVICE-V2-MAP.md", "SERVICE-V2-MAP.md"],
-  ["docs/RESUMO-ESTRUTURADO-E-CHAT.md", "RESUMO-ESTRUTURADO-E-CHAT.md"], ["docs/SCALING.md", "SCALING.md"],
+  ["docs/SCALING.md", "SCALING.md"],
   ["docs/AUDIT-GUIDE.md", "AUDIT-GUIDE.md"], ["docs/DELIVERIES.md", "DELIVERIES.md"], ["docs/ROADMAP.md", "ROADMAP.md"],
   ["docs/CONTRIBUTING.md", "CONTRIBUTING.md"],
 ];
 const SLUGS = {
   "README.md": "inicio", "POSITIONING.md": "posicionamento", "USE-CASES.md": "casos-de-uso", "SCREENS.md": "telas", "DOCUMENT-TYPES.md": "tipos-de-documento",
   "STATUS.md": "situacao", "ARCHITECTURE.md": "arquitetura", "API-V3-CONTRACT.md": "api", "SERVICE-V2-MAP.md": "servico",
-  "RESUMO-ESTRUTURADO-E-CHAT.md": "resumo-estruturado-e-chat", "SCALING.md": "escala", "AUDIT-GUIDE.md": "auditoria",
+  "SCALING.md": "escala", "AUDIT-GUIDE.md": "auditoria",
   "DELIVERIES.md": "entregas", "ROADMAP.md": "roadmap", "CONTRIBUTING.md": "contribuir",
 };
 

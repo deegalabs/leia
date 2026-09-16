@@ -499,7 +499,6 @@ def test_steps_from_log_and_files(lawyer):
     assert states["T5_IDENTIFICADOR_PEDIDOS"] == "pendente"
     # every status carries etapas (a fresh task: 14 pending steps; nothing from an external flow: none)
     assert build_steps([], None) and all(s["estado"] == "pendente" for s in build_steps([], None))
-    assert build_steps([{"tipo": "resumo_estruturado_start"}], None) == []
 
 
 def test_public_events_drop_ip_and_keep_the_last_60(lawyer):
@@ -546,70 +545,6 @@ def test_partial_inferences_while_processing(lawyer):
     assert full["parcial"] is False and full["classes"][0]["classe"] == "datas_valores" and full["sinteses"]
     set_status(h, "falhou")
     assert client.get(f"/api/t/{h}/inferencias").status_code == 409
-
-
-EXTERNAL_TEXT = "Processo n. 1. Agravante: Ministério Público.\nO recurso não merece trânsito.\nRequer seja ele provido."
-
-
-def external_artifacts(h: str) -> None:
-    """Workspace of the external "Resumo estruturado" flow: only resumo_estruturado.json and its text."""
-    folder = ws.folder(h)
-    a = EXTERNAL_TEXT.index("O recurso não merece trânsito.")
-    doc = {"processo": {
-        "id_manifestacao": "x",
-        "classe_i_fatos": [
-            {"campo": "partes_qualificadas", "sub_tipo": "recorrente", "valor": "Ministério Público", "trecho_verbatim": "Agravante: Ministério Público", "sintese_relacao": None},
-            {"campo": "data", "sub_tipo": "d", "valor": "2019", "trecho_verbatim": "seja ele provido", "sintese_relacao": None}],
-        "classe_i_decisao": [
-            {"campo": "decidido", "sub_tipo": "sentenca", "valor": json.dumps({"resultado": "IMPROVIDO", "relator": None, "parte_dispositiva": "O recurso não merece trânsito."}),
-             "trecho_verbatim": "O recurso não merece trânsito.", "sintese_relacao": None}],
-        "classe_v_relevancia": [],
-        "resumo_classe_i": {"campo": "resumo_fatos", "valor": "O MP recorreu e perdeu.", "lastro": ["Agravante: Ministério Público"]},
-        "resposta_final": {"texto": "## 1. Síntese\nO Ministério Público recorreu e o recurso não passou."},
-        "conferencia": {"ok": True}},
-        "_ui": {"classe_i_fatos": [{"pos_trecho_verbatim": "0:0", "score_trecho_verbatim": 0.5, "todas_trecho_verbatim": "[]"},
-                                   {"pos_trecho_verbatim": "9999:10010", "score_trecho_verbatim": 0.9, "todas_trecho_verbatim": "[]"}],
-                "classe_i_decisao": [{"pos_trecho_verbatim": f"{a}:{a + 30}", "score_trecho_verbatim": 1.0, "todas_trecho_verbatim": f"[{a}:{a + 30}]"}]}}
-    folder.joinpath("resumo_estruturado.json").write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
-    folder.joinpath("resumo_estruturado_texto.txt").write_text(EXTERNAL_TEXT, encoding="utf-8")
-    ws.record_event(h, "resumo_estruturado_start", tarefa_id=0)
-    ws.record_event(h, "resumo_estruturado_done", tokens=10, elapsed=1.0)
-
-
-def test_external_flow_fallback(citizen):
-    """LeIA: a task with only resumo_estruturado.json gets its explanation and topics from it, without questions."""
-    task = create_task(citizen["token"], "Fluxo externo")
-    h = task["hash"]
-    for name in ("resumo_humanizado.md", "questoes.json", "memoria_persistente.json", "texto_extraido.txt"):
-        (ws.folder(h) / name).unlink(missing_ok=True)
-    staged_log(h, [{"ts": "t", "tipo": "criada", "tarefa_id": task["id"]}])  # no trace of the offline local workflow
-    external_artifacts(h)
-    set_status(h, "pronta")
-    data = client.get(f"/api/t/{h}").json()
-    assert data["tarefa"]["status"] == "pronta" and data["etapas"] == []
-    assert data["resumo_md"].startswith("## 1. Síntese") and data["questoes"] == [] and data["sem_perguntas"] is True
-    topics = data["topicos"]
-    assert [t["titulo"] for t in topics] == ["Partes qualificadas", "Data", "Decidido"]
-    assert topics[0] == {"id": 1, "titulo": "Partes qualificadas", "explicacao": "Ministério Público", "classe": "classe_i_fatos",
-                         "trecho": "Agravante: Ministério Público", "score": 0.5}
-    assert topics[2]["explicacao"] == "IMPROVIDO, O recurso não merece trânsito." and topics[2]["score"] == 1.0
-    assert all("clausula" not in t for t in topics)
-    assert any(e["tipo"] == "resumo_estruturado_done" for e in data["eventos"])
-
-    inf = client.get(f"/api/t/{h}/inferencias").json()
-    assert inf["parcial"] is False and inf["texto"] == EXTERNAL_TEXT
-    assert [(c["classe"], c["rotulo"]) for c in inf["classes"]] == [("classe_i_fatos", "Fatos"), ("classe_i_decisao", "Decisão"), ("classe_v_relevancia", "Relevância")]
-    fatos, decisao = inf["classes"][0]["itens"], inf["classes"][1]["itens"]
-    a = EXTERNAL_TEXT.index("O recurso não merece trânsito.")
-    assert decisao[0]["pos"] == [a, a + 30] and decisao[0]["conferido"] and decisao[0]["score"] == 1.0  # _ui position used as is
-    assert decisao[0]["valor"] == "IMPROVIDO, O recurso não merece trânsito."
-    assert fatos[0]["pos"] == [EXTERNAL_TEXT.index("Agravante"), EXTERNAL_TEXT.index("Agravante") + len("Agravante: Ministério Público")]  # 0:0 falls back to search
-    assert fatos[1]["pos"] == [EXTERNAL_TEXT.index("seja ele"), len(EXTERNAL_TEXT) - 1] and fatos[1]["score"] == 0.9  # out of range falls back
-    assert inf["total"] == 3 and inf["conferidos"] == 3
-    assert inf["sinteses"] == [{"classe": "resumo_classe_i", "rotulo": "Fatos e decisão", "texto": "O MP recorreu e perdeu.", "lastro": ["Agravante: Ministério Público"]}]
-    # the lawyer review route shares the same body
-    r = client.get(f"/api/tarefas/{task['id']}/revisao", headers=bearer(citizen["token"]))
-    assert r.status_code == 200 and r.json()["inferencias"]["classes"][1]["itens"][0]["pos"] == [a, a + 30]
 
 
 def test_the_model_position_is_not_read_at_all():
@@ -938,27 +873,14 @@ DOC_TEXT = ("CLÁUSULA 3. O CONTRATANTE pagará honorários de vinte por cento s
             "somente em caso de êxito. CLÁUSULA 4. As custas processuais correm por conta do CONTRATANTE.")
 
 
-def test_the_server_locates_the_quote_instead_of_believing_the_model():
-    """O modelo escreve a posição que quiser, e não conta caractere. Se o servidor acreditar nela, o selo de
-    conferido aparece apontando para o lugar errado, e a promessa central do produto vira decoração."""
-    from leia.api_citizen import build_external_inferences
-
-    doc = {"processo": {"classe_fatos": [{"campo": "honorarios", "valor": "20%",
-                                          "trecho_verbatim": "honorários de vinte por cento"}]},
-           "_ui": {"classe_fatos": [{"pos_trecho_verbatim": "0:11"}]}}   # mentira plausível: aponta para "CLÁUSULA 3."
-    item = build_external_inferences(DOC_TEXT, doc)["classes"][0]["itens"][0]
-    assert item["conferido"], "não achou o trecho que está no documento"
-    achado = DOC_TEXT[item["pos"][0]:item["pos"][1]]
-    assert achado == "honorários de vinte por cento", f"seguiu a posição do modelo e marcou {achado!r}"
-
-
 def test_a_quote_that_is_not_in_the_document_is_never_sealed():
-    from leia.api_citizen import build_external_inferences
+    """O selo de conferido é a promessa central do produto. Trecho que não está no documento não recebe selo,
+    e o item sai sem posição, em vez de apontar para qualquer lugar plausível."""
+    from leia.api_citizen import build_inferences
 
-    doc = {"processo": {"classe_fatos": [{"campo": "multa", "valor": "R$ 5.000",
-                                          "trecho_verbatim": "multa de cinco mil reais por descumprimento"}]},
-           "_ui": {"classe_fatos": [{"pos_trecho_verbatim": "12:40"}]}}
-    item = build_external_inferences(DOC_TEXT, doc)["classes"][0]["itens"][0]
+    memoria = {"memoria_persistente": {"datas_valores": [
+        {"campo": "multa", "valor": "R$ 5.000", "trecho_verbatim": "multa de cinco mil reais por descumprimento"}]}}
+    item = build_inferences(DOC_TEXT, memoria, None, [])["classes"][0]["itens"][0]
     assert not item["conferido"] and item["pos"] is None, "trecho inventado recebeu selo de conferido"
 
 
@@ -1380,52 +1302,17 @@ def test_the_citizen_chat_never_puts_document_text_in_the_system_role(citizen):
     assert mensagens[-1]["content"] == "Quanto eu pago?", "a pergunta da pessoa deixou de ser a última mensagem"
 
 
-# ── o documento saindo do serviço ─────────────────────────────────────────
+def test_a_document_from_the_removed_external_path_fails_loudly(lawyer):
+    """Os dois fluxos externos foram removidos. Documento que tenha vindo por eles não pode virar uma tela
+    de explicação vazia: a pessoa leria "Explicação indisponível" sem saber por quê, e o advogado aprovaria
+    um texto que não existe. Falhar dizendo o motivo é melhor que mostrar nada com ar de normalidade."""
+    t = create_task(lawyer["token"], "Legado externo")
+    h = t["hash"]
+    for nome in ("resumo_humanizado.md", "questoes.json", "memoria_persistente.json", "texto_extraido.txt"):
+        (ws.folder(h) / nome).unlink(missing_ok=True)
+    (ws.folder(h) / "resumo_estruturado.json").write_text(json.dumps({"processo": {}}), encoding="utf-8")
+    set_status(h, "pronta")
 
-EXTERNOS = ("/api/resumo-estruturado/submit", "/api/jurisprudencia/submit")
-
-
-def test_sending_the_document_to_a_third_party_is_off_by_default(citizen):
-    """As duas rotas repassam o documento inteiro, byte a byte, a um host de terceiro que ninguém autentica.
-    Uma capacidade dessas não pode ser o padrão, e precisa de chave para desligar."""
-    for rota in EXTERNOS:
-        r = client.post(rota, files={"pdf": ("d.pdf", small_pdf(), "application/pdf")},
-                        headers=bearer(citizen["token"]))
-        assert r.status_code == 403, f"{rota} mandou o documento para fora sem ninguém ligar nada: {r.status_code}"
-
-
-def test_only_the_provider_can_send_a_document_to_a_third_party(citizen, lawyer, monkeypatch):
-    monkeypatch.setenv("EXTERNAL_FLOWS_ENABLED", "true")
-    for rota in EXTERNOS:
-        for conta in (citizen, lawyer):
-            r = client.post(rota, files={"pdf": ("d.pdf", small_pdf(), "application/pdf")},
-                            headers=bearer(conta["token"]))
-            assert r.status_code == 403, f"{rota} obedeceu a uma conta comum: {r.status_code}"
-
-
-def test_the_journey_says_the_document_left_the_service(admin, monkeypatch):
-    """Hoje nada conta à pessoa que o documento dela saiu daqui: nem o comprovante, nem a tela."""
-    monkeypatch.setenv("EXTERNAL_FLOWS_ENABLED", "true")
-    r = client.post(EXTERNOS[0], files={"pdf": ("d.pdf", small_pdf(), "application/pdf")},
-                    headers=bearer(admin["token"]))
-    assert r.status_code in (200, 201), r.text
-    h = r.json()["hash"]
-    tipos = [e.get("tipo") for e in ws.read_events(h)]
-    assert "documento_enviado_a_terceiro" in tipos, f"nenhum evento registra a saída: {tipos}"
-
-    from leia.api_citizen import public_events
-    publicos = [e.get("tipo") for e in public_events(ws.read_events(h))]
-    assert "documento_enviado_a_terceiro" in publicos, "o evento existe mas a pessoa não o vê"
-
-
-def test_the_external_routes_check_size_and_that_it_is_a_pdf(admin, monkeypatch):
-    """A checagem de 15 MB e de assinatura %PDF existia só nos outros dois caminhos de upload."""
-    monkeypatch.setenv("EXTERNAL_FLOWS_ENABLED", "true")
-    monkeypatch.setenv("MAX_UPLOAD_MB", "1")
-    for rota in EXTERNOS:
-        r = client.post(rota, files={"pdf": ("d.pdf", b"NAO-E-PDF" * 10, "application/pdf")},
-                        headers=bearer(admin["token"]))
-        assert r.status_code == 400, f"{rota} aceitou o que não é PDF: {r.status_code}"
-        r = client.post(rota, files={"pdf": ("d.pdf", b"%PDF" + b"x" * (2 * 1024 * 1024), "application/pdf")},
-                        headers=bearer(admin["token"]))
-        assert r.status_code == 413, f"{rota} aceitou 2 MB com teto de 1 MB: {r.status_code}"
+    r = client.get(f"/api/t/{h}")
+    assert r.status_code == 200, r.text
+    assert r.json()["tarefa"]["status"] == "falhou", "documento do caminho removido passou como se estivesse pronto"

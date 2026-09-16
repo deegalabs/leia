@@ -10,7 +10,6 @@ export const DOCS: DocEntry[] = [
   { slug: "arquitetura", title: "Arquitetura", file: "ARCHITECTURE.md", source: "docs/ARCHITECTURE.md", group: "Técnico" },
   { slug: "api", title: "API do serviço", file: "API-V3-CONTRACT.md", source: "docs/API-V3-CONTRACT.md", group: "Técnico" },
   { slug: "servico", title: "Mapa do serviço cognitivo", file: "SERVICE-V2-MAP.md", source: "docs/SERVICE-V2-MAP.md", group: "Técnico" },
-  { slug: "resumo-estruturado-e-chat", title: "Resumo estruturado e chat", file: "RESUMO-ESTRUTURADO-E-CHAT.md", source: "docs/RESUMO-ESTRUTURADO-E-CHAT.md", group: "Técnico" },
   { slug: "escala", title: "Escala e custo", file: "SCALING.md", source: "docs/SCALING.md", group: "Técnico" },
   { slug: "auditoria", title: "Roteiro de auditoria", file: "AUDIT-GUIDE.md", source: "docs/AUDIT-GUIDE.md", group: "Hackathon" },
   { slug: "entregas", title: "Entregas versionadas", file: "DELIVERIES.md", source: "docs/DELIVERIES.md", group: "Hackathon" },
