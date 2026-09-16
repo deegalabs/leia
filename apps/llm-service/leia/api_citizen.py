@@ -44,7 +44,9 @@ PUBLIC_EVENT_TYPES = {"criada", "pdf_salvo", "pipeline_start", "texto_extraido",
                       "aprovada",
                       # external "Resumo estruturado" flow (core/api.py): job progress, no personal data
                       "resumo_estruturado_start", "resumo_estruturado_job", "resumo_estruturado_status",
-                      "resumo_estruturado_done", "resumo_estruturado_erro"}
+                      "resumo_estruturado_done", "resumo_estruturado_erro",
+                      # o documento saiu do serviço: a pessoa vê isso na jornada, não só no log interno
+                      "documento_enviado_a_terceiro"}
 PUBLIC_EVENT_LIMIT = 60
 
 # The 14 workflow tasks of protocolo_pdf.json (ids as written there) with the pt-BR names of docs/API-V3-CONTRACT.md.

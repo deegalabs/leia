@@ -34,6 +34,28 @@ fecha um sentido, vira versão com tag anotada e release no GitHub.
   impedir o gabarito por tentativa e erro, e duas tentativas diferentes saíam com o mesmo `hash_imutavel`, que é
   o identificador público do comprovante, então `/verify/{hash}` podia atestar um registro que não era o dela.
   O número passou a ser decidido pelo banco, por restrição única, com nova tentativa quando dois envios disputam.
+- **O texto do documento passou a ser tratado como dado, e não como comando.** A cerca que separa o conteúdo
+  do PDF da instrução era montada por interpolação com etiqueta fixa, então bastava o documento conter a
+  etiqueta de fechamento para o resto dele sair da cerca e virar instrução na mensagem. Valia para as duas
+  cercas, e a segunda importa mais, porque alimenta 9 das 14 etapas e carrega `trecho_verbatim`, que é cópia
+  literal do documento por contrato. A etiqueta agora é sorteada a cada execução: o documento não fecha o que
+  não consegue adivinhar. E nenhuma das 14 missões dizia ao modelo que aquele conteúdo é material a analisar;
+  o aviso passou a morar no papel de sistema, num lugar só, acima da missão, **nomeando a etiqueta que ele
+  mesmo sorteou**: sortear sem nomear transforma a cerca numa forma pública, que qualquer documento imita
+  escrevendo uma etiqueta do mesmo feitio. E o conteúdo do documento passa por uma limpeza que tira dele
+  qualquer etiqueta, de abertura ou de fechamento, porque estrutura é o que o conteúdo não pode escrever.
+- No chat da cidadã, o resumo e a memória saíram de dentro do papel de sistema. Eles são derivados do PDF, e a
+  memória carrega o trecho literal dele, então texto de origem não confiável ficava logo abaixo da regra "use
+  apenas o contexto", com precedência sobre ela. Agora o sistema só tem regra, e o material do documento chega
+  como mensagem à parte, dentro da mesma cerca sorteada.
+- **Mandar o documento para um serviço externo deixou de ser o padrão.** Duas rotas repassavam o PDF inteiro,
+  byte a byte, para dois hosts de terceiros que ninguém autentica, disparáveis por qualquer conta e sem forma
+  de desligar. Agora dependem de `EXTERNAL_FLOWS_ENABLED`, que vem desligada, e respondem só ao fornecedor. A
+  saída do documento virou um evento visível na jornada, em vez de existir só no log interno.
+- Os dois uploads desses fluxos passaram a conferir tamanho e assinatura de PDF de verdade, o que só existia
+  nos outros dois caminhos: antes aceitavam qualquer conteúdo e qualquer tamanho e gravavam no volume.
+- A bateria de testes parou de falar com terceiro. O endereço padrão apontava para as APIs externas de
+  verdade, então rodar os testes mandava um PDF para fora, inclusive na integração contínua.
 - O trecho literal deixou de ser conferido pelo modelo e passou a ser localizado pelo serviço. A posição que o
   modelo escrevia era aceita se parecesse válida, então o selo de "trecho conferido" podia apontar para a
   cláusula errada, ou aparecer para um trecho inventado. Agora a busca é do servidor, em três estágios, e o
