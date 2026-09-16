@@ -293,7 +293,7 @@
       },
       "clientLinkPending": "O link só abre a explicação depois que você revisar e liberar.",
       "inviteTitle": "Quem pode abrir este link",
-      "inviteOpenHint": "Hoje qualquer pessoa com o endereço abre o documento. Você pode limitar isso.",
+      "inviteOpenHint": "Sem convite, quem abrir o link lê e tira dúvidas, mas não consegue guardar o comprovante no nome dela. Emita o convite para que ela receba o comprovante.",
       "inviteAnyone": "Aberto a quem tiver o link",
       "inviteAddressed": "Só abre para {email}",
       "inviteUntil": "Vale até {data}",
@@ -375,7 +375,11 @@
     "sending": "Enviando a dúvida",
     "sent": "Enviada. Quando o advogado responder, a resposta aparece em Meus documentos.",
     "sendFailed": "Não foi possível enviar agora. Tente de novo em instantes.",
-    "askFirst": "Escreva sua dúvida acima para poder enviá-la ao advogado."
+    "askFirst": "Escreva sua dúvida acima para poder enviá-la ao advogado.",
+    "includeChat": "Enviar também a nossa conversa",
+    "includeChatHelp": "Sem marcar, o advogado recebe só a sua pergunta. Marcando, ele lê também as últimas mensagens, o que ajuda ele a entender o contexto.",
+    "onlyQuestion": "Vai só a sua pergunta.",
+    "withChat": "Vão a sua pergunta e as últimas mensagens da nossa conversa."
   },
   "journey": {
     "reviewWaitTitle": "O advogado está revisando a explicação",
@@ -407,6 +411,10 @@
     "reviewExplanation": "Rever a explicação",
     "understoodLast": "Entendi",
     "confidence": "confiança {pct}%",
-    "confidenceLabel": "Confiança da assistente neste trecho: {pct}%"
+    "confidenceLabel": "Confiança da assistente neste trecho: {pct}%",
+    "whoIsSpeaking": "Sou uma assistente automática. Explico o que está escrito neste documento. Não sou advogada e não dou conselho jurídico. A nossa conversa não fica guardada aqui: ela some quando você fecha esta página. Fica guardado só o que você escolher enviar para o advogado, e quantas vezes você respondeu as perguntas.",
+    "retryKeeping": "Ler de novo e responder só o que faltou",
+    "keptAnswers": "O que você já acertou fica guardado. Você responde só as perguntas que faltaram.",
+    "claimFailedTitle": "Não deu para guardar este documento no seu nome"
   }
 }
