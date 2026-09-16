@@ -2,7 +2,7 @@
    so the Python service and this TypeScript mock produce identical hashes for identical attempts. */
 import { createHash, randomBytes } from "node:crypto";
 
-export const PAYLOAD_SCHEMA = "leia.payload.v2";
+export const PAYLOAD_SCHEMA = "leia.payload.v3";
 
 type Json = string | number | boolean | null | Json[] | { [k: string]: Json };
 function sortKeys(v: Json): Json {
@@ -15,7 +15,10 @@ export const canonical = (obj: Json) => JSON.stringify(sortKeys(obj));
 export const sha256 = (s: string) => createHash("sha256").update(s, "utf8").digest("hex");
 export const nowIso = () => new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
 
-export type AttemptRecord = { tarefa_hash: string; numero: number; respostas: Record<string, number>; acertos: number; total: number; aprovado: boolean; criada_em: string; salt: string };
+export type AttemptRecord = { tarefa_hash: string; numero: number; respostas: Record<string, number>; acertos: number; total: number; aprovado: boolean; criada_em: string; salt: string; revisado?: boolean };
+
+/* Mesma régua do serviço (core/attempts.pass_mark): arredonda para cima, senão o piso declarado não é o piso. */
+export const passMark = (total: number, ratio = 0.83) => Math.max(1, Math.ceil(total * ratio));
 
 export function attemptHash(a: AttemptRecord): string {
   return sha256(canonical({ tarefa: a.tarefa_hash, numero: a.numero, respostas: a.respostas, criada_em: a.criada_em }));
@@ -24,7 +27,9 @@ export function attemptHash(a: AttemptRecord): string {
 export function buildPayload(a: AttemptRecord) {
   return {
     schema: PAYLOAD_SCHEMA, documentRef: sha256(a.tarefa_hash), attemptRound: a.numero, attemptSha256: attemptHash(a),
-    documentSha256: "", summarySha256: "", understood: a.aprovado, answered: a.total, createdAt: a.criada_em,
+    documentSha256: "", summarySha256: "", understood: a.aprovado,
+    instrument: "multiple-choice", passMark: passMark(a.total), answered: a.total,
+    reviewedByLawyer: a.revisado !== false, createdAt: a.criada_em,
   };
 }
 

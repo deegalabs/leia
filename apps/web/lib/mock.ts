@@ -1,7 +1,7 @@
 /* In-app mock of the cognitive service (same routes and shapes as apps/llm-service/mock/app.py), used when
    NEXT_PUBLIC_API_BASE is empty, e.g. on the hosted demo. Stateless: receipts travel as tokens. */
 import fixture from "@/data/fixture-honorarios.json";
-import { attemptHash, buildPayload, canonical, encodeToken, newSalt, nowIso, sha256, type AttemptRecord } from "./registry";
+import { attemptHash, buildPayload, canonical, encodeToken, newSalt, nowIso, passMark, sha256, type AttemptRecord } from "./registry";
 import { tokenFromRequest } from "./server/session";
 import { findSpan, type Anchor, type InferenceClass, type Inferences } from "./inferences"; /* LeIA: review flow shares the inferences with the public route */
 import type { Stage } from "./api";
@@ -51,7 +51,7 @@ export function evaluateQuiz(f: Fixture, respostas: Record<string, number>, nume
     if (chosen === q.correta) acertos += 1;
     else erros.push({ id: q.id, area: q.area, enunciado: q.enunciado, escolhida: chosen ?? null });
   }
-  const record: AttemptRecord = { tarefa_hash: f.tarefa.hash, numero, respostas, acertos, total: questions.length, aprovado: acertos >= f.minimo_aprovacao, criada_em: nowIso(), salt: newSalt() };
+  const record: AttemptRecord = { tarefa_hash: f.tarefa.hash, numero, respostas, acertos, total: questions.length, aprovado: acertos >= passMark(questions.length), criada_em: nowIso(), salt: newSalt() };
   return { aprovado: record.aprovado, acertos, total: record.total, numero, hash_imutavel: attemptHash(record), comprovante_token: encodeToken(record), erros };
 }
 

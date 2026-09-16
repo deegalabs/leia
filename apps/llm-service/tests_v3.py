@@ -1316,3 +1316,61 @@ def test_a_document_from_the_removed_external_path_fails_loudly(lawyer):
     r = client.get(f"/api/t/{h}")
     assert r.status_code == 200, r.text
     assert r.json()["tarefa"]["status"] == "falhou", "documento do caminho removido passou como se estivesse pronto"
+
+
+def test_the_pass_mark_is_the_one_the_product_declares(monkeypatch):
+    """O piso vinha de `int(total * 0.83)`, que trunca: com 6 perguntas o piso virava 4, ou seja **66,7%**,
+    enquanto o comentário ao lado dizia 83%. Produção serve 6 perguntas, então quem só chutasse passava em
+    10,9% das vezes dentro das três tentativas permitidas. O portão é onde o produto inteiro se apoia."""
+    import core.attempts as tn
+
+    monkeypatch.setenv("QUIZ_PASS_RATIO", "0.83")
+    for total, minimo in ((3, 3), (6, 5), (10, 9), (12, 10)):
+        piso = tn.pass_mark(total)
+        assert piso == minimo, f"com {total} perguntas o piso é {piso}, e 83% pede {minimo}"
+        assert piso / total >= 0.83, f"piso de {piso}/{total} = {piso/total:.1%}, abaixo dos 83% declarados"
+
+
+def test_the_pass_mark_never_asks_for_more_than_exists():
+    import core.attempts as tn
+
+    assert tn.pass_mark(1) == 1 and tn.pass_mark(0) == 1
+
+
+def test_the_receipt_says_whether_a_lawyer_reviewed_it(monkeypatch):
+    """Dois fluxos produzem o mesmo comprovante e só um passa por advogado. A supervisão humana é metade da
+    tese do produto; um comprovante que não distingue supervisionado de não supervisionado apaga essa metade
+    justamente no artefato que circula."""
+    import core.attempts as tn
+    from leia.api_citizen import freeze_record, get_attempt
+    from leia.registry import build_payload
+
+    monkeypatch.setenv("QUIZ_PASS_RATIO", "0.83")
+    for origem, esperado in (("cidadao", False), ("advogado", True)):
+        t = _tarefa_com_documento(f"revisao-{origem}", small_pdf("Contrato."), "# Explicação\n\nTexto.")
+        with Session(engine) as s:
+            linha = s.exec(select(Tarefa).where(Tarefa.hash == t.hash)).one()
+            linha.origem = origem
+            s.add(linha); s.commit()
+        tent = tn.record(t, {"1": 0, "2": 1, "3": 2}, QUESTOES)
+        freeze_record(t.hash, tent.numero, tent.hash_imutavel)
+        p = build_payload(get_attempt(tent.hash_imutavel))
+        assert p["reviewedByLawyer"] is esperado, \
+            f"origem {origem}: o comprovante diz revisado={p['reviewedByLawyer']}"
+
+
+def test_the_receipt_says_what_it_measured(monkeypatch):
+    """`understood: true` sozinho é afirmação forte e indefensável: quem lê o JSON não sabe por qual régua.
+    Dizer o instrumento e o piso deixa o terceiro julgar o peso, em vez de aceitar ou recusar no escuro."""
+    import core.attempts as tn
+    from leia.api_citizen import freeze_record, get_attempt
+    from leia.registry import build_payload
+
+    monkeypatch.setenv("QUIZ_PASS_RATIO", "0.83")
+    t = _tarefa_com_documento("regua", small_pdf("Contrato."), "# Explicação\n\nTexto.")
+    tent = tn.record(t, {"1": 0, "2": 1, "3": 2}, QUESTOES)
+    freeze_record(t.hash, tent.numero, tent.hash_imutavel)
+    p = build_payload(get_attempt(tent.hash_imutavel))
+    assert p["instrument"] == "multiple-choice", "o comprovante não diz por qual instrumento mediu"
+    assert p["passMark"] == tn.pass_mark(p["answered"]), "o comprovante não diz qual era o piso"
+    assert p["answered"] == len(QUESTOES)

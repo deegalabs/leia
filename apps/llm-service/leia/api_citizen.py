@@ -428,8 +428,14 @@ def get_attempt(hash_imutavel: str) -> Optional[dict[str, Any]]:
     created = tent.criada_em.replace(tzinfo=timezone.utc) if tent.criada_em.tzinfo is None else tent.criada_em
     p = _ots_path(t.hash, tent.numero)
     gravado = stored_record(hash_imutavel) or {}
+    import core.attempts as _tn
+    # Tarefa de origem "cidadao" não passa por revisão (ver is_gated); tarefa de advogado só chega a ser
+    # respondida depois que ele aprova, porque o portão barra antes. Então a origem responde a pergunta.
+    revisada = (t.origem or "advogado") != "cidadao"
     return {"hash_imutavel": tent.hash_imutavel, "tarefa_hash": t.hash, "numero": tent.numero, "acertos": tent.acertos,
             "total": tent.total, "aprovado": tent.aprovado, "criada_em": created,
+            "revisado_por_advogado": revisada, "instrumento": "multiple-choice",
+            "piso": _tn.pass_mark(tent.total),
             "pdf_sha256": gravado.get("pdf_sha256", ""), "resumo_sha256": gravado.get("resumo_sha256", ""),
             "registro": gravado or None,
             "ots": p.read_bytes() if p.exists() else None}
