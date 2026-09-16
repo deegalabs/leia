@@ -5,15 +5,14 @@ import { bindTask, getTask, submitQuiz, topicsOf, type QuizResult, type Task } f
 import { isReady } from "@/lib/status";
 import { useAuth } from "@/lib/auth"; /* LeIA: v3 accounts */
 import { anchorClaim } from "@/lib/inferences";
-import { AssistantBanner, BottomActionBar, Button, Card, LinkButton, Page, ProgressSteps, SpeakButton, StatusChip } from "./ui";
+import { AssistantBanner, BottomActionBar, Button, Card, LinkButton, Page, ProgressSteps, SpeakButton, SpeakOne, StatusChip } from "./ui";
 import { ChatSheet } from "./ChatSheet";
 import { Paragraphs, cleanTitle } from "./Inline"; /* LeIA: Paragraphs moved to Inline.tsx, shared with the lawyer review */
 import { Preparing } from "./Preparing"; /* LeIA: visible preparation (steps and partial marks) */
 import { ScoreChip } from "./InferenceMarks";
 import { fmt, m } from "@/lib/i18n";
-
 /* LeIA: "done" ends a journey without questions (external flow): no receipt, no chip */
-type Step = { kind: "welcome" } | { kind: "topic"; n: number } | { kind: "question"; k: number } | { kind: "result" } | { kind: "done" };
+import { firstUnanswered, keptAfterRetry, restore, type Step } from "@/lib/journey-state";
 
 export function Journey({ hash }: { hash: string }) {
   const [task, setTask] = useState<Task | null>(null);
@@ -31,6 +30,9 @@ export function Journey({ hash }: { hash: string }) {
   const { usuario, ready: authReady } = useAuth();
   const [bound, setBound] = useState(false);
   const [binding, setBinding] = useState(false);
+  /* A recusa vinha calada: ela tocava o botão, nada acontecia, e só no fim descobria que não sairia
+     comprovante. O serviço já devolve o motivo escrito para ela ler, então é esse motivo que aparece. */
+  const [claimError, setClaimError] = useState<string | null>(null);
   const canBind = Boolean(task && authReady && usuario?.papel === "cidadao" && task.cidadao_vinculado === false && !bound);
   /* LeIA: ler e perguntar não exigem conta, de propósito. O que exige é guardar o comprovante, porque ele
      afirma que uma pessoa entendeu. Então aqui a gente avisa, não bloqueia. */
@@ -38,8 +40,9 @@ export function Journey({ hash }: { hash: string }) {
   const maybeNotTheAddressee = Boolean(addressedTo && authReady && !task?.cidadao_vinculado);
   async function claim() {
     if (binding) return;
-    setBinding(true);
-    try { await bindTask(hash); setBound(true); } catch { /* segue sem vínculo */ }
+    setBinding(true); setClaimError(null);
+    try { await bindTask(hash); setBound(true); }
+    catch (e) { setClaimError((e as Error).message || "Não deu para guardar agora. Tente de novo em instantes."); }
     finally { setBinding(false); }
   }
 
@@ -50,11 +53,10 @@ export function Journey({ hash }: { hash: string }) {
       setTask(t); setError(null);
       /* LeIA: the link is shared by whoever has it, so only a result saved on this device reopens on the final screen.
          The service's last attempt may belong to someone else (the public example is answered by many people). */
-      try {
-        const saved = JSON.parse(localStorage.getItem(storageKey) || "null");
-        if (saved?.result?.aprovado) { setResult(saved.result); setStep({ kind: "result" }); return; }
-        if (saved?.answers) setAnswers(saved.answers);
-      } catch { /* ignore */ }
+      const voltou = restore<QuizResult>(localStorage.getItem(storageKey), { topics: topicsOf(t).length, questions: t.questoes?.length ?? 0 });
+      if (voltou.answers) setAnswers(voltou.answers);
+      if (voltou.result) setResult(voltou.result);
+      if (voltou.step) setStep(voltou.step);
     }).catch((e: Error & { status?: number }) => {
       if (!alive) return;
       if (e.status === 404) { setError("Este link não existe ou foi digitado errado. Confira com quem enviou o documento."); return; }
@@ -67,7 +69,7 @@ export function Journey({ hash }: { hash: string }) {
     return () => { alive = false; };
   }, [hash, storageKey, retry]);
   /* persist only after the task is loaded, so the first render does not overwrite what the load effect restores */
-  useEffect(() => { if (!task) return; try { localStorage.setItem(storageKey, JSON.stringify({ answers, result })); } catch { /* ignore */ } }, [task, answers, result, storageKey]);
+  useEffect(() => { if (!task) return; try { localStorage.setItem(storageKey, JSON.stringify({ answers, result, step })); } catch { /* ignore */ } }, [task, answers, result, step, storageKey]);
   useEffect(() => { window.scrollTo({ top: 0 }); }, [step]);
 
   const topics = useMemo(() => (task ? topicsOf(task) : []), [task]);
@@ -138,6 +140,12 @@ export function Journey({ hash }: { hash: string }) {
               <h2 className="mb-1 text-[1.15rem]">Este documento é seu?</h2>
               <p className="mb-3 text-[1rem]">Se for, ele passa a aparecer na sua lista de documentos. Se você só está vendo um exemplo, pode seguir sem marcar.</p>
               <Button variant="secondary" onClick={claim} disabled={binding}>{binding ? "Guardando" : "Sim, este documento é meu"}</Button>
+              {claimError && (
+                <div role="alert" className="mt-3">
+                  <h3 className="text-[1rem] font-bold text-danger">{m.journey.claimFailedTitle}</h3>
+                  <p className="text-[1rem]">{claimError}</p>
+                </div>
+              )}
             </Card>
           )}
           {bound && <Card tone="soft" className="mt-4"><p>Pronto. Este documento agora aparece na sua lista.</p></Card>}
@@ -149,8 +157,8 @@ export function Journey({ hash }: { hash: string }) {
           )}
           <Card tone="soft" className="mt-4">
             <h2 className="mb-2 text-[1.15rem]">Quem está falando com você</h2>
-            <p id="intro">Sou uma assistente automática. Explico o que está escrito neste documento. Não sou advogada e não dou conselho jurídico. Suas respostas ficam só com você.</p>
-            <SpeakButton text="Sou uma assistente automática. Explico o que está escrito neste documento. Não sou advogada e não dou conselho jurídico." label="Ouvir esta apresentação" />
+            <p id="intro">{m.journey.whoIsSpeaking}</p>
+            <SpeakButton text={m.journey.whoIsSpeaking} label="Ouvir esta apresentação" />
           </Card>
           <Card className="mt-3">
             <h2 className="mb-2 text-[1.15rem]">Como funciona</h2>
@@ -193,7 +201,7 @@ export function Journey({ hash }: { hash: string }) {
               )}
             </Card>
             <BottomActionBar>
-              <Button onClick={() => (last ? (noQuestions ? setStep({ kind: "done" }) : setStep({ kind: "question", k: 0 })) : setStep({ kind: "topic", n: step.n + 1 }))}>
+              <Button onClick={() => (last ? (noQuestions ? setStep({ kind: "done" }) : setStep({ kind: "question", k: firstUnanswered(questions, answers) })) : setStep({ kind: "topic", n: step.n + 1 }))}>
                 {last ? (noQuestions ? m.journey.understoodLast : "Entendi, vamos conferir") : "Entendi, próximo"}
               </Button>
               <LinkButton href={`/t/${hash}/documento`} variant="ghost">Ver o documento com as marcações</LinkButton>
@@ -219,7 +227,10 @@ export function Journey({ hash }: { hash: string }) {
                   <button key={i} type="button" role="radio" aria-checked={chosen === i} onClick={() => setAnswers({ ...answers, [String(q.id)]: i })}
                     className={`flex min-h-[56px] w-full items-center gap-3 rounded-button border-2 px-3.5 py-3 text-left text-[1.05rem] ${chosen === i ? "border-teal-deep bg-[#F1F8F8]" : "border-line bg-surface"}`}>
                     <span aria-hidden className={`grid h-[34px] w-[34px] flex-none place-items-center rounded-full border-2 font-bold ${chosen === i ? "border-teal-deep bg-teal-deep text-white" : "border-ink"}`}>{"ABCD"[i] ?? i + 1}</span>
-                    <span>{a}</span>
+                    <span className="flex-1">{a}</span>
+                    {/* Ouvir uma alternativa sozinha: para decidir entre a terceira e a quarta ela precisava
+                        ouvir a pergunta e as quatro de novo, do começo. O clique aqui não escolhe a resposta. */}
+                    <SpeakOne text={a} label={`Ouvir a alternativa ${"ABCD"[i] ?? i + 1}`} />
                   </button>
                 ))}
               </div>
@@ -274,6 +285,7 @@ export function Journey({ hash }: { hash: string }) {
             <StatusChip tone="pending">Vamos ver de novo</StatusChip>
             <h1 className="mb-2 mt-3 text-[1.5rem]">Alguns pontos merecem outra explicação.</h1>
             <p>Isso é normal. Vou explicar de novo e depois você responde outra vez, sem pressa.</p>
+            <p className="mt-2">{m.journey.keptAnswers}</p>
             {result.erros.length > 0 && (
               <Card className="mt-4">
                 <h2 className="mb-2 text-[1.15rem]">O que vale ver de novo</h2>
@@ -281,7 +293,7 @@ export function Journey({ hash }: { hash: string }) {
               </Card>
             )}
             <BottomActionBar>
-              <Button onClick={() => { setAnswers({}); setResult(null); setStep({ kind: "topic", n: 0 }); }}>Ler a explicação de novo</Button>
+              <Button onClick={() => { setAnswers(keptAfterRetry(answers, result.erros)); setResult(null); setStep({ kind: "topic", n: 0 }); }}>{m.journey.retryKeeping}</Button>
               <Button variant="secondary" onClick={() => setChatOpen(true)}>Tenho uma dúvida</Button>
             </BottomActionBar>
           </>

@@ -25,6 +25,29 @@ fecha um sentido, vira versão com tag anotada e release no GitHub.
   explicação vazia que a pessoa leria como se fosse o documento dela.
 - A memória de sessão tinha três abas, duas delas reservadas a esses fluxos e nunca alimentadas. Sobrou a do
   pipeline local, que é a única que o chat de bastidor consome.
+### Produto
+
+- **A tela deixou de prometer o que o produto não cumpre.** A jornada afirmava "Suas respostas ficam só com
+  você" e, ao encaminhar uma dúvida, mandava junto os dez últimos turnos da conversa, sem ela saber. Agora a
+  apresentação diz o que acontece de verdade: a conversa não fica guardada e some ao fechar a página, e fica
+  guardado só o que ela escolher enviar ao advogado, mais quantas vezes ela respondeu as perguntas. E a
+  conversa só vai junto se ela marcar, com a tela dizendo, antes de enviar, exatamente o que vai em cada caso.
+- O botão de ouvir a apresentação lia um texto mais curto do que o escrito na tela. Quem ouve passou a receber
+  o mesmo que quem lê.
+- **Sair da página parou de custar a jornada inteira.** A etapa passou a ser guardada junto com as respostas,
+  então voltar devolve a pessoa ao ponto onde ela estava, em vez de obrigá-la a reler tudo tocando "Entendi,
+  próximo" tantas vezes quantos pontos já tinha lido. Documento reprocessado com menos pontos não manda
+  ninguém para uma etapa que não existe mais.
+- **Errar uma pergunta parou de apagar as respostas certas.** Quem errava uma de três perdia as duas certas e
+  voltava ao ponto 1. Agora o que ela acertou fica, ela responde só o que faltou, a tela diz isso, e o botão
+  descreve o que de fato acontece em vez de prometer uma explicação nova que não existia.
+- **O áudio deixou de falhar calado.** Num aparelho sem voz em português o botão não fazia nada; agora a tela
+  avisa e diz onde instalar. "Pausar" cancelava e recomeçava do zero; agora pausa e continua de onde parou, e
+  existe "Parar" à parte. O texto falado perdeu a marcação e o emoji, que a voz lia em voz alta. E dá para
+  ouvir uma alternativa sozinha, sem repetir a pergunta e as outras três.
+- Quando guardar o documento no nome dela é recusado, a tela mostra o motivo escrito pelo serviço. Antes a
+  recusa era engolida e ela só descobria no fim que não sairia comprovante. No painel, a dica sobre o convite
+  passou a dizer que sem convite não há comprovante.
 
 ### Segurança e privacidade
 - **Quem vê o documento deixou de mandar nele.** A autorização de várias rotas perguntava se a pessoa enxerga o
