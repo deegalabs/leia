@@ -25,6 +25,10 @@ os.environ.update({
     "CLIENT_APP_URL": "http://app.test",
     "RATE_LIMIT_PER_MINUTE": "200",
     "PIPELINE_CONCURRENCY": "2",
+    # A bateria não fala com terceiro: o padrão aponta para api.resumoestruturado.com.br e
+    # api.jurisprudencia.com.br, então rodar os testes mandava um PDF para fora, inclusive na integração contínua.
+    "RESUMO_ESTRUTURADO_API_BASE": "http://127.0.0.1:9",
+    "JURISPRUDENCIA_API_BASE": "http://127.0.0.1:9",
 })
 os.environ.pop("DATABASE_URL", None)
 os.environ.pop("DB_PATH", None)
@@ -92,6 +96,13 @@ def lawyer() -> dict:
 @pytest.fixture(scope="module")
 def citizen() -> dict:
     return signup("cidada@teste.local", "cidadao", "Maria")
+
+
+@pytest.fixture(scope="module")
+def admin() -> dict:
+    r = client.post("/api/auth/login", json={"email": "admin@test.local", "senha": "admin-secret-1"})
+    assert r.status_code == 200, r.text
+    return r.json()
 
 
 @pytest.fixture(scope="module")
@@ -1326,3 +1337,95 @@ def test_undoing_a_link_does_not_hand_the_next_person_the_previous_one_s_record(
 
     r = client.delete(f"/api/tarefas/{t['id']}/cidadao", headers=bearer(lawyer["token"]))
     assert r.status_code == 409, "desvinculou por cima de um comprovante que afirma que outra pessoa entendeu"
+def test_the_citizen_chat_never_puts_document_text_in_the_system_role(citizen):
+    """O resumo e a memória são derivados do PDF, e `memoria_persistente.json` carrega `trecho_verbatim`,
+    que é cópia literal dele. Texto de origem não confiável no papel system tem precedência sobre a regra
+    'use apenas o contexto' escrita logo acima dele."""
+    import main
+
+    t = create_task(citizen["token"], "Chat")
+    fake_artifacts(t["hash"])
+    set_status(t["hash"], "pronta")
+
+    capturado: dict = {}
+
+    class _Completions:
+        async def create(self, **kwargs):
+            capturado.update(kwargs)
+            raise RuntimeError("basta capturar")
+
+    class _Groq:
+        class chat:  # noqa: N801
+            completions = _Completions()
+
+    anterior, main.groq_client = main.groq_client, _Groq()
+    try:
+        client.post(f"/api/t/{t['hash']}/chat", json={"mensagem": "Quanto eu pago?"})
+    finally:
+        main.groq_client = anterior
+
+    mensagens = capturado.get("messages") or []
+    assert mensagens, "o chat não chegou a montar as mensagens"
+    system = next((m["content"] for m in mensagens if m["role"] == "system"), "")
+    assert "honorários de vinte por cento" not in system, "o trecho literal do documento está no papel system"
+    assert "CLÁUSULA" not in system and "Resumo em uma linha" not in system, "conteúdo do documento no system"
+    juntas = "\n".join(m["content"] for m in mensagens)
+    assert "honorários de vinte por cento" in juntas, "o contexto sumiu: o chat deixaria de responder"
+
+    import re
+    tag = re.search(r"<(documento_[0-9a-f]{16})>", mensagens[1]["content"]).group(1)
+    assert tag in system, "o system não nomeia a etiqueta que ele sorteou, então qualquer forjada passa a valer"
+    achadas = set(re.findall(r"</?documento_[0-9a-f]{16}>", mensagens[1]["content"]))
+    assert achadas == {f"<{tag}>", f"</{tag}>"}, f"etiqueta forjada sobreviveu no chat: {achadas}"
+    assert mensagens[-1]["content"] == "Quanto eu pago?", "a pergunta da pessoa deixou de ser a última mensagem"
+
+
+# ── o documento saindo do serviço ─────────────────────────────────────────
+
+EXTERNOS = ("/api/resumo-estruturado/submit", "/api/jurisprudencia/submit")
+
+
+def test_sending_the_document_to_a_third_party_is_off_by_default(citizen):
+    """As duas rotas repassam o documento inteiro, byte a byte, a um host de terceiro que ninguém autentica.
+    Uma capacidade dessas não pode ser o padrão, e precisa de chave para desligar."""
+    for rota in EXTERNOS:
+        r = client.post(rota, files={"pdf": ("d.pdf", small_pdf(), "application/pdf")},
+                        headers=bearer(citizen["token"]))
+        assert r.status_code == 403, f"{rota} mandou o documento para fora sem ninguém ligar nada: {r.status_code}"
+
+
+def test_only_the_provider_can_send_a_document_to_a_third_party(citizen, lawyer, monkeypatch):
+    monkeypatch.setenv("EXTERNAL_FLOWS_ENABLED", "true")
+    for rota in EXTERNOS:
+        for conta in (citizen, lawyer):
+            r = client.post(rota, files={"pdf": ("d.pdf", small_pdf(), "application/pdf")},
+                            headers=bearer(conta["token"]))
+            assert r.status_code == 403, f"{rota} obedeceu a uma conta comum: {r.status_code}"
+
+
+def test_the_journey_says_the_document_left_the_service(admin, monkeypatch):
+    """Hoje nada conta à pessoa que o documento dela saiu daqui: nem o comprovante, nem a tela."""
+    monkeypatch.setenv("EXTERNAL_FLOWS_ENABLED", "true")
+    r = client.post(EXTERNOS[0], files={"pdf": ("d.pdf", small_pdf(), "application/pdf")},
+                    headers=bearer(admin["token"]))
+    assert r.status_code in (200, 201), r.text
+    h = r.json()["hash"]
+    tipos = [e.get("tipo") for e in ws.read_events(h)]
+    assert "documento_enviado_a_terceiro" in tipos, f"nenhum evento registra a saída: {tipos}"
+
+    from leia.api_citizen import public_events
+    publicos = [e.get("tipo") for e in public_events(ws.read_events(h))]
+    assert "documento_enviado_a_terceiro" in publicos, "o evento existe mas a pessoa não o vê"
+
+
+def test_the_external_routes_check_size_and_that_it_is_a_pdf(admin, monkeypatch):
+    """A checagem de 15 MB e de assinatura %PDF existia só nos outros dois caminhos de upload."""
+    monkeypatch.setenv("EXTERNAL_FLOWS_ENABLED", "true")
+    monkeypatch.setenv("MAX_UPLOAD_MB", "1")
+    for rota in EXTERNOS:
+        r = client.post(rota, files={"pdf": ("d.pdf", b"NAO-E-PDF" * 10, "application/pdf")},
+                        headers=bearer(admin["token"]))
+        assert r.status_code == 400, f"{rota} aceitou o que não é PDF: {r.status_code}"
+        r = client.post(rota, files={"pdf": ("d.pdf", b"%PDF" + b"x" * (2 * 1024 * 1024), "application/pdf")},
+                        headers=bearer(admin["token"]))
+        assert r.status_code == 413, f"{rota} aceitou 2 MB com teto de 1 MB: {r.status_code}"

@@ -281,7 +281,7 @@ recusar (`:99-108`). Provedor: só Groq, via `AsyncGroq` criado em `main.py:30` 
 
 | Ordem | id | Fase | Saída | Contexto | O que faz |
 |---|---|---|---|---|---|
-| 1 | `T1_IDENTIFICADOR_PARTES` (`:22-30`) | 1 | json | `texto_bruto` (texto inteiro em `<data_user>`, `pipeline_pdf.py:145-146`) | partes transcritas ao pé da letra em `identificacao[]` |
+| 1 | `T1_IDENTIFICADOR_PARTES` (`:22-30`) | 1 | json | `texto_bruto` (texto inteiro dentro de uma etiqueta sorteada por chamada, `pipeline_pdf.py:_build_prompt`) | partes transcritas ao pé da letra em `identificacao[]` |
 | 2 | `T2_IDENTIFICADOR_DATAS_VALORES` (`:33-41`) | 1 | json | `texto_bruto` | datas, prazos e valores como escritos em `datas_valores[]` |
 | 3 | `T3_IDENTIFICADOR_FATOS` (`:44-52`) | 1 | json | `texto_bruto` | um item atômico por fato narrado em `fatos[]` |
 | 4 | `T4_IDENTIFICADOR_FUNDAMENTOS` (`:55-63`) | 1 | json | `texto_bruto` | um item por lei, artigo, súmula ou precedente em `fundamentos[]` |
@@ -304,7 +304,7 @@ erro -> `falhou` e retorno (`:296-298`); ao final consolida `memoria_persistente
 artefato em silêncio); `status="pronta"`; registra a aba `chat` na memória de sessão apenas quando `session_token` foi
 passado (`:344-356`), o que só `/api/pdf/destilar` faz. Sem retry, sem timeout, sem retomada: se o processo cair no meio,
 a tarefa fica `processando` para sempre e `reprocessar` responde 409 (`app_gestao.py:670-671`). O texto do PDF entra como
-dado dentro de `<data_user>` e uma instrução fixa pede "Execute a missão agora" (`:57-59, 146`); é a única defesa contra
+dado dentro de uma etiqueta sorteada por chamada, que o papel de sistema nomeia, e o conteúdo do documento tem as etiquetas removidas antes de entrar; é a defesa contra
 injeção de prompt.
 
 Job externo (`core/api.py:135-249`, `core/api_caselaw.py:101-216`): `POST /submit` sem autenticação ("API pública,
