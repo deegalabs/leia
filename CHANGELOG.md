@@ -27,6 +27,21 @@ fecha um sentido, vira versão com tag anotada e release no GitHub.
   pipeline local, que é a única que o chat de bastidor consome.
 ### Produto
 
+- **O portão da conferência aprovava com 66,7% dizendo 83%.** `int(total * 0,83)` trunca para baixo, então com
+  as 6 perguntas que o serviço entrega o piso virava 4, e o comentário ao lado ainda dizia "≥ 83% (10/12)", de
+  quando eram 12. Quem só chutasse entre quatro alternativas passava em 3,76% das tentativas, ou **10,9%
+  dentro das três permitidas**, e saía com comprovante. O piso passou a ser arredondado para cima, então é o
+  número que a tela e o comprovante afirmam, em qualquer quantidade de perguntas. A demonstração, curiosamente,
+  já usava a régua certa: era o serviço que estava errado, e agora os dois derivam da mesma função.
+- **O comprovante passou a dizer se um advogado revisou.** Dois fluxos produziam o mesmo comprovante e só um
+  passava por revisão, sem nada distinguir os dois. Supervisão humana é metade da tese do produto, e era
+  justamente o que faltava no artefato que circula.
+- **E passou a dizer por qual régua mediu.** `understood: true` sozinho é afirmação forte que quem lê o
+  registro não consegue pesar. Agora o payload também traz o instrumento e o piso exigido, para o terceiro
+  julgar em vez de aceitar ou recusar no escuro. Comprovante emitido antes disto continua abrindo, porque o
+  registro congelado guarda o próprio canônico.
+
+
 - **A tela deixou de prometer o que o produto não cumpre.** A jornada afirmava "Suas respostas ficam só com
   você" e, ao encaminhar uma dúvida, mandava junto os dez últimos turnos da conversa, sem ela saber. Agora a
   apresentação diz o que acontece de verdade: a conversa não fica guardada e some ao fechar a página, e fica

@@ -1,6 +1,6 @@
 """Registro de tentativas do cliente + hash imutável de assinatura."""
 from __future__ import annotations
-import hashlib, json, os
+import hashlib, json, math, os
 from datetime import datetime
 from typing import Optional
 
@@ -45,6 +45,18 @@ class AttemptsExhausted(Exception):
     """A pessoa usou o número máximo de tentativas de conferência deste documento."""
 
 
+def pass_mark(total: int) -> int:
+    """Quantos acertos o produto exige, com o piso que ele declara.
+
+    Era `int(total * ratio)`, que trunca para baixo: com 6 perguntas e 83% declarados o piso virava 4, ou seja
+    **66,7%**, e o comentário ao lado ainda dizia "≥ 83% (10/12)", escrito quando eram 12 perguntas. Como
+    produção serve 6, quem só chutasse entre quatro alternativas passava em 3,76% das tentativas, ou 10,9%
+    dentro das três permitidas. Arredondar para cima faz o piso ser o número que a tela e o comprovante
+    afirmam, em qualquer quantidade de perguntas."""
+    ratio = float(os.getenv("QUIZ_PASS_RATIO", "0.83"))
+    return max(1, math.ceil(total * ratio))
+
+
 def _cap() -> int:
     return max(1, int(os.getenv("QUIZ_MAX_ATTEMPTS", "3")))
 
@@ -83,7 +95,7 @@ def record(
         if escolhida is not None and int(escolhida) == correta:
             acertos += 1
 
-    aprovado = acertos >= max(1, int(total * float(os.getenv("QUIZ_PASS_RATIO", "0.83"))))   # ≥ 83% (10/12)
+    aprovado = acertos >= pass_mark(total)
 
     respostas_json = json.dumps(respostas, ensure_ascii=False, sort_keys=True)
     criada_em = datetime.utcnow().replace(microsecond=0)

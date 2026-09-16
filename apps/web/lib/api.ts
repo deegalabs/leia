@@ -30,7 +30,10 @@ export type Task = {
 };
 export type QuizResult = Attempt & { comprovante_token?: string; erros: { id: number; area?: string; enunciado?: string; escolhida?: number | null }[] };
 export type VerifyResult = {
-  payload: { schema: string; documentToken: string; attemptRound: number; attemptSha256: string; understood: boolean; answered: number; createdAt: string };
+  payload: { schema: string; documentToken: string; attemptRound: number; attemptSha256: string; understood: boolean;
+             answered: number; createdAt: string;
+             /* v3: a régua e quem revisou, para o terceiro julgar o peso em vez de aceitar no escuro */
+             instrument?: string; passMark?: number; reviewedByLawyer?: boolean };
   canonical: string;
   payloadHash: string;
   otsPresent: boolean;

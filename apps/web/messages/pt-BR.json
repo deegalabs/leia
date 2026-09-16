@@ -113,7 +113,11 @@
     "proves": "Este código mostra que você respondeu estas perguntas neste dia.",
     "doesNotContain": "Ele não contém seu documento nem suas respostas. Não é a assinatura do contrato. Qualquer pessoa pode conferir pelo QR.",
     "save": "Salvar comprovante",
-    "verifyLink": "Conferir o registro"
+    "verifyLink": "Conferir o registro",
+    "reviewedTitle": "Quem conferiu esta explicação",
+    "reviewedYes": "Um advogado revisou a explicação antes de ela chegar até você.",
+    "reviewedNo": "Esta explicação não passou por um advogado. Você mesma enviou o documento, e a assistente é automática.",
+    "measured": "A conferência foi por perguntas de múltipla escolha: você acertou o mínimo de {piso} de {total}."
   },
   "a0": {
     "title": "Entrar",

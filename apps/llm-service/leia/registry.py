@@ -30,7 +30,9 @@ def render(templates: Any, request: Request, name: str, context: dict[str, Any])
         context["request"] = request
         return templates.TemplateResponse(name, context)
 
-PAYLOAD_SCHEMA = "leia.payload.v2"
+# v3 acrescenta três campos e não tira nenhum: quem revisou, por qual instrumento mediu e qual era o piso.
+# Comprovante gravado antes disto continua abrindo, porque o registro congelado guarda o próprio canônico.
+PAYLOAD_SCHEMA = "leia.payload.v3"
 
 
 def canonical_json(obj: dict[str, Any]) -> str:
@@ -64,7 +66,13 @@ def build_payload(attempt: dict[str, Any]) -> dict[str, Any]:
         "documentSha256": attempt.get("pdf_sha256") or "",
         "summarySha256": attempt.get("resumo_sha256") or "",
         "understood": bool(attempt.get("aprovado")),
+        # "understood" sozinho é afirmação forte e o terceiro não sabe por qual régua. Estes dois dizem a
+        # régua, para ele julgar o peso em vez de aceitar ou recusar no escuro.
+        "instrument": str(attempt.get("instrumento") or "multiple-choice"),
+        "passMark": int(attempt.get("piso") or 0),
         "answered": int(attempt.get("total") or 0),
+        # Metade da tese do produto é a supervisão humana, e o artefato que circula não dizia se ela existiu.
+        "reviewedByLawyer": bool(attempt.get("revisado_por_advogado")),
         "createdAt": created_iso,
     }
 
