@@ -17,10 +17,7 @@ O serviço é um monólito FastAPI com três fluxos sobre um mesmo SQLite (`gest
 1. **Destilação local de PDF** (`app_gestao.py:140-198` e `:538-586`): a pessoa logada envia um PDF, uma
    `BackgroundTask` roda `protocolo_pdf.json` em 14 chamadas sequenciais à Groq (`core/pipeline_pdf.py:199-358`) e grava
    `memoria_persistente.json`, `texto_tagueado.json`, `resumo_humanizado.md` e `questoes.json`.
-2. **Dois jobs em APIs externas** ("Resumo Estruturado" em `core/api.py`, "Jurisprudência" em
-   `core/api_caselaw.py`): o PDF ou texto é enviado sem autenticação a `api.resumoestruturado.com.br` ou
-   `api.jurisprudencia.com.br`, com polling até concluir.
-3. **Página pública da cidadã** `GET /t/{hash}` (`app_gestao.py:815-857`): resumo em markdown, quiz de múltipla escolha,
+2. **Página pública da cidadã** `GET /t/{hash}` (`app_gestao.py:815-857`): resumo em markdown, quiz de múltipla escolha,
    chat em SSE e download de um PDF "assinado" após aprovação.
 
 Além disso, `main.py:471-563` serve o chat de bastidores para quem está logado (`index.html`), com agentes definidos em
@@ -40,7 +37,6 @@ Módulos:
 | `core/pipeline_pdf.py` | executa `protocolo_pdf.json` (`:246-358`), uma chamada Groq por task (`:84-114`) |
 | `core/pdf_extract.py` | extração de texto com pypdf (`:8-19`); sem OCR |
 | `core/pdf_sign.py` | carimbo na página 1 e página de assinatura com reportlab + pypdf (`:20-168`) |
-| `core/api.py`, `core/api_caselaw.py` | clientes httpx dos jobs externos |
 | `protocolo.json` | 1 agente do chat de bastidores (`:1-9`) |
 | `protocolo_pdf.json` | workflow T1..T14 (`:19-185`) |
 | `protocolo_jurisprudencia.json` | 8 agentes; nenhum arquivo `.py`/`.html` o referencia (não está ligado) |
@@ -55,7 +51,6 @@ Como sobe hoje:
 - Dependências pip puras (`requirements.txt:1-9`: fastapi, uvicorn[standard], jinja2, python-multipart, groq, sqlmodel,
   pypdf, reportlab, httpx). Não há `python-dotenv`, `Dockerfile`, `Procfile`, `runtime.txt` nem `pyproject`.
 - Só três leituras de ambiente em todo o código: `API_KEY` (`main.py:26-29`), `RESUMO_ESTRUTURADO_API_BASE`
-  (`core/api.py:25-28`) e `JURISPRUDENCIA_API_BASE` (`core/api_caselaw.py:19-22`).
 - Caminhos relativos ao diretório de trabalho (CWD): `gestao.db` (`core/db.py:9-10`), `workspace/`
   (`core/workspace.py:6-7`, criado no import), `workspace/_sessoes/` (`core/session.py:29-30`), `protocolo_pdf.json`
   (`core/pipeline_pdf.py:38`) e `templates` em `app_gestao.py:30`. Já `main.py` resolve `templates`, `static`,
@@ -104,26 +99,6 @@ quando `papel != "advogado"` (`app_gestao.py:60-61`).
 | GET | `/api/tarefas/{id}/status` (`:794-809`) | cookie + `_permite_ver` | | `{"status", "atualizada_em": iso, "eventos_recentes": [últimos 8 do log.jsonl]}` | nenhum |
 | GET | `/tarefas/{id}/pdf-assinado` (`:1022-1050`) | cookie + `_permite_ver`; 403 sem tentativa aprovada | | mesmo PDF da rota pública | regenera `pdf_assinado.pdf`; `log.jsonl` `pdf_assinado_admin` |
 
-### 2.4 Resumo estruturado (API externa)
-
-| Método | Rota | Auth | Entrada | Saída | Efeitos |
-|---|---|---|---|---|---|
-| POST | `/api/resumo-estruturado/submit` (`app_gestao.py:257-316`) | cookie | multipart `pdf` e/ou form `texto`; 400 "Envie um PDF ou um texto." (`:273`); 400 se o nome não termina em `.pdf` (`:274-275`) | `{"tarefa_id", "hash"}` | `original.pdf` se houver PDF (`:285`); `meta.json` `origem: "resumo_estruturado_api_externa"` (`:298-305`); agenda `executar_resumo_estruturado` (`:312-313`). Se há PDF, o `texto` não é enviado (`core/api.py:59-62`) |
-| GET | `/api/resumo-estruturado/{hash}/status` (`:319-334`) | cookie + `_permite_ver` | | `{"status", "eventos": [tipo começa com "resumo_estruturado"]}` | nenhum |
-| GET | `/api/resumo-estruturado/{hash}/resultado` (`:337-353`) | cookie + `_permite_ver` | | `{"status", "titulo", "dados_llm": <resumo_estruturado.json ou null>, "doc_text": <resumo_estruturado_texto.txt ou null>}` | nenhum |
-| POST | `/api/resumo-estruturado/{hash}/rerun/{step_id}` (`:356-377`) | cookie + `_permite_ver` | | JSON repassado de `POST /jobs/{job_id}/rerun/{step_id}` externo; 409 sem `job_id` (`:371`); 502 em erro (`:377`) | chamada externa (`core/api.py:89-95`) |
-
-Tarefas criadas por este fluxo nunca rodam o pipeline local: não têm `resumo_humanizado.md` nem `questoes.json`, e
-`GET /t/{hash}` mostra "*(resumo indisponível)*" sem quiz (`app_gestao.py:832`).
-
-### 2.5 Jurisprudência (API externa)
-
-| Método | Rota | Auth | Entrada | Saída | Efeitos |
-|---|---|---|---|---|---|
-| POST | `/api/jurisprudencia/submit` (`app_gestao.py:384-448`) | cookie | multipart `pdf` e/ou form `texto` e/ou form `consulta`; 400 se nenhum (`:400-401`) | `{"tarefa_id", "hash"}` | `meta.json` `origem: "jurisprudencia_api_externa"` com `consulta` (`:429-437`); agenda `executar_jurisprudencia` (`:444-445`) |
-| GET | `/api/jurisprudencia/{hash}/status` (`:451-466`) | cookie + `_permite_ver` | | `{"status", "eventos": [tipo começa com "jurisprudencia"]}` | nenhum |
-| GET | `/api/jurisprudencia/{hash}/resultado` (`:469-485`) | cookie + `_permite_ver` | | `{"status", "titulo", "dados_llm": <jurisprudencia_resultado.json>, "doc_text": <jurisprudencia_texto.txt>}` | nenhum |
-
 ### 2.6 Cidadã (públicas, sem autenticação; o hash de 22 caracteres é o único segredo)
 
 | Método | Rota | Auth | Entrada | Saída | Efeitos |
@@ -161,9 +136,7 @@ mas o PDF usa a **melhor** (`:1001`); `melhor` não tem desempate (`core/attempt
 | `tentativa` (`:48-59`) | `id`, `tarefa_id`, `numero` (sequencial por tarefa), `respostas` (JSON `{"<id>": idx}` com `sort_keys`), `acertos`, `total` (= `len(questoes)`), `aprovado`, `hash_imutavel`, `ip`, `user_agent` (<= 300), `criada_em` |
 
 Valores de `status` efetivamente gravados: `criada` (`app_gestao.py:169, 291, 422, 559, 684, 730`), `processando`
-(`core/pipeline_pdf.py:228`, `core/api.py:162`, `core/api_caselaw.py:129`), `pronta` (`pipeline_pdf.py:338`,
-`api.py:235`, `api_caselaw.py:202`), `falhou` (`pipeline_pdf.py:236, 251, 297`; `api.py:170, 178, 191, 211, 224`;
-`api_caselaw.py:137, 145, 158, 178, 191`), `assinada` (`app_gestao.py:892`). `enviada` só aparece na tupla de
+`falhou` (`pipeline_pdf.py:236, 251, 297`), `assinada` (`app_gestao.py:892`). `enviada` só aparece na tupla de
 `app_gestao.py:825` e nunca é gravado. Não existe `concluida`.
 
 Datas são `datetime.utcnow()` sem fuso (naive UTC) em todos os modelos.
@@ -231,28 +204,6 @@ Markdown de até 2800 caracteres com seções fixas: `# Resumo em uma linha`, `#
 mais de 15 palavras; dado ausente vira "não foi informado". Persona: história para uma criança de 10 anos (`:161`).
 Se o modelo devolver um dict, o código usa `.resumo_humanizado` ou `.texto` (`pipeline_pdf.py:327-330`).
 
-### 3.7 `resumo_estruturado.json` e `jurisprudencia_resultado.json` (API externa)
-
-Esquema definido pela API externa; o que o `index.html` espera (`:1437-1443, 1531, 1640-1642, 2064-2069`):
-
-```json
-{"processo": {"classe_<x>": [{"campo", "sub_tipo", "valor", "trecho_verbatim", "sintese_relacao"}],
-              "resposta_final": {"texto": "<markdown com seções ##>"}, "conferencia": "..."},
- "_ui": {"classe_<x>": [{"pos_trecho_verbatim": "a:b", "score_trecho_verbatim": 0.0}]}}
-```
-
-Com fallback para o layout `{identificacao, datas_valores, fatos, fundamentos, pedidos}` ou chave/valor genérico.
-
-### 3.8 Job externo (`core/api.py:41-107`; `core/api_caselaw.py:35-74`)
-
-| Chamada | Corpo | Resposta |
-|---|---|---|
-| `POST /submit` | multipart `file=(nome, bytes, application/pdf)` ou `text=<str>`; resumo acrescenta `enable_synthesis="true"`, `reasoning_effort="medium"`, `modo_disparo="paralelo"` (`api.py:45-57`); jurisprudência acrescenta `consulta` (`api_caselaw.py:45-47`) | `{"job_id": str, "total_steps": int}` gravado em `resumo_estruturado_job.json` / `jurisprudencia_job.json` |
-| `GET /status/{job_id}` | | `{"status": "done"\|"error"\|outro, "current_step", "step_index", "total_steps", "tokens_total", "elapsed", "error"}` |
-| `GET /result/{job_id}` | | `{"dados_llm", "doc_text", "tokens_total", "elapsed"}` gravado em `resumo_estruturado.json` + `resumo_estruturado_texto.txt` (ou `jurisprudencia_resultado.json` + `jurisprudencia_texto.txt`) |
-| `POST /jobs/{job_id}/rerun/{step_id}` | | repassado |
-| `POST /export-pdf` (`api.py:98-107`) | | sem chamador em lugar nenhum |
-
 ### 3.9 Eventos `log.jsonl` (`core/workspace.py:27-30`)
 
 Linha `{"ts": iso utc, "tipo": str, ...extras}`. Tipos: `criada{tarefa_id, advogado_id}`, `pdf_salvo{nome, bytes}`,
@@ -307,7 +258,6 @@ a tarefa fica `processando` para sempre e `reprocessar` responde 409 (`app_gesta
 dado dentro de uma etiqueta sorteada por chamada, que o papel de sistema nomeia, e o conteúdo do documento tem as etiquetas removidas antes de entrar; é a defesa contra
 injeção de prompt.
 
-Job externo (`core/api.py:135-249`, `core/api_caselaw.py:101-216`): `POST /submit` sem autenticação ("API pública,
 sem chave", `api.py:22`); polling `GET /status/{job_id}` a cada 1,5 s até `done`/`error` ou 600 s (`api.py:30-31`), erros de
 status são engolidos e o loop continua; depois `GET /result/{job_id}` e gravação dos arquivos. Timeouts httpx de 60 s
 (submit/result) e 30 s (status/rerun). Os hosts padrão não foram verificados como existentes.
@@ -336,11 +286,6 @@ status são engolidos e o loop continua; depois `GET /result/{job_id}` e gravaç
 | `app_gestao.py:932-942` | system prompt do chat da cidadã inline | `CITIZEN_CHAT_PROMPT_FILE` (versionar em `prompts/`) | não | arquivo em `prompts/workflow/` | pendente |
 | `core/pipeline_pdf.py:97-98` | `temperature 0.0`, `max_completion_tokens 8000` | `PIPELINE_TEMPERATURE`, `PIPELINE_MAX_TOKENS` | não | `0.0`, `8000` | pendente |
 | `main.py:291`, `:205`, `:249`, `:35-36` | `temperature=1`, `max_completion_tokens=6048`; limites 12000/12 e 15000/20; `DELAY_ENTRE_AGENTES=0.2`; `STOP_PIPELINE:` | `CHAT_TEMPERATURE`, `CHAT_MAX_TOKENS`, `CHAT_CONTEXT_MAX_CHARS`, `CHAT_CONTEXT_MAX_MSGS`, `AGENT_DELAY_SECONDS` | não | os atuais | pendente (bastidores, baixa prioridade) |
-| `core/api.py:25-28` | `https://api.resumoestruturado.com.br` | `RESUMO_ESTRUTURADO_API_BASE` | não | já lida do ambiente | ok |
-| `core/api_caselaw.py:19-22` | `https://api.jurisprudencia.com.br` | `JURISPRUDENCIA_API_BASE` | não | já lida do ambiente | ok |
-| `core/api.py:30-31`, `core/api_caselaw.py:24-25` | `POLL_INTERVAL=1.5`, `POLL_TIMEOUT=600.0` | `EXTERNAL_POLL_INTERVAL`, `EXTERNAL_POLL_TIMEOUT` | não | `1.5`, `600` | pendente |
-| `core/api.py:64, 73, 82, 91, 103`; `core/api_caselaw.py:54, 62, 70` | httpx `timeout=60.0` / `30.0` | `EXTERNAL_HTTP_TIMEOUT` | não | `60` | pendente |
-| `core/api.py:45-47` | `enable_synthesis=True`, `reasoning_effort="medium"`, `modo_disparo="paralelo"` | `RESUMO_REASONING_EFFORT`, `RESUMO_MODO_DISPARO` | não | os atuais | pendente |
 | `core/auth.py:10` | `_ITERS = 200_000` | `PBKDF2_ITERATIONS` | não | `200000` | pendente |
 | `main.py:18-22` | `logging.basicConfig(level=INFO)` | `LOG_LEVEL` | não | `INFO` | pendente |
 | `core/pdf_sign.py:38, 69, 127-128`; `templates/cliente_view.html:6, 229, 317`; `login.html:58`; `dashboard.html:6, 324`; `tarefa_nova.html:6` | `Para.AI`, `AI Forensics`, "Documento gerado automaticamente" | `BRAND_NAME` (o rodapé do PDF é decisão de conteúdo) | não | `LeIA` | pendente (o `title` do app já é "LeIA · serviço cognitivo" em `repo:main.py:43`) |
@@ -372,7 +317,6 @@ Lista consolidada de variáveis (nome, obrigatória, padrão, o que substitui):
 | `PIPELINE_TEMPERATURE`, `PIPELINE_MAX_TOKENS` | não | `0.0`, `8000` | `core/pipeline_pdf.py:97-98` |
 | `PDF_PROTOCOL_FILE` | não | `<BASE_DIR>/protocolo_pdf.json` | `core/pipeline_pdf.py:38` |
 | `RESUMO_ESTRUTURADO_API_BASE`, `JURISPRUDENCIA_API_BASE` | não | os hosts atuais | já lidas |
-| `EXTERNAL_POLL_INTERVAL`, `EXTERNAL_POLL_TIMEOUT`, `EXTERNAL_HTTP_TIMEOUT` | não | `1.5`, `600`, `60` | `core/api.py:30-31, 64-103`; `core/api_caselaw.py:24-25, 54-70` |
 | `LOG_LEVEL` | não | `INFO` | `main.py:18-22` |
 | `BRAND_NAME` | não | `LeIA` | strings `Para.AI` / `AI Forensics` |
 
@@ -381,7 +325,6 @@ Lista consolidada de variáveis (nome, obrigatória, padrão, o que substitui):
 | O quê | Caminho (v2) | Onde no código | Volume? |
 |---|---|---|---|
 | SQLite: usuários e hashes de senha, tokens de sessão, tarefas, eventos, tentativas com IP e user-agent | `./gestao.db` (CWD) | `core/db.py:9-10, 106-109` | **sim** |
-| Workspace por tarefa: `original.pdf`, `meta.json`, `log.jsonl`, `texto_extraido.txt`, `T1_...T14_*.json`, `memoria_persistente.json`, `texto_tagueado.json`, `resumo_humanizado.md`, `questoes.json`, `pdf_assinado.pdf`, `resumo_estruturado_job.json`, `resumo_estruturado.json`, `resumo_estruturado_texto.txt`, `jurisprudencia_job.json`, `jurisprudencia_resultado.json`, `jurisprudencia_texto.txt` (e, na cópia, `tentativa_N.ots`) | `./workspace/{hash}/` (CWD; `Tarefa.workspace_path` guarda esse caminho relativo) | `core/workspace.py:6-30`; `app_gestao.py:163, 285, 413, 553, 724, 1011, 1043`; `core/pipeline_pdf.py:241, 304, 318, 322, 331, 334`; `core/api.py:184, 229, 231`; `core/api_caselaw.py:151, 196, 198` | **sim** (sem ele todo `/t/{hash}` morre a cada deploy) |
 | Memória de sessão por login | `./workspace/_sessoes/{session_token}.json` | `core/session.py:29-35, 90-99` | não (apagada no logout) |
 | Histórico global do chat de bastidores | `<BASE_DIR>/contexto_persistente.json` | `main.py:34, 180-202` | não |
 | Protocolo do chat, reescrito em tempo de execução | `<BASE_DIR>/protocolo.json` | `main.py:32, 169-177` | só se a edição por `POST /api/protocolo` tiver que sobreviver ao deploy |
@@ -431,8 +374,6 @@ Para a v2 pura, os pontos são:
   serve, 3.12 testado localmente. Sem pacotes de sistema (pypdf e reportlab são puros).
 - **Duração**: 14 chamadas sequenciais à Groq com 8k a 12k tokens por task e o texto inteiro em T1..T5; contar minutos
   por PDF e limites de taxa da Groq. Pré-processar os PDFs de exemplo antes da auditoria.
-- **Hosts externos**: `api.resumoestruturado.com.br` e `api.jurisprudencia.com.br` são padrões não verificados; se
-  inacessíveis, a tarefa termina `falhou` após o erro de submit (`core/api.py:166-172`). O app Next não depende deles.
 - **Escrita no diretório do código**: `POST /api/protocolo` reescreve `protocolo.json` (`main.py:172`) e `/api/chat`
   anexa a `contexto_persistente.json` (`main.py:190`); ambos somem no próximo deploy e exigem filesystem gravável.
 
@@ -510,7 +451,6 @@ precisa de uma checagem server-side (substring, ou `pos_trecho_verbatim` contra 
 |---|---|---|---|
 | IP e user-agent da cidadã | ao abrir a página (`app_gestao.py:841-843`) e a cada tentativa (`:880-883`, `core/attempts.py:53-54, 66-68`) | `log.jsonl` (`ua[:200]`), tabela `tentativa` (`ua[:300]`), preimage do `hash_imutavel` (`attempts.py:25`) e **em claro na página de assinatura do PDF** (`core/pdf_sign.py:105-106`) | quem baixa o PDF: a cidadã (`/t/{hash}/pdf-assinado`, público) e quem enviou (`/tarefas/{id}/pdf-assinado`) |
 | PDF original e texto extraído | upload (`app_gestao.py:163, 285, 413, 553`), extração (`core/pipeline_pdf.py:241`) | `workspace/{hash}/original.pdf`, `texto_extraido.txt`, copiados a cada nova rodada (`:724`); embutidos no PDF assinado | quem tem o link; `index.html:1892` diz "o PDF em si não é guardado", o que não bate com o código |
-| Nomes das partes, datas, valores, fatos | T1..T5 transcrevem ao pé da letra (`protocolo_pdf.json:22-74`) | `T1_...T6_*.json`, `memoria_persistente.json`, a história da T13 (usa nomes próprios, `:161`), o system prompt do chat (`app_gestao.py:928-942`), a memória de sessão (`core/session.py:62-87`) | texto inteiro vai à Groq (`core/pipeline_pdf.py:145-146`); nos fluxos externos, o PDF inteiro vai sem autenticação a terceiros (`core/api.py:59-65`, `core/api_caselaw.py:49-55`) |
 | Identidade de quem enviou (id, e-mail, nome) | `meta.json` (`app_gestao.py:179, 301, 432, 569`) | `workspace/{hash}/meta.json`, baixável por `/tarefas/{id}/artefato/meta.json` | usuários logados |
 | Perguntas de quem está logado ao chat de bastidores | `main.py:365-370, 447-454` | `contexto_persistente.json`, um arquivo para todos | qualquer usuário logado via `GET /api/contexto` (`main.py:503-505`) |
 | Tokens de sessão | `core/auth.py:34` | em claro no banco e como nome de arquivo em `workspace/_sessoes` (`core/session.py:33-35`); cookie sem `Secure` e sem validade (`app_gestao.py:86`) | |
@@ -561,8 +501,6 @@ está no fonte: rotacionar a chave na Groq antes do primeiro push.
    com `--proxy-headers --forwarded-allow-ips='*'`. Você concorda com esse start command?
 8. As tarefas de `/tarefas/nova`, `reprocessar` e `nova-rodada` não passam `session_token` ao pipeline
    (`app_gestao.py:583, 694, 755`), então não atualizam a aba `chat` da memória de sessão; é intencional?
-9. Os hosts `api.resumoestruturado.com.br` e `api.jurisprudencia.com.br` existem e respondem hoje? Se não, tiramos as
-   abas do painel para a auditoria ou deixamos com aviso?
 10. `protocolo_jurisprudencia.json`, `_legacy/`, `protocolo.json.bak_historia_infantil` e `core/pd_extract.py` (0 bytes, removido)
     não são usados por nada; podemos deixar fora do repositório público?
 11. `POST /api/protocolo` reescreve `protocolo.json` no diretório do código (`main.py:172`) e `GET /api/contexto` mostra o

@@ -1,9 +1,7 @@
 """Public JSON for the citizen app and the registry adapter. Included from main.py.
 
 GET /api/t/{hash}: the same data the service renders in /t/{hash}, as JSON and without the answer key, plus
-``etapas`` (the 14 workflow steps with state and time) and up to 60 pipeline events. When the task came from
-the external "Resumo estruturado" flow (only ``resumo_estruturado.json`` in the workspace), the summary and the
-topics are built from it and the journey has no questions (``sem_perguntas``).
+``etapas`` (the 14 workflow steps with state and time) and up to 60 pipeline events.
 GET /api/t/{hash}/inferencias: what the workflow tagged over the original text; during ``criada``/``processando``
 it answers with ``parcial: true`` and the classes produced so far (files T1..T5), so the waiting screen can show
 the document being marked.
@@ -42,11 +40,7 @@ GATE_MESSAGE = "Em revisão pelo advogado"
 PUBLIC_EVENT_TYPES = {"criada", "pdf_salvo", "pipeline_start", "texto_extraido", "task_start", "task_done", "task_error",
                       "erro_extracao", "pipeline_done", "tentativa", "carimbo_publico", "duvida_enviada", "reprocess",
                       "aprovada",
-                      # external "Resumo estruturado" flow (core/api.py): job progress, no personal data
-                      "resumo_estruturado_start", "resumo_estruturado_job", "resumo_estruturado_status",
-                      "resumo_estruturado_done", "resumo_estruturado_erro",
-                      # o documento saiu do serviço: a pessoa vê isso na jornada, não só no log interno
-                      "documento_enviado_a_terceiro"}
+}
 PUBLIC_EVENT_LIMIT = 60
 
 # The 14 workflow tasks of protocolo_pdf.json (ids as written there) with the pt-BR names of docs/API-V3-CONTRACT.md.
@@ -68,8 +62,10 @@ STEP_NAMES: dict[str, str] = {
 }
 FRAGMENT_FILES = ["T1_IDENTIFICADOR_PARTES.json", "T2_IDENTIFICADOR_DATAS_VALORES.json", "T3_IDENTIFICADOR_FATOS.json",
                   "T4_IDENTIFICADOR_FUNDAMENTOS.json", "T5_IDENTIFICADOR_PEDIDOS.json"]
-EXTERNAL_RESULT_FILE = "resumo_estruturado.json"
-EXTERNAL_TEXT_FILE = "resumo_estruturado_texto.txt"
+# Os dois fluxos que mandavam o documento para fora foram removidos. O arquivo continua nomeado aqui só para
+# reconhecer documento antigo que veio por aquele caminho e falhar dizendo o motivo, em vez de mostrar uma tela
+# de explicação vazia com ar de normalidade.
+LEGACY_EXTERNAL_FILE = "resumo_estruturado.json"
 
 
 def public_events(events: list[dict[str, Any]], limit: int = PUBLIC_EVENT_LIMIT) -> list[dict[str, Any]]:
@@ -78,17 +74,10 @@ def public_events(events: list[dict[str, Any]], limit: int = PUBLIC_EVENT_LIMIT)
     return out[-limit:]
 
 
-def is_external_flow(events: list[dict[str, Any]], workspace_dir: Optional[Path]) -> bool:
-    """True when the task went through the external "Resumo estruturado" API instead of the local workflow."""
-    if any(str(e.get("tipo", "")).startswith("resumo_estruturado") for e in events):
-        return True
-    return bool(workspace_dir) and (Path(workspace_dir) / EXTERNAL_RESULT_FILE).exists()
-
-
 def build_steps(events: list[dict[str, Any]], workspace_dir: Optional[Path] = None) -> list[dict[str, Any]]:
     """The 14 workflow steps with ``estado`` and ``tempo`` derived from log.jsonl (task_start / task_done /
     task_error, latest event wins) and, when the log says nothing about a step, from the presence of its
-    ``T*.json`` file. Empty for tasks of the external flow that never ran the local workflow."""
+    ``T*.json`` file."""
     steps = {sid: {"id": sid, "nome": name, "estado": "pendente", "tempo": None} for sid, name in STEP_NAMES.items()}
     for e in events:
         step = steps.get(str(e.get("id") or ""))
@@ -106,8 +95,6 @@ def build_steps(events: list[dict[str, Any]], workspace_dir: Optional[Path] = No
             if step["estado"] == "pendente" and (Path(workspace_dir) / f"{sid}.json").exists():
                 step["estado"] = "concluida"
     out = list(steps.values())
-    if all(s["estado"] == "pendente" for s in out) and is_external_flow(events, workspace_dir):
-        return []
     return out
 
 
@@ -237,17 +224,6 @@ def topics_from_summary(resumo_md: str, memoria: Any, documento: str = "",
                     break
         topics.append(topic)
     return topics
-
-
-EXTERNAL_CLASS_LABELS = {
-    "fatos": ("Fatos", "#F9DEDC"),
-    "decisao": ("Decisão", "#D2E3FC"),
-    "base_legal": ("Base legal", "#EADDFF"),
-    "dispositivos": ("Dispositivos", "#EADDFF"),
-    "pedidos": ("Pedidos", "#FFDDBE"),
-    "precedentes": ("Precedentes", "#E3F1F1"),
-    "relevancia": ("Relevância", "#C8E6C9"),
-}
 _ROMAN = re.compile(r"^(?:[ivx]+)_")
 
 
@@ -255,12 +231,6 @@ def humanize(key: Any, fallback: str = "") -> str:
     """``especie_recurso`` -> ``Especie recurso``; the fallback when the key is empty."""
     s = str(key or "").replace("_", " ").strip()
     return (s[:1].upper() + s[1:]) if s else fallback
-
-
-def external_class_label(key: str) -> tuple[str, str]:
-    """``classe_ii_base_legal`` -> ("Base legal", color). Unknown classes get the humanized key and a neutral color."""
-    base = _ROMAN.sub("", key[len("classe_"):] if key.startswith("classe_") else key)
-    return EXTERNAL_CLASS_LABELS.get(base, (humanize(base, key), "#ECEFF1"))
 
 
 def _strings_of(obj: Any, out: list[str], limit: int = 4) -> list[str]:
@@ -296,20 +266,6 @@ def value_text(valor: Any) -> str:
     return "" if valor is None else str(valor)
 
 
-def external_parts(doc: Any) -> tuple[dict[str, Any], dict[str, Any]]:
-    """(processo, _ui) of a resumo_estruturado.json; ``_ui`` may sit at the root or inside ``processo``."""
-    if not isinstance(doc, dict):
-        return {}, {}
-    processo = doc.get("processo") if isinstance(doc.get("processo"), dict) else doc
-    ui = doc.get("_ui") if isinstance(doc.get("_ui"), dict) else processo.get("_ui")
-    return processo, ui if isinstance(ui, dict) else {}
-
-
-def external_classes(processo: dict[str, Any]) -> list[tuple[str, list[dict[str, Any]]]]:
-    """The ``classe_*`` lists of the external result, in document order (conferencia, resumo_* and resposta_final skipped)."""
-    return [(k, v) for k, v in processo.items() if k.startswith("classe_") and isinstance(v, list)]
-
-
 def _ui_entry(ui: dict[str, Any], cls: str, n: int) -> dict[str, Any]:
     items = ui.get(cls)
     if isinstance(items, list) and n < len(items) and isinstance(items[n], dict):
@@ -323,31 +279,6 @@ def _score(entry: dict[str, Any]) -> Optional[float]:
         return float(s) if s is not None and not isinstance(s, bool) else None
     except (TypeError, ValueError):
         return None
-
-
-def external_summary(doc: Any) -> tuple[str, list[dict[str, Any]]]:
-    """Fallback for tasks of the external flow: (resumo_md from resposta_final, topics from the classe_* items).
-    Each topic: titulo = humanized ``campo``, explicacao = ``valor`` (or ``sintese_relacao``), trecho = ``trecho_verbatim``,
-    score from ``_ui`` when present."""
-    processo, ui = external_parts(doc)
-    final = processo.get("resposta_final") if processo.get("resposta_final") is not None else (doc.get("resposta_final") if isinstance(doc, dict) else None)
-    resumo_md = (final.get("texto") if isinstance(final, dict) else final) or ""
-    topics: list[dict[str, Any]] = []
-    for cls, items in external_classes(processo):
-        label, _ = external_class_label(cls)
-        for n, it in enumerate(items):
-            if not isinstance(it, dict):
-                continue
-            explicacao = value_text(it.get("valor")) or value_text(it.get("sintese_relacao"))
-            topic: dict[str, Any] = {"id": len(topics) + 1, "titulo": humanize(it.get("campo"), label), "explicacao": explicacao,
-                                     "classe": cls}
-            if it.get("trecho_verbatim"):
-                topic["trecho"] = str(it["trecho_verbatim"])
-            score = _score(_ui_entry(ui, cls, n))
-            if score is not None:
-                topic["score"] = score
-            topics.append(topic)
-    return str(resumo_md), topics
 
 
 def _task_or_404(session: Session, hash_: str) -> Tarefa:
@@ -381,6 +312,11 @@ async def api_cliente_json(hash_: str, visitante: Optional[Usuario] = Depends(op
             "advogado": {"nome": lawyer.nome} if lawyer else None, "tem_advogado": lawyer is not None,
             "cidadao_vinculado": t.cidadao_id is not None, "duvidas_enviadas": int(doubts or 0),
             "convite": invites.public_json(session, t)}
+    if _read_artifact(t.hash, "resumo_humanizado.md") is None and _read_json(t.hash, LEGACY_EXTERNAL_FILE) is not None:
+        # Documento preparado pelo fluxo externo, que não existe mais. Vem antes do portão de revisão porque
+        # o portão pressupõe que existe uma explicação para o advogado conferir, e aqui não existe.
+        return {**base, "tarefa": {**base["tarefa"], "status": "falhou"},
+                "resumo_md": None, "topicos": None, "questoes": [], "ultima_tentativa": None}
     if is_gated(t):
         base["tarefa"]["status"] = "revisao"
         return {**base, "resumo_md": None, "topicos": None, "questoes": [], "ultima_tentativa": None}
@@ -390,11 +326,6 @@ async def api_cliente_json(hash_: str, visitante: Optional[Usuario] = Depends(op
     ultima = _public_attempt(lista[-1] if lista else None)
     resumo_md = _read_artifact(t.hash, "resumo_humanizado.md")
     if resumo_md is None:
-        externo = _read_json(t.hash, EXTERNAL_RESULT_FILE)
-        if externo is not None:
-            # external flow: no local explanation nor questions; the journey ends without the check
-            resumo_md, topicos = external_summary(externo)
-            return {**base, "resumo_md": resumo_md, "topicos": topicos, "questoes": [], "sem_perguntas": True, "ultima_tentativa": ultima}
         resumo_md = ""
     questoes = _public_questions(_read_json(t.hash, "questoes.json") or {})
     memoria = _read_json(t.hash, "memoria_persistente.json")
@@ -453,9 +384,6 @@ def _document_sha(tarefa_hash: str) -> str:
 def _summary_sha(tarefa_hash: str) -> str:
     """The explanation the person actually read, in the form the screen rendered it."""
     resumo = _read_artifact(tarefa_hash, "resumo_humanizado.md")
-    if resumo is None:
-        externo = _read_json(tarefa_hash, EXTERNAL_RESULT_FILE)
-        resumo = external_summary(externo)[0] if externo is not None else None
     return sha256_hex(resumo) if resumo else ""
 
 
@@ -681,40 +609,6 @@ def build_inferences(texto: str, memoria: Any, tagueado: Any, sinteses_raw: list
     return {"texto": texto or "", "classes": classes, "sinteses": _syntheses(sinteses_raw, CLASS_LABELS), "total": total, "conferidos": conferidos}
 
 
-def build_external_inferences(texto: str, doc: Any) -> dict[str, Any]:
-    """Inferences of a resumo_estruturado.json (external flow): classes from ``processo.classe_*`` with labels from
-    the key, positions from ``_ui`` when valid (else substring), ``score`` from ``_ui``; syntheses from ``resumo_classe_*``."""
-    processo, ui = external_parts(doc)
-    text_norm, idx = _norm_map(texto or "")
-    classes, total, conferidos = [], 0, 0
-    groups: dict[str, list[str]] = {}
-    for cls, items in external_classes(processo):
-        label, color = external_class_label(cls)
-        m = re.match(r"^classe_([ivx]+)_", cls)
-        if m:
-            groups.setdefault(m.group(1), []).append(label)
-        out = []
-        for n, it in enumerate(items):
-            if not isinstance(it, dict):
-                continue
-            item = _item(cls, n, it, texto or "", text_norm, idx, color, _ui_entry(ui, cls, n))
-            item["valor"] = value_text(it.get("valor"))
-            total += 1
-            conferidos += 1 if item["conferido"] else 0
-            out.append(item)
-        classes.append({"classe": cls, "rotulo": label, "cor": color, "itens": out})
-    sinteses = []
-    for key, body in processo.items():
-        if not key.startswith("resumo_classe_") or not isinstance(body, dict):
-            continue
-        roman = key[len("resumo_classe_"):]
-        names = groups.get(roman) or []
-        rotulo = " e ".join([names[0]] + [n[:1].lower() + n[1:] for n in names[1:]]) if names else humanize(body.get("campo"), key)
-        sinteses.append({"classe": key, "rotulo": rotulo, "texto": value_text(body.get("valor")) or value_text(body.get("sintese_relacao")),
-                         "lastro": [str(x) for x in (body.get("lastro") or [])]})
-    return {"texto": texto or "", "classes": classes, "sinteses": sinteses, "total": total, "conferidos": conferidos}
-
-
 @router.get("/api/t/{hash_}/inferencias")
 async def api_cliente_inferencias(hash_: str, visitante: Optional[Usuario] = Depends(optional_api_user),
                                   session: Session = Depends(get_session)):
@@ -733,14 +627,9 @@ async def api_cliente_inferencias(hash_: str, visitante: Optional[Usuario] = Dep
 
 def inferences_of(t: Tarefa) -> dict[str, Any]:
     """Inference body of a finished task from its workspace artifacts (shared with the lawyer review route).
-    Without ``memoria_persistente.json`` but with ``resumo_estruturado.json`` (external flow) the body comes from the latter."""
+    """
     memoria = _read_json(t.hash, "memoria_persistente.json")
     texto = _read_artifact(t.hash, "texto_extraido.txt")
-    if memoria is None:
-        externo = _read_json(t.hash, EXTERNAL_RESULT_FILE)
-        if externo is not None:
-            texto = texto if texto is not None else (_read_artifact(t.hash, EXTERNAL_TEXT_FILE) or "")
-            return {**build_external_inferences(texto, externo), "parcial": False}
     sinteses_raw = [(cls, _read_json(t.hash, name)) for name, cls in SYNTHESIS_FILES]
     return {**build_inferences(texto or "", memoria, _read_json(t.hash, "texto_tagueado.json"), sinteses_raw), "parcial": False}
 

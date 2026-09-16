@@ -1,21 +1,17 @@
 /* In-app mock of the cognitive service (same routes and shapes as apps/llm-service/mock/app.py), used when
    NEXT_PUBLIC_API_BASE is empty, e.g. on the hosted demo. Stateless: receipts travel as tokens. */
 import fixture from "@/data/fixture-honorarios.json";
-import externalFixture from "@/data/fixture-externo.json"; /* LeIA: external "Resumo estruturado" flow: topics with score, no questions */
 import { attemptHash, buildPayload, canonical, encodeToken, newSalt, nowIso, sha256, type AttemptRecord } from "./registry";
 import { tokenFromRequest } from "./server/session";
 import { findSpan, type Anchor, type InferenceClass, type Inferences } from "./inferences"; /* LeIA: review flow shares the inferences with the public route */
 import type { Stage } from "./api";
 
 type FixtureQuestion = { id: number; area: string; dificuldade: string; enunciado: string; alternativas: string[]; correta: number; justificativa: string };
-/* LeIA: topics may come from the local pipeline (clausula) or from the external flow (classe + score) */
+/* LeIA: topics come from the local pipeline (clausula) */
 type FixtureTopic = { id: number; titulo: string; explicacao: string; trecho: string; clausula?: string; classe?: string; score?: number };
 type Fixture = Omit<typeof fixture, "topicos" | "documento_texto"> & { topicos: FixtureTopic[]; documento_texto: { clausula?: string; texto: string }[]; sem_perguntas?: boolean };
 const F: Fixture = fixture;
-/* LeIA: what the external flow leaves behind: resumo_md from "resposta_final", topics from "classe_*", no questions */
-const EXT: Fixture = { ...F, tarefa: { ...F.tarefa, ...externalFixture.tarefa, pdf_nome: "peticao-inicial-cobranca.pdf" }, documento_texto: externalFixture.documento_texto, topicos: externalFixture.topicos, resumo_md: externalFixture.resumo_md, questoes: { questoes: [] }, sem_perguntas: true };
-const EXTERNAL_DEMO_HASH = externalFixture.tarefa.hash;
-const contentOf = (t: MockTask): Fixture => (t.externa ? EXT : F);
+const contentOf = (_t: MockTask): Fixture => F;
 
 /* LeIA: v3 tasks live in the in-memory store; each one reuses the fixture content as if the pipeline finished. */
 export function findTask(hash: string) {
@@ -42,7 +38,7 @@ export function publicTask(f: Fixture) {
     tarefa: f.tarefa, resumo_md: f.resumo_md, topicos: checkedTopics(f),
     questoes: (f.questoes.questoes as FixtureQuestion[]).map((q) => ({ id: q.id, enunciado: q.enunciado, alternativas: q.alternativas, area: q.area })),
     ultima_tentativa: null,
-    sem_perguntas: Boolean(f.sem_perguntas), /* LeIA: external flow ends the journey without questions */
+    sem_perguntas: Boolean(f.sem_perguntas),
   };
 }
 
@@ -93,8 +89,8 @@ export type MockTask = {
   id: number; hash: string; titulo: string; status: "criada" | "processando" | "pronta" | "enviada" | "assinada" | "falhou"; /* LeIA: enviada = released by the lawyer */
   criada_em: string; atualizada_em: string; origem: "advogado" | "cidadao"; dono_id: number; cidadao_id: number | null;
   ready_at: number; eventos: MockEvent[]; tentativas: MockAttempt[]; duvidas: MockDoubt[];
-  /* LeIA: visible preparation. How many of the 14 steps started and finished; externa = produced by the external flow (no steps) */
-  etapas_iniciadas: number; etapas_feitas: number; externa: boolean;
+  /* LeIA: visible preparation. How many of the 14 steps started and finished */
+  etapas_iniciadas: number; etapas_feitas: number;
   /* LeIA: o convite que governa o link; ausente significa link aberto, como sempre foi */
   convite?: MockInvite | null;
 };
@@ -123,7 +119,7 @@ function seed(): Store {
   const tasks = new Map<string, MockTask>();
   /* LeIA: review flow. The demo task is already released ("enviada") so the landing example keeps working;
      a second task of the same lawyer waits in "pronta" to show the review screen. */
-  const finished = { etapas_iniciadas: STEP_TOTAL, etapas_feitas: STEP_TOTAL, externa: false };
+  const finished = { etapas_iniciadas: STEP_TOTAL, etapas_feitas: STEP_TOTAL };
   /* the seeded tasks finished the pipeline before the process started: full step log with the same timestamp */
   const stepEvents: MockEvent[] = STEP_NAMES.flatMap((_, i) => [{ tipo: "task_start", ts, id: `T${i + 1}`, idx: i, total: STEP_TOTAL }, { tipo: "task_done", ts, id: `T${i + 1}`, idx: i, total: STEP_TOTAL }]);
   tasks.set(F.tarefa.hash, {
@@ -136,14 +132,7 @@ function seed(): Store {
     id: 2, hash: REVIEW_DEMO_HASH, titulo: "Contrato de honorários: ação de cobrança", status: "pronta", criada_em: ts, atualizada_em: ts, origem: "advogado", dono_id: 1, cidadao_id: null, ready_at: 0,
     eventos: [{ tipo: "criada", ts }, { tipo: "extracao_texto", ts }, ...stepEvents, { tipo: "pipeline_concluido", ts }], tentativas: [], duvidas: [], ...finished,
   });
-  /* LeIA: external flow. The lawyer's panel sent the PDF to the external API: summary and marked topics with score, no
-     questions, no local steps. Already released so the citizen link opens the "no questions" journey. */
-  tasks.set(EXTERNAL_DEMO_HASH, {
-    id: 3, hash: EXTERNAL_DEMO_HASH, titulo: EXT.tarefa.titulo, status: "enviada", criada_em: ts, atualizada_em: ts, origem: "advogado", dono_id: 1, cidadao_id: null, ready_at: 0,
-    eventos: [{ tipo: "criada", ts }, { tipo: "resumo_estruturado", ts }, { tipo: "aprovada", ts }], tentativas: [], duvidas: [],
-    etapas_iniciadas: 0, etapas_feitas: 0, externa: true,
-  });
-  return { users, tasks, seq: { user: 2, task: 3, doubt: 1 } };
+  return { users, tasks, seq: { user: 2, task: 2, doubt: 1 } };
 }
 const g = globalThis as unknown as { __leiaMockStore?: Store };
 const store = (): Store => (g.__leiaMockStore ??= seed());
@@ -158,9 +147,8 @@ function advanceSteps(t: MockTask, done: number, started: number) {
   }
   if (t.etapas_iniciadas < Math.min(started, STEP_TOTAL)) { const i = t.etapas_iniciadas; t.eventos.push({ tipo: "task_start", ts, id: `T${i + 1}`, idx: i, total: STEP_TOTAL }); t.etapas_iniciadas = i + 1; }
 }
-/* the 14 steps as the public route reports them; an external task has none */
+/* the 14 steps as the public route reports them */
 export function stagesOf(t: MockTask): Stage[] {
-  if (t.externa) return [];
   return STEP_NAMES.map((nome, i) => {
     const estado: Stage["estado"] = i < t.etapas_feitas ? "concluida" : i < t.etapas_iniciadas ? (t.status === "falhou" ? "erro" : "em_andamento") : "pendente";
     return estado === "concluida" ? { id: `T${i + 1}`, nome, estado, tempo: STEP_SECONDS[i] } : { id: `T${i + 1}`, nome, estado };
@@ -239,7 +227,7 @@ export function createTask(u: MockUser, titulo: string) {
   const t: MockTask = {
     id: ++s.seq.task, hash: newSalt().slice(0, 16), titulo: titulo.trim() || "Documento sem título", status: "criada", criada_em: ts, atualizada_em: ts,
     origem: u.papel === "cidadao" ? "cidadao" : "advogado", dono_id: u.id, cidadao_id: u.papel === "cidadao" ? u.id : null, ready_at: Date.now() + PIPELINE_MS,
-    eventos: [{ tipo: "criada", ts }], tentativas: [], duvidas: [], etapas_iniciadas: 0, etapas_feitas: 0, externa: false,
+    eventos: [{ tipo: "criada", ts }], tentativas: [], duvidas: [], etapas_iniciadas: 0, etapas_feitas: 0,
   };
   s.tasks.set(t.hash, t);
   return { id: t.id, hash: t.hash, status: t.status };
@@ -356,14 +344,9 @@ export function publicGate(hash: string, visitor: MockUser | null = null, needsR
   if (!isReleased(t)) return Response.json({ detail: "ainda não está pronta" }, { status: 409 });
   return null;
 }
-/* LeIA: the external flow's classes (classe_partes, classe_datas_valores, ...) with a colour each */
-const EXTERNAL_CLASSES: Record<string, { rotulo: string; cor: string }> = {
-  partes: { rotulo: "Partes", cor: "#E3F1F1" }, datas_valores: { rotulo: "Datas e valores", cor: "#FFF4DD" }, fatos: { rotulo: "Fatos", cor: "#EDE7F6" },
-  fundamentos: { rotulo: "Fundamentos, leis e decisões", cor: "#E8F5E9" }, pedidos: { rotulo: "Pedidos", cor: "#FDE7EF" },
-};
 /* the fixture's clauses become tagged items over the extracted text (same body as GET /api/t/{hash}/inferencias).
    LeIA: partial = while the pipeline runs (docs/API-V3-CONTRACT.md, "Preparação visível"): no text before extraction and only
-   the items the finished steps would have produced, with parcial: true. External tasks group the items by class and carry the score. */
+   the items the finished steps would have produced, with parcial: true. */
 export function buildInferences(t: MockTask, partial = false): Inferences {
   const f = contentOf(t);
   const texto = partial && t.status === "criada" ? "" : f.documento_texto.map((c) => c.texto).join("\n\n");
@@ -372,12 +355,12 @@ export function buildInferences(t: MockTask, partial = false): Inferences {
   const classFor = (key: string, rotulo: string, cor: string) => { let c = classes.find((x) => x.classe === key); if (!c) { c = { classe: key, rotulo, cor, itens: [] }; classes.push(c); } return c; };
   const refs: string[] = [];
   visible.forEach((tp) => {
-    const key = t.externa ? tp.classe ?? "outros" : "clausulas";
-    const meta = t.externa ? EXTERNAL_CLASSES[key] ?? { rotulo: key, cor: "#F1EFEA" } : { rotulo: "Cláusulas explicadas", cor: "#E3F1F1" };
+    const key = "clausulas";
+    const meta = { rotulo: "Cláusulas explicadas", cor: "#E3F1F1" };
     const c = classFor(key, meta.rotulo, meta.cor);
     const ref = `${key}[${c.itens.length}]`; refs.push(ref);
     const pos = texto ? findSpan(texto, tp.trecho) : null;
-    const item = { ref, campo: t.externa ? tp.titulo : `cláusula ${tp.clausula}`, valor: t.externa ? tp.explicacao : tp.titulo, trecho: tp.trecho, pos, conferido: !!pos, cor: meta.cor,
+    const item = { ref, campo: `cláusula ${tp.clausula}`, valor: tp.titulo, trecho: tp.trecho, pos, conferido: !!pos, cor: meta.cor,
                    ...(pos ? { conferencia: { metodo: texto.slice(pos[0], pos[1]) === tp.trecho ? "exato" : "normalizado", score: 1 } as Anchor } : {}) };
     c.itens.push(tp.score !== undefined ? { ...item, score: tp.score } : item);
   });

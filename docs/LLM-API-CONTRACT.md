@@ -13,9 +13,6 @@ CORS para essa origem).
 | `GET /t/{hash}` | HTML (`cliente_view.html`) com `tarefa`, `resumo_md`, `questoes`, `ultima_tentativa` | página da cidadã do serviço |
 | `POST /api/t/{hash}/quiz` | `{ aprovado, acertos, total, numero, hash_imutavel, erros[] }`; aprova com ≥ 83% (`core/tentativas.py`) | o hash é `sha256("PARA.AI\|tarefa\|numero\|respostas\|ip\|ua\|ts")` |
 | `POST /api/t/{hash}/chat` | SSE `data: {"t": ...}` | |
-| `GET /api/resumo-estruturado/{hash}/resultado` | JSON `resumo_estruturado.json`: `processo.classe_*[] {campo, sub_tipo, valor, trecho_verbatim}`, `processo.resumo_classe_* {valor, lastro[]}`, `processo.resposta_final.texto` (markdown), `_ui` (posições e score por trecho) | é a fonte natural dos `topicos` |
-| `GET /api/resumo-estruturado/{hash}/status`, `GET /api/tarefas/{id}/status`, `GET /api/pdf/{hash}/log` | eventos do job (`log.jsonl`) | página de espera |
-| `POST /api/resumo-estruturado/submit`, `POST /api/pdf/destilar`, `POST /tarefas/nova` | criação de tarefa por upload (form) | painel interno |
 | `GET /tarefas/{id}/artefato/{nome}` | arquivos do workspace (`resumo_estruturado.json`, `original.pdf`, `log.jsonl`) | |
 
 Mapeamento para o JSON que o app consome (`GET /api/t/{hash}`, a acrescentar no serviço):

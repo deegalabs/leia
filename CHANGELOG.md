@@ -8,6 +8,24 @@ no fim, com as evidências em `evidence/` e o índice em [docs/DELIVERIES.md](do
 Entra aqui toda mudança que altera o que alguém percebe, no mesmo pull request que a faz. Quando o conjunto
 fecha um sentido, vira versão com tag anotada e release no GitHub.
 
+### Removido
+
+- **Os dois fluxos que mandavam o documento para fora foram removidos**, com os clientes, as sete rotas, a
+  renderização do resultado, a demonstração no mock e a documentação. Eles existiam por um motivo que deixou
+  de valer: o `docs/RESUMO-ESTRUTURADO-E-CHAT.md` registrava que a API externa devolvia **posições reais**
+  enquanto o pipeline local devolvia `0:0` em tudo. Depois disso o serviço passou a localizar o trecho ele
+  mesmo, em três estágios, ignorando de propósito a posição que o modelo escreve. O que a integração prestava
+  passou a ser feito aqui, e melhor: a busca local confere contra o PDF que o serviço guarda, enquanto no
+  fluxo externo o trecho era conferido contra o texto que o próprio terceiro devolvia, ou seja, quem escrevia
+  a citação escrevia também a referência.
+- Nenhuma tela do produto chamava essas rotas. O que elas produziam era uma jornada **sem perguntas, sem
+  conferência e sem comprovante**, e a revisão do advogado mostrava explicação vazia, então ele aprovava um
+  texto que não podia ler. Some com elas a maior superfície de saída de dado do serviço.
+- Documento antigo preparado por esse caminho passa a **falhar dizendo o motivo**, em vez de virar uma tela de
+  explicação vazia que a pessoa leria como se fosse o documento dela.
+- A memória de sessão tinha três abas, duas delas reservadas a esses fluxos e nunca alimentadas. Sobrou a do
+  pipeline local, que é a única que o chat de bastidor consome.
+
 ### Segurança e privacidade
 - **Quem vê o documento deixou de mandar nele.** A autorização de várias rotas perguntava se a pessoa enxerga o
   documento, e a cidadã vinculada enxerga. Com isso ela baixava `questoes.json`, que carrega `correta` e

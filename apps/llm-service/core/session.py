@@ -3,8 +3,6 @@
 # ║                                                                          ║
 # ║   Cada usuário logado tem UM arquivo workspace/_sessoes/{token}.json     ║
 # ║   com até 3 "abas" de destilação já processadas:                        ║
-# ║     - jurisprudencia                                                     ║
-# ║     - resumo_estruturado                                                 ║
 # ║     - chat  (destilação de PDF feita direto no Chat Bot)                ║
 # ║                                                                           ║
 # ║   Só a parte "resumo estruturado" da destilação de cada aba entra no     ║
@@ -25,8 +23,10 @@ from typing import Any, Literal, Optional
 
 log = logging.getLogger("sessao")
 
-ABAS = ("jurisprudencia", "resumo_estruturado", "chat")
-Aba = Literal["jurisprudencia", "resumo_estruturado", "chat"]
+# Havia três abas; duas pertenciam aos fluxos externos, que foram removidos, e nunca chegaram a
+# ser alimentadas. Sobra a do pipeline local, que é a única que o chat de bastidor consome.
+ABAS = ("chat",)
+Aba = Literal["chat"]
 
 from .workspace import BASE as _WORKSPACE_BASE
 
@@ -117,8 +117,7 @@ def close(token: str) -> None:
 def shared_attachment(token: str) -> Optional[dict]:
     """
     Retorna o "processo" (T6_FUSAO_MEMORIA) da destilação mais recente
-    disponível nesta sessão — hoje, só a aba "chat" alimenta isso; as
-    demais abas ficam prontas para o mesmo tratamento quando entrarem.
+    disponível nesta sessão, que vem do pipeline local.
     Retorna None se nada foi destilado ainda nesta sessão.
 
     Formato do retorno: {"titulo": ..., "processo": <T6_FUSAO_MEMORIA>, "hash": ...}
