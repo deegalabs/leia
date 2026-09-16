@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 from typing import Optional
 
-from sqlmodel import SQLModel, Field, Session, create_engine
+from sqlmodel import SQLModel, Field, Session, create_engine, select
 from sqlalchemy import UniqueConstraint, text
 
 DB_PATH = Path(os.getenv("DB_PATH", str(Path(os.getenv("DATA_DIR", ".")) / "gestao.db")))
@@ -212,6 +212,40 @@ def init_db() -> None:
     SQLModel.metadata.create_all(engine)
     _aplicar_migracoes()
     _garantir_indices_unicos()
+    recover_orphaned_tasks()
+
+
+def recover_orphaned_tasks() -> int:
+    """Marca como ``falhou`` toda tarefa que ficou ``processando`` de um processo anterior.
+
+    O workflow roda como ``BackgroundTask`` dentro deste processo, então quando o contêiner reinicia, e a
+    hospedagem reinicia a cada deploy, a tarefa em voo fica ``processando`` para sempre: nada retoma, e
+    ``reprocess`` recusa exatamente esse estado. O dono não reprocessa, não revisa e não aprova, enquanto a
+    tela da pessoa segue dizendo "Estamos preparando a explicação". O documento morre calado.
+
+    Rodar isto no boot é seguro porque o processo acabou de subir e ainda não agendou trabalho nenhum: toda
+    tarefa ``processando`` no banco é, por definição, órfã de um processo que não existe mais. Isso vale
+    enquanto o serviço rodar com um worker só (ver o CMD do Dockerfile); com mais de um, a varredura precisaria
+    saber de quem é cada tarefa antes de mexer.
+    """
+    from core import workspace as ws
+
+    with Session(engine) as s:
+        presas = list(s.exec(select(Tarefa).where(Tarefa.status == "processando")))
+        # Os valores saem daqui de dentro: fora da sessão o objeto está desanexado e ler um atributo estoura.
+        marcadas = [(t.hash, t.id) for t in presas]
+        for t in presas:
+            t.status = "falhou"
+            t.atualizada_em = datetime.utcnow()
+            s.add(t)
+        if presas:
+            s.commit()
+    for hash_, tarefa_id in marcadas:
+        # O log é onde a jornada conta o que houve, então o motivo fica escrito e não só inferido.
+        ws.record_event(hash_, "interrompida_por_reinicio", tarefa_id=tarefa_id)
+    if marcadas:
+        print(f"🔧 {len(marcadas)} tarefa(s) presas em 'processando' de um processo anterior marcadas como 'falhou'")
+    return len(marcadas)
 
 
 def get_session():

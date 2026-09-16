@@ -165,6 +165,37 @@ def issue_invite(tarefa_id: int, body: ConviteIn, u: Usuario = Depends(api_user)
     return invites.to_json(inv)
 
 
+@router.post("/api/tarefas/{tarefa_id}/reprocessar")
+def retry_task(tarefa_id: int, bg: BackgroundTasks, u: Usuario = Depends(api_user),
+               session: Session = Depends(get_session)):
+    """Refaz a explicação de um documento que não chegou ao fim.
+
+    Existia só a rota antiga do painel de bastidor, que responde 303 em HTML e o aplicativo nunca chamou.
+    Sem isto, documento pego por um reinício do serviço morria na lista: a varredura de boot o tira de
+    ``processando``, mas ele fica ``falhou`` e o dono não tinha como pedir de novo."""
+    t = _owned(session, u, tarefa_id)
+    if t.status == "processando":
+        raise HTTPException(409, "Este documento ainda está sendo preparado.")
+    pasta = ws.folder(t.hash)
+    if not (pasta / "original.pdf").exists():
+        raise HTTPException(409, "O documento original não está mais guardado, então não dá para refazer.")
+    for nome in ("texto_extraido.txt", "memoria_persistente.json", "texto_tagueado.json",
+                 "resumo_humanizado.md", "questoes.json", "pdf_assinado.pdf"):
+        alvo = pasta / nome
+        if alvo.exists():
+            alvo.unlink()
+    for antigo in pasta.glob("T*.json"):
+        antigo.unlink()
+    t.status = "criada"
+    session.add(t); session.commit()
+    ws.record_event(t.hash, "reprocessar", tarefa_id=t.id)
+
+    from main import groq_client
+    from leia.pipeline import run_pipeline
+    bg.add_task(run_pipeline, t.id, groq_client, "")
+    return {"ok": True, "status": t.status}
+
+
 @router.delete("/api/tarefas/{tarefa_id}/cidadao")
 def unlink_citizen(tarefa_id: int, u: Usuario = Depends(api_user), session: Session = Depends(get_session)):
     """Desfaz o vínculo. Sem isto, uma conta errada ficava com o documento para sempre e a destinatária

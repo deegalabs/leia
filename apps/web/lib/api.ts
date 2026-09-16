@@ -203,6 +203,10 @@ export async function issueInvite(id: string | number, input: { email?: string; 
   const r = await check(await fetch(`/api/tarefas/${id}/convite`, { method: "POST", headers: jsonHeaders(), body: JSON.stringify(input) }));
   return r.json();
 }
+export async function retryTask(id: string | number): Promise<{ ok: boolean; status: string }> {
+  const r = await check(await fetch(`/api/tarefas/${id}/reprocessar`, { method: "POST", headers: jsonHeaders() }));
+  return r.json();
+}
 export async function unbindTask(id: string | number): Promise<{ ok: boolean }> {
   const r = await check(await fetch(`/api/tarefas/${id}/cidadao`, { method: "DELETE", headers: jsonHeaders() }));
   return r.json();
