@@ -111,3 +111,18 @@ def ensure_recipient(session: Session, t: Tarefa, visitor: Optional[Usuario]) ->
         raise HTTPException(403, "Para guardar o comprovante, entre com o e-mail que recebeu este documento.")
     if normalize_email(visitor.email) != inv.email:
         raise HTTPException(403, "Este documento foi enviado para outra pessoa, então o comprovante não pode sair nesta conta.")
+
+
+def ensure_linkable(session: Session, t: Tarefa, visitor: Optional[Usuario]) -> None:
+    """Só para vincular a conta ao documento, que é mais do que ler.
+
+    Ler e perguntar seguem abertos a quem tem um link válido, e isso é desenho, não descuido. Vincular é
+    outra coisa: define ``cidadao_id``, e quem chega depois recebe 409, ou seja, o primeiro que aparece
+    tranca os demais, inclusive a pessoa para quem o documento foi mandado. Por isso vincular exige um
+    convite vivo, e não só um link que circulou."""
+    ensure_recipient(session, t, visitor)
+    if _mine(t, visitor):
+        return
+    inv = active_invite(session, t.id)
+    if inv is None:
+        raise HTTPException(403, "Este documento ainda não tem convite. Peça um link novo a quem enviou.")

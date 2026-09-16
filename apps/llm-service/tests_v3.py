@@ -241,6 +241,9 @@ def test_link_citizen(lawyer, lawyer_task, citizen):
     h = lawyer_task["hash"]
     assert client.post(f"/api/t/{h}/vincular").status_code == 401
     assert client.post(f"/api/t/{h}/vincular", headers=bearer(lawyer["token"])).status_code == 403
+    # vincular é virar dona do documento, então exige convite vivo; ler segue aberto sem ele
+    assert client.post(f"/api/t/{h}/vincular", headers=bearer(citizen["token"])).status_code == 403
+    client.post(f"/api/tarefas/{lawyer_task['id']}/convite", json={"email": None}, headers=bearer(lawyer["token"]))
     assert client.post(f"/api/t/{h}/vincular", headers=bearer(citizen["token"])).json() == {"ok": True}
     assert client.post(f"/api/t/{h}/vincular", headers=bearer(citizen["token"])).json() == {"ok": True}  # idempotent
     assert client.get(f"/api/t/{h}").json()["cidadao_vinculado"] is True
@@ -1179,3 +1182,147 @@ def test_an_attempt_recorded_before_this_change_still_verifies():
     tent = tn.record(t, {"1": 0, "2": 1, "3": 2}, QUESTOES)   # sem freeze_record, como antes
     r = client.get(f"/verify/{tent.hash_imutavel}?format=json")
     assert r.status_code == 200 and r.json()["payloadHash"]
+
+
+# ── autorização: quem vê não é quem manda ─────────────────────────────────
+
+def link_directly(h: str, conta: dict) -> None:
+    """Vincula pelo banco, para que estes testes meçam autorização e não o caminho do convite."""
+    from core.db import Usuario
+    with Session(engine) as s:
+        u = s.exec(select(Usuario).where(Usuario.email == conta["usuario"]["email"])).one()
+        t = s.exec(select(Tarefa).where(Tarefa.hash == h)).one()
+        t.cidadao_id = u.id
+        s.add(t); s.commit()
+
+
+def test_the_answer_key_never_leaves_by_the_artifact_route(lawyer, citizen):
+    """A rota pública já protege o gabarito. A de artefato autorizava por quem enxerga o documento,
+    então entregava `correta` e `justificativa` a quem ia responder as perguntas."""
+    t = create_task(lawyer["token"], "Gabarito")
+    fake_artifacts(t["hash"])
+    link_directly(t["hash"], citizen)
+
+    r = client.get(f"/tarefas/{t['id']}/artefato/questoes.json", headers=bearer(citizen["token"]))
+    assert r.status_code == 403, "a cidadã baixou o gabarito das perguntas que ela vai responder"
+    assert client.get(f"/tarefas/{t['id']}/artefato/questoes.json",
+                      headers=bearer(lawyer["token"])).status_code == 200, "quem enviou continua conferindo"
+
+
+def test_the_lawyer_email_is_not_written_into_the_workspace(lawyer):
+    """meta.json ficava com o endereço inteiro, baixável. O advogado_id já está no banco."""
+    t = create_task(lawyer["token"], "Meta")
+    meta = json.loads((ws.folder(t["hash"]) / "meta.json").read_text(encoding="utf-8"))
+    assert "@" not in json.dumps(meta), f"e-mail gravado no workspace: {meta.get('advogado')}"
+
+
+def test_the_review_gate_holds_on_every_route(lawyer, citizen):
+    """`/api/t/{hash}` esconde a explicação durante a revisão. Duas rotas ao lado entregavam a mesma coisa."""
+    t = create_task(lawyer["token"], "Portão")
+    fake_artifacts(t["hash"])
+    link_directly(t["hash"], citizen)
+    set_status(t["hash"], "pronta")
+
+    d = client.get(f"/api/pdf/{t['hash']}/destilado", headers=bearer(citizen["token"]))
+    assert d.status_code == 409, "a cidadã leu a explicação que o advogado ainda não conferiu"
+
+    s = client.get(f"/api/tarefas/{t['id']}/status", headers=bearer(citizen["token"]))
+    assert s.status_code == 200 and "advogado_id" not in json.dumps(s.json()), "eventos crus na resposta"
+
+    assert client.get(f"/api/pdf/{t['hash']}/destilado",
+                      headers=bearer(lawyer["token"])).status_code == 200, "quem revisa precisa ver"
+
+
+def test_destructive_legacy_routes_answer_only_to_the_owner(lawyer, citizen):
+    """reprocess apaga o resumo que lastreia um comprovante; nova-rodada cria tarefa na conta do advogado."""
+    t = create_task(lawyer["token"], "Legado")
+    fake_artifacts(t["hash"])
+    link_directly(t["hash"], citizen)
+    set_status(t["hash"], "pronta")
+
+    for rota in ("reprocess", "nova-rodada"):
+        r = client.post(f"/tarefas/{t['id']}/{rota}", headers=bearer(citizen["token"]), follow_redirects=False)
+        assert r.status_code == 403, f"{rota} obedeceu a quem só está vinculado ao documento: {r.status_code}"
+    assert (ws.folder(t["hash"]) / "resumo_humanizado.md").exists(), "o resumo foi apagado por quem não é dono"
+
+
+# ── vínculo: ler é aberto, virar dona do documento não ────────────────────
+
+def test_linking_requires_an_invite(lawyer, citizen):
+    """Ler fica aberto de propósito, para quem está num telefone emprestado. Mas vincular é virar dona
+    do documento, e era por ordem de chegada: qualquer conta com o link ficava com ele para sempre."""
+    t = create_task(lawyer["token"], "Sem convite")
+    r = client.post(f"/api/t/{t['hash']}/vincular", headers=bearer(citizen["token"]))
+    assert r.status_code == 403, "uma conta qualquer se vinculou a um documento sem convite nenhum"
+    assert client.get(f"/api/t/{t['hash']}").status_code == 200, "ler continua aberto"
+
+    client.post(f"/api/tarefas/{t['id']}/convite", json={"email": None},
+                headers=bearer(lawyer["token"])).raise_for_status()
+    assert client.post(f"/api/t/{t['hash']}/vincular", headers=bearer(citizen["token"])).status_code == 200
+
+
+def test_the_owner_can_undo_a_link(lawyer, citizen):
+    """Sem desfazer, um vínculo errado trancava a destinatária legítima para fora do próprio documento."""
+    t = create_task(lawyer["token"], "Desvínculo")
+    client.post(f"/api/tarefas/{t['id']}/convite", json={"email": None}, headers=bearer(lawyer["token"]))
+    client.post(f"/api/t/{t['hash']}/vincular", headers=bearer(citizen["token"]))
+
+    assert client.delete(f"/api/tarefas/{t['id']}/cidadao",
+                         headers=bearer(citizen["token"])).status_code in (403, 404), "só quem enviou desfaz"
+    assert client.delete(f"/api/tarefas/{t['id']}/cidadao", headers=bearer(lawyer["token"])).status_code == 200
+
+    other = signup("terceira@teste.local", "cidadao", "Joana")
+    assert client.post(f"/api/t/{t['hash']}/vincular", headers=bearer(other["token"])).status_code == 200
+
+
+# ── tentativas: o teto e o hash do comprovante sob concorrência ───────────
+
+def test_concurrent_attempts_respect_the_cap_and_never_share_a_hash(lawyer, monkeypatch):
+    """Checar numa sessão e gravar em outra é checar-depois-gravar: o teto que existe para impedir o
+    gabarito por tentativa e erro furava, e duas tentativas diferentes saíam com o mesmo
+    `hash_imutavel`, que é o identificador público do comprovante."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    import core.attempts as tn
+
+    monkeypatch.setenv("QUIZ_MAX_ATTEMPTS", "3")
+    t = create_task(lawyer["token"], "Corrida")
+    fake_artifacts(t["hash"])
+    with Session(engine) as s:
+        tarefa = s.exec(select(Tarefa).where(Tarefa.hash == t["hash"])).one()
+    questoes = json.loads((ws.folder(t["hash"]) / "questoes.json").read_text(encoding="utf-8"))["questoes"]
+
+    def enviar(_):
+        try:
+            return tn.record(tarefa, {"1": 0}, questoes)
+        except tn.AttemptsExhausted:
+            return None
+
+    with ThreadPoolExecutor(max_workers=12) as pool:
+        list(pool.map(enviar, range(12)))
+
+    gravadas = tn.list_all(tarefa.id)
+    numeros = sorted(x.numero for x in gravadas)
+    hashes = [x.hash_imutavel for x in gravadas]
+    assert len(gravadas) <= 3, f"o teto de 3 furou: {len(gravadas)} tentativas, números {numeros}"
+    assert len(set(numeros)) == len(numeros), f"número de rodada repetido: {numeros}"
+    assert len(set(hashes)) == len(hashes), "duas tentativas com o mesmo hash de comprovante"
+
+
+def test_undoing_a_link_does_not_hand_the_next_person_the_previous_one_s_record(lawyer, citizen):
+    """Desfazer o vínculo resolve o vínculo errado, mas a tentativa pertence à tarefa, não à pessoa.
+    Se alguém já respondeu, a próxima conta vinculada herdaria o comprovante da anterior."""
+    import core.attempts as tn
+
+    t = create_task(lawyer["token"], "Herança")
+    fake_artifacts(t["hash"])
+    client.post(f"/api/tarefas/{t['id']}/convite", json={"email": None}, headers=bearer(lawyer["token"]))
+    client.post(f"/api/t/{t['hash']}/vincular", headers=bearer(citizen["token"]))
+
+    with Session(engine) as s:
+        tarefa = s.exec(select(Tarefa).where(Tarefa.hash == t["hash"])).one()
+    questoes = json.loads((ws.folder(t["hash"]) / "questoes.json").read_text(encoding="utf-8"))["questoes"]
+    tn.record(tarefa, {"1": 1}, questoes)
+
+    r = client.delete(f"/api/tarefas/{t['id']}/cidadao", headers=bearer(lawyer["token"]))
+    assert r.status_code == 409, "desvinculou por cima de um comprovante que afirma que outra pessoa entendeu"
