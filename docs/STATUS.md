@@ -1,5 +1,9 @@
 # Situação do LeIA em 13/09/2026
 
+> **Retrato congelado do dia do evento.** Este inventário descreve o produto como ele estava em 13/09/2026 e
+> não é atualizado depois disso. O que aparece aqui como verificado, pendente ou ausente vale para aquela data,
+> não para hoje: parte das pendências já foi corrigida. Para o estado atual, leia o `CHANGELOG.md` e o código.
+
 Inventário verificado em produção e no código no dia 13/09/2026, entre 12h e 16h30 (horário de Brasília).
 Fontes: app publicado em https://leia-snowy.vercel.app, serviço em
 https://llm-service-production-4278.up.railway.app, repositório `repos/leia` em HEAD `e9b7eb2`

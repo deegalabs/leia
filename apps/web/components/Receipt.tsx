@@ -4,6 +4,7 @@ import { formatDateTime, getVerify, type VerifyResult } from "@/lib/api";
 import { AssistantBanner, BottomActionBar, Button, Card, HashDisplay, LinkButton, Page, SpeakButton, StatusChip } from "./ui";
 import { QrCode } from "./QrCode";
 import { fmt, m } from "@/lib/i18n";
+import { stampView } from "@/lib/stamp";
 
 export function Receipt({ attempt }: { attempt: string }) {
   const [data, setData] = useState<VerifyResult | null>(null);
@@ -13,19 +14,20 @@ export function Receipt({ attempt }: { attempt: string }) {
     const run = () => getVerify(attempt).then((d) => { if (alive) { setData(d); setError(null); } })
       .catch((e: Error & { status?: number }) => { if (alive) setError(e.status === 404 ? "Comprovante não encontrado." : "Deu um problema do nosso lado, não foi você. Estamos tentando de novo."); });
     run();
-    const id = setInterval(run, 30000);   /* the stamp arrives minutes later; keep refreshing while open */
+    const id = setInterval(run, 30000);   /* the stamp lands after this page is already open; keep refreshing */
     return () => { alive = false; clearInterval(id); };
   }, [attempt]);
 
   const verifyPath = `/verify/${attempt}`;
+  const stamp = data && stampView(data);
   return (
     <Page>
       <AssistantBanner />
       <h1 className="mb-3 text-[1.5rem]">{m.c6.title}</h1>
       {!data && <p role="status" className="text-ink-2">{error ?? "Carregando seu comprovante."}</p>}
-      {data && (
+      {data && stamp && (
         <>
-          <StatusChip tone={data.otsPresent ? "ok" : "pending"}>{data.otsPresent ? m.status.registered : m.status.stampPending}</StatusChip>
+          <StatusChip tone={stamp.tone}>{stamp.chip}</StatusChip>
           <Card className="mt-3">
             <p className="mb-1">{data.payload.understood ? "Você entendeu o documento" : "Registro da sua tentativa"}: {formatDateTime(data.payload.createdAt)}</p>
             <p className="mb-4 text-[0.95rem] text-ink-2">Tentativa {data.payload.attemptRound}, {data.payload.answered} perguntas respondidas.</p>
@@ -33,19 +35,17 @@ export function Receipt({ attempt }: { attempt: string }) {
             <p className="mb-4 mt-2 text-center text-[0.95rem] text-ink-2">Aponte a câmera para conferir</p>
             <p className="mb-1 text-[0.95rem] text-ink-2">Código do registro</p>
             <HashDisplay value={data.payloadHash} />
-            {!data.otsPresent && <p className="mt-3 text-[0.95rem] text-pend">{data.demo ? "Nesta demonstração o carimbo público não é gravado. No serviço completo, ele chega em alguns minutos e fica na página de verificação." : m.c6.stampPending}</p>}
+            <p className={`mt-3 text-[0.95rem] ${stamp.tone === "pending" ? "text-pend" : "text-ink-2"}`}>{stamp.text}</p>
           </Card>
-          {data.payload.reviewedByLawyer !== undefined && (
-            <Card tone={data.payload.reviewedByLawyer ? "soft" : "pending"} className="mt-3">
-              <h2 className="mb-2 text-[1.15rem]">{m.c6.reviewedTitle}</h2>
-              <p>{data.payload.reviewedByLawyer ? m.c6.reviewedYes : m.c6.reviewedNo}</p>
-              {data.payload.understood && data.payload.passMark !== undefined && (
-                <p className="mt-2 text-[0.95rem] text-ink-2">
-                  {fmt(m.c6.measured, { piso: data.payload.passMark, total: data.payload.answered })}
-                </p>
-              )}
-            </Card>
-          )}
+          <Card tone={data.payload.reviewedByLawyer ? "soft" : "pending"} className="mt-3">
+            <h2 className="mb-2 text-[1.15rem]">{m.c6.reviewedTitle}</h2>
+            <p>{data.payload.reviewedByLawyer ? m.c6.reviewedYes : m.c6.reviewedNo}</p>
+            {data.payload.understood && (
+              <p className="mt-2 text-[0.95rem] text-ink-2">
+                {fmt(m.c6.measured, { piso: data.payload.passMark, total: data.payload.answered })}
+              </p>
+            )}
+          </Card>
           <Card tone="soft" className="mt-3">
             <h2 className="mb-2 text-[1.15rem]">O que este comprovante prova</h2>
             <p>{m.c6.proves} {m.c6.doesNotContain}</p>

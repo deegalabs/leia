@@ -43,8 +43,13 @@ log.info("LeIA · serviço cognitivo | Groq: %s",
          "OK" if "gsk_" in groq_key else "⚠️ placeholder")
 
 # ─── APP ─────────────────────────────────────────────────────────────────
+# LeIA: the re-stamping sweep is tied to the service lifetime, so a receipt the calendars failed to stamp
+# stops being a receipt without a proof forever. OTS_SWEEP_MINUTES=0 turns it off.
+from leia.stamping import sweep_lifespan                       # noqa: E402
+
 _docs_on = os.getenv("DOCS_ENABLED", "false").lower() in ("1", "true", "yes")
-app = FastAPI(title="LeIA · serviço cognitivo", docs_url="/docs" if _docs_on else None,
+app = FastAPI(title="LeIA · serviço cognitivo", lifespan=sweep_lifespan,
+              docs_url="/docs" if _docs_on else None,
               redoc_url="/redoc" if _docs_on else None, openapi_url="/openapi.json" if _docs_on else None)
 app.add_middleware(
     CORSMiddleware,
@@ -586,6 +591,14 @@ async def api_get_contexto(u: Usuario = Depends(admin_user)):
 @app.post("/api/contexto/limpar")
 async def api_post_limpar_contexto(u: Usuario = Depends(admin_user)):
     return {"message": clear_persistent_context()}
+
+
+@app.post("/api/admin/stamps/reprocess")
+async def api_reprocess_stamps(u: Usuario = Depends(admin_user)):
+    """Sweep the consent records now instead of waiting for the ticker. Restricted to the service owner."""
+    from leia.stamping import sweep_once
+
+    return await asyncio.to_thread(sweep_once)
 
 
 @app.post("/api/chat")

@@ -30,14 +30,21 @@ export type Task = {
 };
 export type QuizResult = Attempt & { comprovante_token?: string; erros: { id: number; area?: string; enunciado?: string; escolhida?: number | null }[] };
 export type VerifyResult = {
-  payload: { schema: string; documentToken: string; attemptRound: number; attemptSha256: string; understood: boolean;
-             answered: number; createdAt: string;
-             /* v3: a régua e quem revisou, para o terceiro julgar o peso em vez de aceitar no escuro */
-             instrument?: string; passMark?: number; reviewedByLawyer?: boolean };
+  /* leia.payload.v3 as the service builds it: the document appears only as hashes, never as a token that could
+     be handed around, and the ruler (instrument, passMark, reviewedByLawyer) travels with it so a third party
+     can weigh the receipt instead of accepting it blind. */
+  payload: { schema: string; documentRef: string; attemptRound: number; attemptSha256: string;
+             documentSha256: string; summarySha256: string; understood: boolean;
+             instrument: string; passMark: number; answered: number; reviewedByLawyer: boolean;
+             createdAt: string };
   canonical: string;
   payloadHash: string;
   otsPresent: boolean;
-  demo?: boolean;
+  /* The stamp as the service knows it (ADR-0010). Optional because the in-app mock, which answers when no
+     service is configured, still reports otsPresent alone; read them through stampView, never one by one. */
+  otsState?: import("./stamp").StampState;
+  otsBlockHeight?: number | null;
+  otsLastAttempt?: string | null;
 };
 
 /* The service explains its refusals in the "detail" field. Carrying that text through means the screen can

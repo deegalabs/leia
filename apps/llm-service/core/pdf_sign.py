@@ -6,10 +6,11 @@ from pathlib import Path
 from datetime import datetime
 
 from pypdf import PdfReader, PdfWriter
-from pypdf.generic import NameObject
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.colors import HexColor
+
+from leia.registry import strip_pdf_metadata
 
 
 GOLD  = HexColor("#c9a84c")
@@ -162,14 +163,12 @@ def build_signed_pdf(
     sig = PdfReader(_pagina_assinatura(dados)).pages[0]
     writer.add_page(sig)
 
-    # Regra do produto: arquivo gerado não carrega metadado. O pypdf grava /Producer por padrão,
-    # e o documento original pode trazer autor, título e datas do editor de quem o produziu.
-    writer.metadata = None
-    root = writer._root_object
-    if "/Metadata" in root:
-        del root[NameObject("/Metadata")]
+    # Regra do produto: arquivo gerado não carrega metadado. O pypdf grava /Producer por padrão, e o
+    # documento original pode trazer autor, título e datas do editor de quem o produziu. A limpeza mora numa
+    # função só, senão uma das cópias é corrigida e a outra segue publicando metadado.
+    buf = BytesIO()
+    writer.write(buf)
 
     pdf_saida.parent.mkdir(parents=True, exist_ok=True)
-    with pdf_saida.open("wb") as f:
-        writer.write(f)
+    pdf_saida.write_bytes(strip_pdf_metadata(buf.getvalue()))
     return pdf_saida

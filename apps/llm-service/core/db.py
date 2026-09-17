@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Optional
 
 from sqlmodel import SQLModel, Field, Session, create_engine, select
-from sqlalchemy import UniqueConstraint, text
+from sqlalchemy import UniqueConstraint, inspect, text
 
 DB_PATH = Path(os.getenv("DB_PATH", str(Path(os.getenv("DATA_DIR", ".")) / "gestao.db")))
 
@@ -129,24 +129,29 @@ class Duvida(SQLModel, table=True):
 #  MIGRAÇÕES IDEMPOTENTES
 # ══════════════════════════════════════════════════════════════════════════
 def _colunas(conn, tabela: str) -> set[str]:
-    """Retorna o conjunto de colunas existentes de uma tabela SQLite."""
-    rows = conn.execute(text(f"PRAGMA table_info({tabela})")).fetchall()
-    return {r[1] for r in rows}
+    """Colunas existentes de uma tabela, em qualquer banco.
+
+    O inspector do SQLAlchemy conversa com cada banco no dialeto dele — ``PRAGMA`` no SQLite,
+    ``information_schema`` no Postgres. Consulta escrita à mão só funcionaria num dos dois.
+    """
+    return {c["name"] for c in inspect(conn).get_columns(tabela)}
 
 
 def _aplicar_migracoes() -> None:
     """
     Adiciona colunas que faltam sem quebrar o banco existente.
     Cada ALTER TABLE é verificado — só roda se a coluna não existir.
+
+    Roda nos dois bancos. ``create_all`` cria tabela que falta, nunca coluna que falta em tabela que já
+    existe, e em produção o banco é Postgres: enquanto isto saía cedo fora do SQLite, coluna nova nascia
+    só na máquina de quem desenvolve e a produção subia com o esquema antigo.
     """
-    if not IS_SQLITE:  # LeIA: PRAGMA is SQLite only; on Postgres create_all builds the full schema
-        return
     with engine.begin() as conn:
         # ── Tabela tarefa ────────────────────────────────────────────────
-        try:
-            cols = _colunas(conn, "tarefa")
-        except Exception:
-            return  # tabela não existe ainda — init_db cria
+        if not inspect(conn).has_table("tarefa"):
+            return  # banco novo — init_db cria o esquema inteiro
+
+        cols = _colunas(conn, "tarefa")
 
         if "clone_de" not in cols:
             conn.execute(text(
@@ -175,16 +180,6 @@ def _aplicar_migracoes() -> None:
                 "ALTER TABLE tarefa ADD COLUMN origem VARCHAR NOT NULL DEFAULT 'advogado'"
             ))
             print("🔧 migração: tarefa.origem adicionada")
-
-        # ── Tabela tentativa (nova — pode não existir) ───────────────────
-        # init_db() cria se não existir; aqui só garantimos que está lá.
-        # Se a tabela existir mas faltar coluna, adiciona.
-        try:
-            cols_t = _colunas(conn, "tentativa")
-        except Exception:
-            cols_t = set()
-
-        # (nenhuma migração de tentativa por enquanto — tabela é nova)
 
 
 # LeIA: ``create_all`` cria tabela que falta, nunca restrição em tabela que já existe. Um índice único
