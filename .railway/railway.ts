@@ -15,8 +15,12 @@ export default defineRailway(() => {
   const llmService = service("llm-service", {
     source: github("deegalabs/leia", {
       rootDirectory: "/apps/llm-service",
-      /* wait for the CI workflow: a commit that breaks the suite never reaches production */
-      checkSuites: true,
+      /* checkSuites fica DESLIGADO de propósito. Ligado, ele espera TODAS as check suites do commit
+         concluírem, e este repositório tem quatro apps instalados (vercel, cursor, railway-app, claude) que
+         criam suite e nunca rodam nada: ficam "queued" para sempre. O resultado foi todo deploy do serviço
+         sair como SKIPPED entre 15/09 e 17/09, com quatro PRs mesclados que nunca chegaram à produção.
+         A garantia que ele pretendia dar já existe em outro lugar: a regra do main exige as duas
+         verificações de CI para mesclar, então commit que chega aqui já passou pela suíte. */
     }),
     build: {
       builder: "DOCKERFILE",
