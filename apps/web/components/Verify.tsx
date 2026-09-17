@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { Download } from "lucide-react";
 import { formatDateTime, getVerify, proofUrl, type VerifyResult } from "@/lib/api";
 import { Card, CopyButton, HashDisplay, Page, StatusChip } from "./ui";
+import { m } from "@/lib/i18n";
+import { stampView } from "@/lib/stamp";
 
 export function Verify({ attempt }: { attempt: string }) {
   const [data, setData] = useState<VerifyResult | null>(null);
@@ -10,6 +12,8 @@ export function Verify({ attempt }: { attempt: string }) {
   useEffect(() => {
     getVerify(attempt).then(setData).catch((e: Error & { status?: number }) => setError(e.status === 404 ? "Registro não encontrado." : "Deu um problema do nosso lado. Tente de novo em instantes."));
   }, [attempt]);
+
+  const stamp = data && stampView(data);
 
   function download() {
     if (!data) return;
@@ -26,17 +30,20 @@ export function Verify({ attempt }: { attempt: string }) {
       </header>
       <h1 className="mb-3 text-[1.5rem]">Registro de entendimento</h1>
       {!data && <p role="status" className="text-ink-2">{error ?? "Carregando o registro."}</p>}
-      {data && (
+      {data && stamp && (
         <div className="space-y-3">
-          <StatusChip tone={data.otsPresent ? "ok" : "pending"}>{data.otsPresent ? `registrado em ${formatDateTime(data.payload.createdAt)}` : "carimbo pendente"}</StatusChip>
-          <Card><h2 className="mb-1 text-[1.15rem]">O que esta página mostra</h2><p>Esta página mostra um código e onde ele foi gravado. Ela não mostra nome, documento nem respostas.</p></Card>
-          <Card><h2 className="mb-2 text-[1.15rem]">Código do registro (SHA-256)</h2><HashDisplay value={data.payloadHash} /></Card>
+          <StatusChip tone={stamp.tone}>{stamp.chip}</StatusChip>
+          <Card><h2 className="mb-1 text-[1.15rem]">O que esta página mostra</h2><p>Esta página mostra um código e o carimbo de tempo dele. Ela não mostra nome, documento nem respostas.</p></Card>
+          <Card>
+            <h2 className="mb-2 text-[1.15rem]">Código do registro (SHA-256)</h2>
+            <HashDisplay value={data.payloadHash} />
+            <p className="mt-2 text-[0.95rem] text-ink-2">O registro diz ter sido criado em {formatDateTime(data.payload.createdAt)}.</p>
+          </Card>
           <Card>
             <h2 className="mb-1 text-[1.15rem]">Carimbo de tempo público</h2>
-            <p className="mb-2">Rede: OpenTimestamps (calendários públicos ancorados no Bitcoin).</p>
-            {data.otsPresent
-              ? <a className="inline-flex min-h-[44px] items-center gap-2 font-bold text-teal-deep underline underline-offset-4" href={proofUrl(attempt)}><Download size={18} aria-hidden /> Baixar prova (.ots)</a>
-              : <p className="text-pend">{data.demo ? "Nesta demonstração o carimbo público não é gravado. No serviço completo, a prova OpenTimestamps fica disponível aqui em alguns minutos." : "O código já existe. A gravação na rede pública ainda está sendo confirmada; volte em alguns minutos."}</p>}
+            <p className="mb-2">{m.stamp.network}</p>
+            <p className={`mb-2 ${stamp.tone === "pending" ? "text-pend" : "text-ink-2"}`}>{stamp.text}</p>
+            {stamp.hasProof && <a className="inline-flex min-h-[44px] items-center gap-2 font-bold text-teal-deep underline underline-offset-4" href={proofUrl(attempt)}><Download size={18} aria-hidden /> {m.stamp.download}</a>}
           </Card>
           <Card>
             <details>
@@ -60,8 +67,9 @@ export function Verify({ attempt }: { attempt: string }) {
             <p className="mt-2 text-[0.9rem] text-ink-2">No Windows: certutil -hashfile registro.json SHA256. No macOS: shasum -a 256 registro.json.</p>
           </Card>
           <footer className="space-y-2 text-[0.95rem] text-ink-2">
-            <p><strong>O que este registro prova:</strong> que este código existia neste horário e foi gerado a partir do JSON acima, que descreve uma sessão de entendimento (tentativa, perguntas respondidas e resultado).</p>
-            <p><strong>O que não prova:</strong> não é a assinatura do contrato, não mostra o conteúdo do documento e não substitui a conversa com o advogado.</p>
+            {/* the record dates itself, so only the stamp proves the code existed before that moment */}
+            <p><strong>O que este registro prova:</strong> que este código foi gerado a partir do JSON acima, que descreve uma sessão de entendimento (tentativa, perguntas respondidas e resultado){stamp.hasProof ? ", e que ele já existia na data do carimbo" : ". Sem carimbo, a data acima é a que o próprio registro declara"}.</p>
+            <p><strong>O que não prova:</strong> não é a assinatura do contrato, não diz quem respondeu, não mostra o conteúdo do documento e não substitui a conversa com o advogado.</p>
           </footer>
         </div>
       )}

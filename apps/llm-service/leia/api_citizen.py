@@ -8,7 +8,9 @@ the document being marked.
 is_gated(): lawyer review gate; while a lawyer's task is ``pronta`` the public routes hide the explanation.
 POST /api/t/{hash}/duvida: a doubt for the lawyer who sent the document (409 when nobody did).
 POST /api/t/{hash}/vincular: links the signed-in citizen to the task (Bearer, papel cidadao).
-stamp_attempt(): OpenTimestamps proof of an approved attempt, stored in the task workspace.
+stamp_attempt(): OpenTimestamps proof of an approved attempt, stored in the task workspace; it writes down
+both outcomes, ``carimbo_publico`` and ``carimbo_falhou`` with the reason the calendars gave.
+ots_status(): the three states the receipt may claim (``ausente``, ``pendente``, ``confirmado``), per ADR-0010.
 get_attempt(): adapter used by leia.registry (receipt and public verification).
 """
 from __future__ import annotations
@@ -17,7 +19,7 @@ import json
 import re
 import unicodedata
 from difflib import SequenceMatcher
-from datetime import timezone
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
@@ -33,13 +35,13 @@ from leia import invites  # LeIA: the invite that governs the document link
 from leia.registry import sha256_hex
 from core.db import ConsentRecord, Duvida, Tarefa, Tentativa, Usuario, engine, get_session
 from leia.ratelimit import rate_limit
-from leia.registry import build_payload, ots_digest, ots_stamp, payload_hash
+from leia.registry import build_payload, ots_bitcoin_height, ots_digest, ots_stamp, payload_hash
 
 READY_STATUSES = ("pronta", "enviada", "assinada")
 GATE_MESSAGE = "Em revisão pelo advogado"
 PUBLIC_EVENT_TYPES = {"criada", "pdf_salvo", "pipeline_start", "texto_extraido", "task_start", "task_done", "task_error",
-                      "erro_extracao", "pipeline_done", "tentativa", "carimbo_publico", "duvida_enviada", "reprocess",
-                      "aprovada",
+                      "erro_extracao", "pipeline_done", "tentativa", "carimbo_publico", "carimbo_falhou",
+                      "duvida_enviada", "reprocess", "aprovada",
 }
 PUBLIC_EVENT_LIMIT = 60
 
@@ -375,6 +377,44 @@ def _ots_path(tarefa_hash: str, numero: int):
     return ws.folder(tarefa_hash) / f"tentativa_{numero}.ots"
 
 
+# Os três estados que o carimbo pode ter (ADR-0010). São valores de contrato do JSON público, não texto
+# de tela: quem lê é o lib/stamp.ts, que escolhe a frase em pt-BR a partir deles.
+OTS_ABSENT, OTS_PENDING, OTS_CONFIRMED = "ausente", "pendente", "confirmado"
+
+
+def _iso_utc(ts: Any) -> Optional[str]:
+    """Event timestamps are written naive, in UTC; what leaves the service says which zone that is."""
+    try:
+        moment = datetime.fromisoformat(str(ts))
+    except (TypeError, ValueError):
+        return None
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=timezone.utc)
+    return moment.astimezone(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _last_stamp_attempt(tarefa_hash: str, numero: int) -> Optional[str]:
+    """When the service last tried to stamp this attempt, whatever came of the try."""
+    for event in reversed(ws.read_events(tarefa_hash)):
+        if event.get("tipo") in ("carimbo_publico", "carimbo_falhou") and event.get("numero") == numero:
+            return _iso_utc(event.get("ts"))
+    return None
+
+
+def ots_status(proof: Optional[bytes], payload_sha256: str, last_attempt: Optional[str]) -> dict[str, Any]:
+    """The public stamp in the only three states it can honestly be in (ADR-0010).
+
+    A proof made over another payload counts as ``ausente``: it belongs to a record that no longer exists.
+    ``pendente`` is the calendar's promise and ``confirmado`` is the Bitcoin block that closes it, which is the
+    difference the screen could not tell and so promised every receipt that the stamp was on its way.
+    """
+    if not proof or not payload_sha256 or ots_digest(proof) != payload_sha256:
+        return {"otsState": OTS_ABSENT, "otsBlockHeight": None, "otsLastAttempt": last_attempt}
+    height = ots_bitcoin_height(proof)
+    return {"otsState": OTS_CONFIRMED if height is not None else OTS_PENDING,
+            "otsBlockHeight": height, "otsLastAttempt": last_attempt}
+
+
 def _document_sha(tarefa_hash: str) -> str:
     """The PDF the person actually received, as it was stored."""
     caminho = ws.folder(tarefa_hash) / "original.pdf"
@@ -427,18 +467,25 @@ def get_attempt(hash_imutavel: str) -> Optional[dict[str, Any]]:
         t = s.get(Tarefa, tent.tarefa_id)
     created = tent.criada_em.replace(tzinfo=timezone.utc) if tent.criada_em.tzinfo is None else tent.criada_em
     p = _ots_path(t.hash, tent.numero)
+    proof = p.read_bytes() if p.exists() else None
     gravado = stored_record(hash_imutavel) or {}
     import core.attempts as _tn
     # Tarefa de origem "cidadao" não passa por revisão (ver is_gated); tarefa de advogado só chega a ser
     # respondida depois que ele aprova, porque o portão barra antes. Então a origem responde a pergunta.
     revisada = (t.origem or "advogado") != "cidadao"
-    return {"hash_imutavel": tent.hash_imutavel, "tarefa_hash": t.hash, "numero": tent.numero, "acertos": tent.acertos,
-            "total": tent.total, "aprovado": tent.aprovado, "criada_em": created,
-            "revisado_por_advogado": revisada, "instrumento": "multiple-choice",
-            "piso": _tn.pass_mark(tent.total),
-            "pdf_sha256": gravado.get("pdf_sha256", ""), "resumo_sha256": gravado.get("resumo_sha256", ""),
-            "registro": gravado or None,
-            "ots": p.read_bytes() if p.exists() else None}
+    dados = {"hash_imutavel": tent.hash_imutavel, "tarefa_hash": t.hash, "numero": tent.numero, "acertos": tent.acertos,
+             "total": tent.total, "aprovado": tent.aprovado, "criada_em": created,
+             "revisado_por_advogado": revisada, "instrumento": "multiple-choice",
+             "piso": _tn.pass_mark(tent.total),
+             "pdf_sha256": gravado.get("pdf_sha256", ""), "resumo_sha256": gravado.get("resumo_sha256", ""),
+             "registro": gravado or None,
+             "ots": proof}
+    # O carimbo é sobre o registro publicado: congelado, é o hash gravado; antes de existir registro congelado,
+    # é o que o comprovante remonta agora, o mesmo que leia.registry publica. Só é preciso saber o hash quando
+    # existe prova para comparar, e remontá-lo custa mais do que abrir a página.
+    published = gravado.get("payload_sha256") or (payload_hash(build_payload(dados))[1] if proof else "")
+    dados["ots_status"] = ots_status(proof, published, _last_stamp_attempt(t.hash, tent.numero))
+    return dados
 
 
 def stamp_attempt(tarefa_hash: str, numero: int, hash_imutavel: str) -> None:
@@ -452,10 +499,15 @@ def stamp_attempt(tarefa_hash: str, numero: int, hash_imutavel: str) -> None:
     existente = attempt.get("ots")
     if existente and ots_digest(existente) == digest:
         return
-    proof = ots_stamp(digest)
-    if proof:
-        _ots_path(tarefa_hash, numero).write_bytes(proof)
+    outcome = ots_stamp(digest)
+    if outcome.proof:
+        _ots_path(tarefa_hash, numero).write_bytes(outcome.proof)
         ws.record_event(tarefa_hash, "carimbo_publico", numero=numero, payload_hash=digest)
+    else:
+        # Sem isto o comprovante ficava sem prova e sem explicação: ninguém sabia se os calendários caíram, se
+        # o carimbo está desligado ou se nunca foi tentado, e a varredura não tinha o que reler.
+        ws.record_event(tarefa_hash, "carimbo_falhou", numero=numero, payload_hash=digest,
+                        motivo=outcome.reason, tentativas=outcome.attempts)
 
 
 # ══════════════════════════════════════════════════════════════════════════
