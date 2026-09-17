@@ -306,7 +306,9 @@
       "inviteEmailPlaceholder": "nome@exemplo.com",
       "inviteLimit": "Limitar este link",
       "inviteCancel": "Cancelar este link",
-      "inviteFailed": "Não deu para mudar quem pode abrir. Tente de novo."
+      "inviteFailed": "Não deu para mudar quem pode abrir. Tente de novo.",
+      "retry": "Preparar de novo",
+      "retryHelp": "A preparação deste documento não chegou ao fim. Isso acontece, por exemplo, quando o serviço reinicia no meio. Você pode pedir de novo sem enviar o arquivo outra vez."
     },
     "openDoubtsOne": "1 dúvida aberta",
     "reviewAndRelease": "Revisar e liberar",

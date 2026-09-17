@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, ClipboardCheck, ExternalLink, Send } from "lucide-react";
-import { answerDoubt, clientLinkUrl, formatDateTime, getTaskDetail, issueInvite, revokeInvite, type Doubt, type Invite, type TaskDetail } from "@/lib/api";
+import { answerDoubt, clientLinkUrl, formatDateTime, getTaskDetail, issueInvite, retryTask, revokeInvite, type Doubt, type Invite, type TaskDetail } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { fmt, m } from "@/lib/i18n";
 import { hasReview, isSettled, needsReview, statusInfo } from "@/lib/status";
@@ -27,6 +27,15 @@ function Body({ id }: { id: string }) {
   const [data, setData] = useState<TaskDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
+  const [refazendo, setRefazendo] = useState(false);
+
+  async function refazer() {
+    if (refazendo) return;
+    setRefazendo(true); setError(null);
+    try { await retryTask(id); setTick((n) => n + 1); }
+    catch (e) { setError((e as Error).message || m.common.systemError); }
+    finally { setRefazendo(false); }
+  }
 
   useEffect(() => {
     let alive = true;
@@ -62,6 +71,20 @@ function Body({ id }: { id: string }) {
       {error && <p role="alert" className="mb-3 text-danger">{error}</p>}
 
       <div className="grid gap-3">
+        {/* Documento que não chegou ao fim: sem isto ele morria na lista e a pessoa tinha que subir de novo,
+            sem saber por quê. A causa comum é o serviço reiniciar no meio da preparação. */}
+        {!isCitizen && data.tarefa.status === "falhou" && (
+          <Card tone="pending">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h2 className="text-[1.15rem]">{m.panel.detail.retry}</h2>
+                <p className="text-[0.95rem] text-ink-2">{m.panel.detail.retryHelp}</p>
+              </div>
+              <Button variant="primary" className="sm:!w-auto" disabled={refazendo}
+                onClick={refazer}>{m.panel.detail.retry}</Button>
+            </div>
+          </Card>
+        )}
         {!isCitizen && hasReview(data.tarefa.status) && (
           <Card tone={reviewPending ? "pending" : "soft"}>
             <div className="flex flex-wrap items-center justify-between gap-2">

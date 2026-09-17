@@ -1374,3 +1374,67 @@ def test_the_receipt_says_what_it_measured(monkeypatch):
     assert p["instrument"] == "multiple-choice", "o comprovante não diz por qual instrumento mediu"
     assert p["passMark"] == tn.pass_mark(p["answered"]), "o comprovante não diz qual era o piso"
     assert p["answered"] == len(QUESTOES)
+
+
+def test_a_task_caught_by_a_restart_does_not_stay_stuck_forever():
+    """O pipeline roda como BackgroundTask no mesmo processo. Quando a Railway reinicia, e hoje ela reinicia a
+    cada deploy, a tarefa em voo fica `processando` para sempre: não há varredura no boot, e `reprocess` recusa
+    exatamente esse estado. O dono não reprocessa, não revisa, não aprova. O documento morre em silêncio, e a
+    tela da pessoa diz "Estamos preparando a explicação" sem fim."""
+    from core.db import recover_orphaned_tasks
+
+    t = _tarefa_de_teste("orfa-do-reinicio")
+    set_status(t.hash, "processando")
+
+    recuperadas = recover_orphaned_tasks()
+    assert recuperadas >= 1, "a varredura de boot não recuperou a tarefa presa"
+
+    with Session(engine) as s:
+        depois = s.exec(select(Tarefa).where(Tarefa.hash == t.hash)).one()
+    assert depois.status == "falhou", f"continuou em {depois.status}, e o dono não tem como destravar"
+
+    tipos = [e.get("tipo") for e in ws.read_events(t.hash)]
+    assert "interrompida_por_reinicio" in tipos, f"nada no log conta o que aconteceu: {tipos}"
+
+
+def test_the_sweep_does_not_touch_tasks_that_are_not_running():
+    from core.db import recover_orphaned_tasks
+
+    a = _tarefa_de_teste("nao-mexer-pronta"); set_status(a.hash, "pronta")
+    b = _tarefa_de_teste("nao-mexer-enviada"); set_status(b.hash, "enviada")
+    recover_orphaned_tasks()
+    with Session(engine) as s:
+        assert s.exec(select(Tarefa).where(Tarefa.hash == a.hash)).one().status == "pronta"
+        assert s.exec(select(Tarefa).where(Tarefa.hash == b.hash)).one().status == "enviada"
+
+
+def test_the_owner_can_retry_a_document_that_failed(lawyer):
+    """A varredura de boot tira a tarefa de `processando`, mas ela fica `falhou` e o dono não tinha como
+    refazer: a rota antiga é HTML de bastidor, responde 303 e o aplicativo não a chama. Sem isso, documento
+    pego por um reinício morre na lista, e a pessoa precisa subir tudo de novo sem saber por quê."""
+    t = create_task(lawyer["token"], "Refazer")
+    fake_artifacts(t["hash"])
+    set_status(t["hash"], "falhou")
+
+    r = client.post(f"/api/tarefas/{t['id']}/reprocessar", headers=bearer(lawyer["token"]))
+    assert r.status_code == 200, r.text
+    assert r.json().get("ok") is True
+
+    with Session(engine) as s:
+        depois = s.exec(select(Tarefa).where(Tarefa.hash == t["hash"])).one()
+    assert depois.status in ("criada", "processando", "falhou"), depois.status
+    tipos = [e.get("tipo") for e in ws.read_events(t["hash"])]
+    assert "reprocessar" in tipos, f"nada registra que foi refeito: {tipos}"
+
+
+def test_only_the_owner_retries_and_never_while_it_runs(lawyer, citizen):
+    t = create_task(lawyer["token"], "Refazer restrito")
+    link_directly(t["hash"], citizen)
+    set_status(t["hash"], "falhou")
+    # 404 e não 403, de propósito: para quem não é dono, a rota não confirma nem que o documento existe.
+    assert client.post(f"/api/tarefas/{t['id']}/reprocessar",
+                       headers=bearer(citizen["token"])).status_code == 404, "quem só está vinculado refez"
+
+    set_status(t["hash"], "processando")
+    r = client.post(f"/api/tarefas/{t['id']}/reprocessar", headers=bearer(lawyer["token"]))
+    assert r.status_code == 409, "refez por cima de um documento que está rodando"

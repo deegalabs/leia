@@ -275,6 +275,15 @@ export function issueInvite(u: MockUser, id: number, input: { email?: unknown; v
   return t.convite;
 }
 
+export function retryTask(u: MockUser, id: number) {
+  const t = ownedByMe(u, id);
+  if (t.status === "processando") throw fail(409, "Este documento ainda está sendo preparado.");
+  t.status = "criada"; t.etapas_iniciadas = 0; t.etapas_feitas = 0; t.ready_at = Date.now() + 6000;
+  t.atualizada_em = nowIso();
+  t.eventos.push({ tipo: "reprocessar", ts: t.atualizada_em });
+  return { ok: true, status: t.status };
+}
+
 export function unbindTask(u: MockUser, id: number) {
   const t = ownedByMe(u, id);
   if (t.cidadao_id === null) throw fail(404, "Este documento não está vinculado a ninguém.");

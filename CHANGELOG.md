@@ -27,6 +27,18 @@ fecha um sentido, vira versão com tag anotada e release no GitHub.
   pipeline local, que é a única que o chat de bastidor consome.
 ### Produto
 
+- **Documento pego por um reinício do serviço deixou de morrer em silêncio.** O workflow roda como tarefa de
+  segundo plano dentro do próprio processo, e a hospedagem reinicia a cada publicação. A tarefa que estivesse
+  no meio ficava `processando` para sempre: nada retomava, e a rota de refazer recusava justamente esse estado.
+  O dono não reprocessava, não revisava e não aprovava, enquanto a tela da pessoa seguia dizendo "Estamos
+  preparando a explicação" sem fim. Agora a subida do serviço varre essas tarefas, marca como falha e registra
+  o motivo no log da jornada, em vez de deixar o documento pendurado.
+- **E o dono passou a conseguir pedir de novo.** Existia só a rota antiga do painel de bastidor, que responde
+  em HTML e o aplicativo nunca chamou, então documento com falha ficava morto na lista e a pessoa tinha que
+  enviar o arquivo outra vez sem saber por quê. Agora há um botão, que só quem enviou enxerga, e que recusa
+  enquanto o documento ainda está sendo preparado.
+
+
 - **O portão da conferência aprovava com 66,7% dizendo 83%.** `int(total * 0,83)` trunca para baixo, então com
   as 6 perguntas que o serviço entrega o piso virava 4, e o comentário ao lado ainda dizia "≥ 83% (10/12)", de
   quando eram 12. Quem só chutasse entre quatro alternativas passava em 3,76% das tentativas, ou **10,9%
