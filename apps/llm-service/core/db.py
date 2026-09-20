@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Optional
 
 from sqlmodel import SQLModel, Field, Session, create_engine, select
-from sqlalchemy import UniqueConstraint, inspect, text
+from sqlalchemy import Index, UniqueConstraint, inspect, text
 
 DB_PATH = Path(os.getenv("DB_PATH", str(Path(os.getenv("DATA_DIR", ".")) / "gestao.db")))
 
@@ -191,10 +191,21 @@ UNIQUE_INDEXES = (
 
 
 def _garantir_indices_unicos() -> None:
+    """Cria os índices acima, montando a instrução como estrutura e nunca como texto.
+
+    Identificador de SQL não pode ser parâmetro de bind, então a defesa usual não se aplica: o que resolve
+    é não construir a instrução por interpolação. ``Index`` resolve cada coluna contra a tabela declarada e
+    cita os identificadores por conta própria, então um nome que não existe vira erro aqui em vez de virar
+    SQL lá. O texto interpolado que estava aqui era seguro por acidente: os valores são literais deste
+    módulo, e o driver do SQLite recusa duas instruções num ``execute``. Nenhuma das duas garantias é do
+    nosso desenho, e produção roda Postgres.
+    """
     for nome, tabela, colunas in UNIQUE_INDEXES:
         try:
+            alvo = SQLModel.metadata.tables[tabela]
+            colunas_do_indice = [alvo.c[c.strip()] for c in colunas.split(",")]
             with engine.begin() as conn:
-                conn.execute(text(f"CREATE UNIQUE INDEX IF NOT EXISTS {nome} ON {tabela} ({colunas})"))
+                Index(nome, *colunas_do_indice, unique=True).create(conn, checkfirst=True)
         except Exception as e:
             # Falha aqui quase sempre significa que o banco já tem duplicata, e recusar o boot por isso
             # seria pior que seguir. Mas o defeito precisa aparecer inteiro, não virar silêncio.
