@@ -30,6 +30,7 @@ from typing import Any, Optional
 
 from sqlmodel import Session
 
+from core import document_type as dt
 from core.db import engine, Tarefa, LogEvento
 from core.pdf_extract import extract
 from core.workspace import folder, record_event
@@ -62,16 +63,27 @@ def _regra_de_confianca(tag: str) -> str:
     )
 
 
-def _build_prompt(task: dict, contexto_extra: str) -> list[dict]:
+MARCADOR_VOCABULARIO = "{{VOCABULARIO}}"
+"""Onde a missão muda conforme a espécie do documento. Uma etapa que declara ``vocabulario_por_tipo`` marca
+com isto o lugar do bloco; quem escolhe o bloco é ``core.document_type``. Missão sem o marcador fica
+exatamente como está, e é o caso de treze das quinze etapas."""
+
+
+def _build_prompt(task: dict, contexto_extra: str, vocabulario: str = "") -> list[dict]:
     """A cerca nasce aqui, num lugar só, porque quem a cria é quem precisa nomeá-la ao modelo."""
     tag = f"documento_{secrets.token_hex(8)}"
+    missao = task["missao"]
+    if MARCADOR_VOCABULARIO in missao:
+        # Sem substituição o modelo receberia o marcador em texto literal, que é a falha silenciosa clássica
+        # de template: o prompt continua "válido" e a etapa passa a trabalhar sem a lista de campos.
+        missao = missao.replace(MARCADOR_VOCABULARIO, vocabulario)
     return [
         {
             "role": "system",
             "content": (
                 f"AGENTE: {task.get('nome', task['id'])}\n"
                 f"{_regra_de_confianca(tag)}\n"
-                f"MISSÃO:\n{task['missao']}"
+                f"MISSÃO:\n{missao}"
             ),
         },
         {
@@ -149,9 +161,10 @@ async def _run_task(
     task: dict,
     contexto_extra: str,
     groq_client,
+    vocabulario: str = "",
 ) -> dict:
     """Executa uma task e retorna dict com raw, parsed, ok, tempo, erro."""
-    messages = _build_prompt(task, contexto_extra)
+    messages = _build_prompt(task, contexto_extra, vocabulario)
     modelo = task.get("modelo") or MODELO_PADRAO
     tipo   = (task.get("tipo_saida") or "json").lower()
 
@@ -279,6 +292,21 @@ def _event(tarefa_id: int, tipo: str, payload: dict | None = None) -> None:
         s.commit()
 
 
+def _registrar_tipo(tarefa_id: int, hash_: str, classificacao: dict[str, Any]) -> None:
+    """A espécie do documento vira artefato e evento, nos dois registros, em toda rodada.
+
+    Artefato porque as telas leem daqui em vez de reabrir a saída crua da etapa, e evento porque a espécie é
+    o que escolheu o vocabulário de tudo o que vem depois: quem for conferir uma extração estranha meses
+    depois precisa achar, no mesmo lugar dos outros eventos, com que espécie o motor estava trabalhando."""
+    _save(hash_, dt.ARQUIVO_PUBLICO, classificacao)
+    _event(tarefa_id, "tipo_documento", classificacao)
+    # ``especie`` e não ``tipo``: no log do workspace ``tipo`` é o nome do evento, então uma chave ``tipo`` no
+    # corpo sobrescreveria o próprio nome e o evento sumiria de quem o procura por ele.
+    record_event(hash_, "tipo_documento", especie=classificacao["tipo"], rotulo=classificacao["rotulo"],
+                 conferido=classificacao["conferido"],
+                 revisado_por_advogado=classificacao["revisado_por_advogado"])
+
+
 def _embaralhar_alternativas(doc: Any, hash_: str) -> Any:
     """LeIA: the generator tends to put the right answer first; shuffle deterministically per task and remap `correta`."""
     import random
@@ -355,7 +383,18 @@ def fidelity_report(hash_: str) -> dict[str, Any]:
     cobertura_secao = round(com_trecho / com_fonte, 3) if com_fonte else 1.0
     lastro_sintese = round(publicadas / total_sinteses, 3) if total_sinteses else 1.0
 
+    # Uma classe vazia por natureza do documento e uma classe vazia por falha do motor são a mesma coisa no
+    # relatório de hoje. `pedidos: 0` e `fundamentos: 0` num contrato de honorários estão certos: contrato não
+    # tem pedido processual e não cita lei. A espécie é o que separa as duas, e isto entra como informação,
+    # nunca como reprovação, porque a porta continua julgando o que chega à tela e não o que o protocolo pediu.
+    especie = (dt.current(hash_) or {}).get("tipo", dt.INDEFINIDO)
+    mem = (memoria or {}).get("memoria_persistente", memoria) if isinstance(memoria, dict) else {}
+    presentes = [c for c, itens in (mem or {}).items() if isinstance(itens, list) and itens]
+
     relatorio = {
+        "tipo_documento": especie,
+        "classes_esperadas": dt.expected_classes(especie),
+        "classes_ausentes": dt.missing_classes(especie, presentes),
         "cobertura_secao": cobertura_secao,
         "lastro_sintese": lastro_sintese,
         "secoes_publicadas": len(topicos),
@@ -506,6 +545,17 @@ async def run_pdf_pipeline(
     cur_id = protocolo["workflow"]["start"]
     t_pipe = time.time()
 
+    # A espécie do documento escolhe o vocabulário das extrações, e quem responde essa pergunta é, nesta
+    # ordem: o advogado que já corrigiu, e só depois a etapa de classificação. Correção humana não é palpite
+    # a ser refeito a cada rodada; é a resposta.
+    tipo_task = (protocolo["workflow"] or {}).get("tipo_documento_task")
+    revisado = dt.saved(hash_)
+    classificacao = dt.from_review(revisado) if revisado else None
+    tipo = classificacao["tipo"] if classificacao else dt.INDEFINIDO
+    if classificacao and cur_id == tipo_task:
+        cur_id = (tarefa_por_id.get(tipo_task, {}).get("transitions") or [{}])[0].get("target")
+        _registrar_tipo(tarefa_id, hash_, classificacao)
+
     while cur_id and cur_id not in ("END_SUCCESS", "END_FAILURE"):
         task = tarefa_por_id.get(cur_id)
         if not task:
@@ -531,7 +581,7 @@ async def run_pdf_pipeline(
             ctx = f"<variacao>{variacao}</variacao>\n\n{ctx}"
 
         # Executa
-        res = await _run_task(task, ctx, groq_client)
+        res = await _run_task(task, ctx, groq_client, dt.vocabulary(task, tipo, protocolo))
 
         if not res["ok"]:
             _event(tarefa_id, "task_error", {
@@ -539,8 +589,26 @@ async def run_pdf_pipeline(
             })
             record_event(hash_, "task_error",
                              id=task["id"], erro=res.get("erro"))
+            # Uma etapa declarada ``opcional`` melhora o resto e não pode derrubá-lo. Antes da classificação
+            # existir o documento era explicado; uma etapa nova capaz de matar a rodada seria regressão para
+            # quem só quer entender o próprio papel. Sem espécie reconhecida vale o vocabulário de sempre.
+            if task.get("opcional"):
+                log.warning("↩️  [%s] etapa opcional falhou, a rodada segue | %s", task["id"], res.get("erro"))
+                if task["id"] == tipo_task:
+                    # Escrito mesmo quando não deu certo: espécie que ninguém consegue encontrar no registro
+                    # é indistinguível de etapa que nunca rodou, e as duas levam a vocabulários diferentes.
+                    classificacao = dt.read_text(None, texto_pdf)
+                    tipo = classificacao["tipo"]
+                    _registrar_tipo(tarefa_id, hash_, classificacao)
+                cur_id = (task.get("transitions") or [{}])[0].get("target")
+                continue
             _update_status(tarefa_id, "falhou")
             return
+
+        if task["id"] == tipo_task:
+            classificacao = dt.read_text(res["parsed"], texto_pdf)
+            tipo = classificacao["tipo"]
+            _registrar_tipo(tarefa_id, hash_, classificacao)
 
         # Guarda output
         outputs_anteriores[task["id"]] = res["parsed"]

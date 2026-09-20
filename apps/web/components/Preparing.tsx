@@ -1,18 +1,18 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { AlertCircle, CheckCircle2, Circle, LoaderCircle } from "lucide-react";
-import { getInferences, type Stage, type Task } from "@/lib/api";
+import { getInferences, type DocumentType, type Stage, type Task } from "@/lib/api";
 import type { Inferences } from "@/lib/inferences";
 import { fmt, m } from "@/lib/i18n";
 import { AssistantBanner, Card, Page } from "./ui";
 import { ClassCounts, MarkCounts, MarkedText } from "./InferenceMarks";
 
 /* LeIA: visible preparation (docs/API-V3-CONTRACT.md, "Preparação visível e tarefas do fluxo externo").
-   The wait screen while the pipeline runs: the 14 steps with state and time, a "n de 14" bar and, below, the document
+   The wait screen while the pipeline runs: the 15 steps with state and time, a "n de 15" bar and, below, the document
    with the marks found so far. The task itself is polled by the journey; only the partial inferences are polled here. */
 
 const POLL_MS = 8000;
-const STEP_TOTAL = 14;
+const STEP_TOTAL = 15;
 
 const icons: Record<Stage["estado"], { Icon: typeof Circle; cls: string }> = {
   pendente: { Icon: Circle, cls: "text-ink-3" },
@@ -23,11 +23,14 @@ const icons: Record<Stage["estado"], { Icon: typeof Circle; cls: string }> = {
 
 const seconds = (n: number) => fmt(m.journey.seconds, { n: Math.max(1, Math.round(n)) });
 
-export function StageList({ etapas }: { etapas: Stage[] }) {
+export function StageList({ etapas, tipo }: { etapas: Stage[]; tipo?: DocumentType | null }) {
   const total = etapas.length || STEP_TOTAL;
   const done = etapas.filter((e) => e.estado === "concluida").length;
   return (
     <div>
+      {/* A primeira etapa responde com que espécie o documento foi lido, e é ela que escolhe as palavras de
+          todas as outras. Aparece aqui, e não no fim, porque é a que já terminou quando as demais começam. */}
+      {tipo && <p className="mb-2 text-[0.95rem] text-ink-2">{m.journey.readAs} <span className="font-bold text-ink">{tipo.rotulo}</span></p>}
       <p className="mb-1.5 font-bold" id="prep-progress-label">{fmt(m.journey.stepsProgress, { n: done, total })}</p>
       <div role="progressbar" aria-labelledby="prep-progress-label" aria-valuemin={0} aria-valuemax={total} aria-valuenow={done} className="h-2.5 w-full overflow-hidden rounded-full bg-line">
         <div className="h-full rounded-full bg-teal-deep transition-[width] duration-500" style={{ width: `${Math.round((done / total) * 100)}%` }} />
@@ -104,7 +107,7 @@ export function Preparing({ hash, task }: { hash: string; task: Task }) {
         <h1 className="mb-2 text-[1.5rem]">{m.journey.preparingTitle}</h1>
         <p className={etapas.length ? "mb-4" : ""}>{m.journey.preparingText}</p>
         {etapas.length > 0
-          ? <StageList etapas={etapas} />
+          ? <StageList etapas={etapas} tipo={task.tipo_documento} />
           : last && <p className="mt-2 text-[0.95rem] text-ink-2" role="status">{fmt(m.journey.currentStep, { step: lastLabel })}</p>}
       </Card>
       <ReadingNow hash={hash} />

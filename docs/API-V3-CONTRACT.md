@@ -94,7 +94,7 @@ Etapa que declara `tipo_saida: json` e devolve algo que não é JSON **falha**, 
 texto cru virava a saída da etapa, era gravado e entrava no contexto da próxima, tudo reportado como sucesso: um
 resumo construído sobre lixo é pior que um erro honesto.
 
-Sete etapas declaram também quais campos precisam existir, no campo `schema` do protocolo:
+Oito etapas declaram também quais campos precisam existir, no campo `schema` do protocolo:
 
 ```json
 "schema": { "campos": { "sintese_fatos": { "tipo": "objeto", "obrigatorios": ["valor", "lastro"] } } }
@@ -102,6 +102,11 @@ Sete etapas declaram também quais campos precisam existir, no campo `schema` do
 
 A verificação é pequena de propósito, e exige só o que o produto consome. Etapa sem `schema` declarado passa
 apenas pela checagem de JSON válido.
+
+Uma etapa pode declarar `opcional: true`, e aí a regra acima muda para ela: quando falha, o documento **não** falha
+junto. É o caso de `T0_TIPO_DOCUMENTO`. Ela melhora o resto e não pode derrubá-lo: antes de a classificação existir
+o documento era explicado, então uma etapa nova capaz de matar a rodada seria regressão para quem só quer entender
+o próprio papel. Espécie que não dá para ler vira `indefinido`, que é o vocabulário de sempre.
 
 ### De onde vem o trecho de cada tópico
 
@@ -141,8 +146,9 @@ Espelha o fluxo "Resumo estruturado" do painel do Carlos (Status → Resumo → 
 o workflow extraiu e concluiu antes de a cliente receber o link.
 | Método e rota | Quem | Saída |
 |---|---|---|
-| `GET /api/tarefas/{id}/revisao` | Bearer (dono ou admin) | `{ tarefa: { id, hash, titulo, status, origem }, inferencias: <mesmo corpo de GET /api/t/{hash}/inferencias>, resumo_md, questoes: [ { id, area, dificuldade, enunciado, alternativas, correta, justificativa } ], link_cliente }`; 409 enquanto `criada`/`processando`; 404/403 como nas demais |
+| `GET /api/tarefas/{id}/revisao` | Bearer (dono ou admin) | `{ tarefa: { id, hash, titulo, status, origem }, tipo_documento, tipos_documento, inferencias: <mesmo corpo de GET /api/t/{hash}/inferencias>, resumo_md, questoes: [ { id, area, dificuldade, enunciado, alternativas, correta, justificativa } ], link_cliente }`; 409 enquanto `criada`/`processando`; 404/403 como nas demais |
 | `POST /api/tarefas/{id}/aprovar` | Bearer (dono ou admin) | `{ ok: true, status: "enviada" }`; só de `pronta` para `enviada`; grava evento `aprovada` no workspace e `LogEvento`; 409 em outro estado |
+| `POST /api/tarefas/{id}/tipo-documento` | Bearer (só o dono) | corpo `{ tipo }` entre as espécies declaradas; devolve `{ ok: true, tipo_documento }`; 422 para espécie que não existe; 404 para quem não enviou o documento. Grava `tipo_documento_revisado.json` ao lado do documento, que **sobrevive ao `reprocessar`** e faz a próxima rodada pular a classificação. Não muda a rodada atual: `aplicado: false` até o documento ser refeito |
 
 Estados: `pronta` = pronta para revisão do advogado; `enviada` = liberada para a cliente; `assinada` = entendimento
 registrado. Tarefas com `origem = cidadao` não passam por revisão: `pronta` já libera.
@@ -168,14 +174,20 @@ explicação nem perguntas ("resumo indisponível", `app_gestao.py:608-610`).
 
 | Método e rota | Mudança |
 |---|---|
-| `GET /api/t/{hash}` | novo campo `etapas: [ { id, nome, estado: "pendente" \| "em_andamento" \| "concluida" \| "erro", tempo } ]` com as 14 etapas do workflow em pt-BR, derivadas de `log.jsonl` (`task_start`/`task_done`/`task_error`) e da presença dos arquivos `T*.json`; `eventos` passa a trazer todos os eventos do pipeline (até 60), sem ip/ua. **Fallback do fluxo externo**: sem `resumo_humanizado.md` mas com `resumo_estruturado.json`, `resumo_md` = `processo.resposta_final.texto` e `topicos` = itens de `processo.classe_*` (titulo = `campo` humanizado, explicacao = `valor` ou `sintese_relacao`, trecho = `trecho_verbatim`, `score` de `_ui`); `questoes: []` |
+| `GET /api/t/{hash}` | novo campo `etapas: [ { id, nome, estado: "pendente" \| "em_andamento" \| "concluida" \| "erro", tempo } ]` com as 15 etapas do workflow em pt-BR, derivadas de `log.jsonl` (`task_start`/`task_done`/`task_error`) e da presença dos arquivos `T*.json`; `eventos` passa a trazer todos os eventos do pipeline (até 60), sem ip/ua. **Fallback do fluxo externo**: sem `resumo_humanizado.md` mas com `resumo_estruturado.json`, `resumo_md` = `processo.resposta_final.texto` e `topicos` = itens de `processo.classe_*` (titulo = `campo` humanizado, explicacao = `valor` ou `sintese_relacao`, trecho = `trecho_verbatim`, `score` de `_ui`); `questoes: []` |
 | `GET /api/t/{hash}/inferencias` | responde também durante `criada`/`processando` com `parcial: true`, `texto` (se `texto_extraido.txt` existir) e as classes já produzidas (arquivos `T1..T5_*.json`, cada um `{ "<classe>": [itens] }`), para a espera mostrar o documento sendo marcado. Itens ganham `score` quando `_ui` traz `score_trecho_verbatim` (fluxo externo); quando `_ui` traz posição válida (não `0:0`), ela é usada antes da busca por texto |
 
-Nomes das etapas (pt-BR): T1 Identificar as partes · T2 Datas e valores · T3 Fatos · T4 Fundamentos, leis e decisões ·
+`GET /api/t/{hash}` traz também `tipo_documento: { tipo, rotulo, trecho, pos, conferido, revisado_por_advogado, aplicado }`
+ou `null` antes da primeira rodada. É a espécie com que o motor leu o documento, e é ela que escolhe o vocabulário das
+extrações: `conferido` diz se `trecho` foi achado no documento pelo `locate`, `revisado_por_advogado` que quem
+respondeu foi uma pessoa, e `aplicado` se a explicação na tela foi mesmo produzida com ela.
+
+Nomes das etapas (pt-BR): T0 Reconhecer o tipo do documento · T1 Identificar as partes · T2 Datas e valores · T3 Fatos · T4 Fundamentos, leis e decisões ·
 T5 Pedidos · T6 Juntar a memória · T7 Resumir os fatos · T8 Resumir os fundamentos · T9 Resumir os pedidos ·
 T10 Quem é quem · T11 Contexto do processo · T12 Marcar o texto · T13 Explicar em linguagem simples ·
 T14 Preparar as perguntas.
 
-App: a tela de espera mostra a lista das 14 etapas com estado e tempo, barra "n de 14", e abaixo "O que a assistente
+App: a tela de espera mostra a espécie reconhecida ("Lido como: Contrato"), a lista das 15 etapas com estado e tempo,
+barra "n de 15", e abaixo "O que a assistente
 está lendo agora": o documento com as marcações parciais e a contagem por classe (atualiza a cada 8 s). Documento sem
 perguntas (fluxo externo) termina a jornada em "Você viu todos os pontos", sem conferência e sem comprovante.

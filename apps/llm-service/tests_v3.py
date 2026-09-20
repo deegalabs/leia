@@ -472,7 +472,11 @@ def staged_log(h: str, events: list[dict]) -> None:
 def test_steps_from_log_and_files(lawyer):
     """LeIA: etapas come from log.jsonl (T1 done, T2 running, others pending) and from the T*.json files."""
     from leia.api_citizen import STEP_NAMES, build_steps
-    assert len(STEP_NAMES) == 14 and list(STEP_NAMES)[0] == "T1_IDENTIFICADOR_PARTES" and list(STEP_NAMES)[-1] == "T14_QUESTOES"
+
+    # Contra o protocolo, não contra um número: a tela de espera existe para mostrar as etapas que rodam, e
+    # um número cravado aqui deixa etapa nova invisível para quem espera em vez de acusar a diferença.
+    do_protocolo = [t["id"] for t in running_protocol()["tasks"] if t.get("missao")]
+    assert list(STEP_NAMES) == do_protocolo, "a lista de etapas da tela não é a do protocolo que roda"
     task = create_task(lawyer["token"], "Em preparo")
     h = task["hash"]
     staged_log(h, [{"ts": "t", "tipo": "pipeline_start", "tarefa_id": task["id"], "ip": "1.2.3.4"},
@@ -483,10 +487,10 @@ def test_steps_from_log_and_files(lawyer):
     data = client.get(f"/api/t/{h}").json()
     assert data["tarefa"]["status"] == "processando" and data["resumo_md"] is None
     etapas = data["etapas"]
-    assert [e["id"] for e in etapas] == list(STEP_NAMES) and etapas[0]["nome"] == "Identificar as partes"
-    assert etapas[0] == {"id": "T1_IDENTIFICADOR_PARTES", "nome": "Identificar as partes", "estado": "concluida", "tempo": 4.2}
-    assert etapas[1]["estado"] == "em_andamento" and etapas[1]["tempo"] is None
-    assert all(e["estado"] == "pendente" for e in etapas[2:]) and etapas[13]["nome"] == "Preparar as perguntas"
+    assert [e["id"] for e in etapas] == list(STEP_NAMES) and etapas[1]["nome"] == "Identificar as partes"
+    assert etapas[1] == {"id": "T1_IDENTIFICADOR_PARTES", "nome": "Identificar as partes", "estado": "concluida", "tempo": 4.2}
+    assert etapas[2]["estado"] == "em_andamento" and etapas[2]["tempo"] is None
+    assert all(e["estado"] == "pendente" for e in etapas[3:]) and etapas[-1]["nome"] == "Preparar as perguntas"
     assert all("ip" not in e and "ua" not in e for e in data["eventos"]) and data["eventos"][0]["tipo"] == "pipeline_start"
 
     # a file the log knows nothing about counts as done; an error in the log wins over a stale file
@@ -2157,3 +2161,177 @@ def test_the_quote_shown_is_the_slice_of_the_document_at_that_position():
         f"  documento : {documento[a:b]!r}"
     )
     assert "compa nhia" in item["trecho"], "o trecho foi limpo, então deixou de ser o que a pessoa vê no papel"
+
+
+# ── O tipo do documento é lido antes, e é ele que escolhe o vocabulário ──────
+#
+# Medido em 20/09/2026 nos dois casos gravados. O protocolo faz as mesmas catorze perguntas a qualquer
+# documento, e cinco delas têm vocabulário fechado de processo judicial. No contrato de honorários o
+# `campo` do enum de T1 saiu como `autor` para o CONTRATANTE, e é `campo` que o aplicativo mostra em
+# negrito sobre o texto marcado: a pessoa lê "autor: CONTRATANTE" num documento que não tem autor.
+
+CONTRATO_TEXT = ("CONTRATO DE HONORÁRIOS ADVOCATÍCIOS. O CONTRATANTE, João da Silva, e a CONTRATADA, "
+                 "Maria Souza, ajustam vinte por cento sobre o proveito econômico da causa.")
+T0_QUOTE = "CLÁUSULA 2. O CONTRATANTE"   # trecho literal de FAKE_TEXT, para a classificação ter lastro
+
+
+def test_the_document_type_is_a_claim_about_the_document_and_carries_its_quote():
+    """O tipo é uma afirmação sobre o documento, então obedece à mesma regra de todas as outras: quem acha a
+    posição é o `locate`, e o trecho publicado é a fatia do documento naquela posição."""
+    from core import document_type as dt
+    from core.anchors import norm_map
+
+    text_norm, idx = norm_map(CONTRATO_TEXT)
+    lido = dt.read({"tipo": "contrato", "trecho_verbatim": "CONTRATO DE HONORÁRIOS ADVOCATÍCIOS"},
+                   CONTRATO_TEXT, text_norm, idx)
+
+    assert lido["tipo"] == "contrato"
+    assert lido["conferido"] is True, "o trecho que sustenta a classificação não foi achado no documento"
+    a, b = lido["pos"]
+    assert CONTRATO_TEXT[a:b] == lido["trecho"], "o trecho do tipo não é a fatia do documento naquela posição"
+    assert lido["rotulo"], "o tipo não tem rótulo para a tela"
+
+
+def test_a_type_outside_the_closed_set_never_travels():
+    """O modelo pode escrever qualquer palavra no campo `tipo`, e o que viaja daqui escolhe o vocabulário das
+    cinco extrações. Tipo que não está no protocolo vira `indefinido`, que é o vocabulário de hoje."""
+    from core import document_type as dt
+    from core.anchors import norm_map
+
+    text_norm, idx = norm_map(CONTRATO_TEXT)
+    for inventado in ({"tipo": "peticao_de_divorcio"}, {"tipo": ""}, {}, None, "contrato"):
+        lido = dt.read(inventado, CONTRATO_TEXT, text_norm, idx)
+        assert lido["tipo"] == dt.INDEFINIDO, f"{inventado!r} passou como tipo válido"
+
+
+def test_the_vocabulary_that_reaches_the_model_is_the_one_of_the_type():
+    """Um contrato não tem autor nem réu, tem contratante e contratada. Enquanto o enum é um só, o modelo é
+    obrigado a escolher a caixa errada, porque a palavra certa não está na lista que ele recebeu."""
+    from core import document_type as dt
+    from core.pipeline_pdf import _build_prompt
+
+    t1 = protocol_task("T1_IDENTIFICADOR_PARTES")
+    protocolo = running_protocol()
+
+    contrato = _build_prompt(t1, "texto", dt.vocabulary(t1, "contrato", protocolo))[0]["content"]
+    assert "contratante" in contrato.lower(), "o vocabulário do contrato não oferece contratante"
+    assert "ENUM[autor" not in contrato, "o contrato continua recebendo o enum de processo judicial"
+
+    peca = _build_prompt(t1, "texto", dt.vocabulary(t1, "peca_processual", protocolo))[0]["content"]
+    assert "ENUM[autor" in peca, "a peça processual perdeu o vocabulário que ela sempre teve"
+
+    indefinido = _build_prompt(t1, "texto", dt.vocabulary(t1, dt.INDEFINIDO, protocolo))[0]["content"]
+    assert "ENUM[autor" in indefinido, "sem tipo reconhecido o vocabulário tem que ser o de hoje"
+
+
+def test_no_prompt_ever_leaves_with_an_unfilled_placeholder():
+    """A substituição é invisível quando dá certo e é texto literal na cara do modelo quando falha."""
+    from core import document_type as dt
+    from core.pipeline_pdf import MARCADOR_VOCABULARIO, _build_prompt
+
+    protocolo = running_protocol()
+    tipos = [dt.INDEFINIDO, *dt.tipos(protocolo)]
+    for task in protocolo["tasks"]:
+        if not task.get("missao"):
+            continue
+        for tipo in tipos:
+            sistema = _build_prompt(task, "texto", dt.vocabulary(task, tipo, protocolo))[0]["content"]
+            assert MARCADOR_VOCABULARIO not in sistema, f"{task['id']} com tipo {tipo} levou marcador cru"
+
+
+def test_a_classification_that_fails_does_not_take_the_document_down_with_it(citizen, monkeypatch):
+    """Antes de existir classificação o documento era explicado. Uma etapa nova que pode matar a rodada é
+    regressão para quem só quer entender o próprio papel: sem tipo reconhecido, o vocabulário é o de hoje."""
+    import asyncio
+
+    from core import document_type as dt
+    from core import pipeline_pdf
+    from core.pdf_extract import Extraction
+
+    monkeypatch.setattr(pipeline_pdf, "extract", lambda caminho: Extraction(FAKE_TEXT, 0, 0, 0))
+    # Os dois jeitos de a etapa não entregar: a espécie inventada, que passa pelo contrato e não existe, e a
+    # saída fora do contrato, que nem chega a ser lida. Os dois terminam igual, e é esse o ponto.
+    for titulo, saida in (("Espécie inventada", {"tipo": "isto não é um tipo", "trecho_verbatim": T0_QUOTE}),
+                          ("Saída fora do contrato", {"nada": "aqui"})):
+        t = create_task(citizen["token"], titulo)
+        loop = asyncio.new_event_loop()
+        try:
+            loop.run_until_complete(pipeline_pdf.run_pdf_pipeline(
+                t["id"], _scripted_groq({**RUN_OUTPUTS, "T0_TIPO_DOCUMENTO": saida})))
+        finally:
+            loop.close()
+
+        assert status_of(t["hash"]) == "pronta", (titulo, ws.read_events(t["hash"])[-3:])
+        assert last_event(t["hash"], "tipo_documento")["especie"] == dt.INDEFINIDO, titulo
+
+
+def test_the_lawyers_correction_replaces_the_classification_and_survives_reprocessing(lawyer, monkeypatch):
+    """Classificação errada que a pessoa vê e conserta é barata; a que ninguém vê é a falha silenciosa que o
+    produto inteiro existe para não ter. Corrigir só vale se a correção mandar na próxima rodada, e se
+    sobreviver ao `reprocessar`, que apaga os arquivos das etapas."""
+    import asyncio
+
+    from core import document_type as dt
+    from core import pipeline_pdf
+    from core.pdf_extract import Extraction
+
+    t = create_task(lawyer["token"], "Tipo corrigido")
+    r = client.post(f"/api/tarefas/{t['id']}/tipo-documento", json={"tipo": "contrato"}, headers=bearer(lawyer["token"]))
+    assert r.status_code == 200, r.text
+
+    vistos: list[str] = []
+    scripted = _scripted_groq({**RUN_OUTPUTS, "T0_TIPO_DOCUMENTO": {
+        # Uma classificação que dá certo, e não uma que falha: vencer o silêncio da máquina não prova nada.
+        "tipo": "peca_processual", "trecho_verbatim": T0_QUOTE}})
+    original = scripted.chat.completions.create
+
+    async def espiao(**kwargs):
+        vistos.append(kwargs["messages"][0]["content"])
+        return await original(**kwargs)
+
+    scripted.chat.completions.create = espiao
+    monkeypatch.setattr(pipeline_pdf, "extract", lambda caminho: Extraction(FAKE_TEXT, 0, 0, 0))
+    loop = asyncio.new_event_loop()
+    try:
+        loop.run_until_complete(pipeline_pdf.run_pdf_pipeline(t["id"], scripted))
+    finally:
+        loop.close()
+
+    assert dt.saved(t["hash"])["tipo"] == "contrato", "a correção do advogado não sobreviveu à rodada"
+    assert last_event(t["hash"], "tipo_documento")["especie"] == "contrato", "a máquina passou por cima do humano"
+    partes = next((s for s in vistos if "Identificador de Partes" in s), "")
+    assert "contratante" in partes.lower(), "a correção não chegou ao vocabulário da extração"
+
+
+def test_only_who_sent_the_document_can_correct_its_type(lawyer, citizen):
+    t = create_task(lawyer["token"], "Tipo alheio")
+    # O controle positivo vem primeiro de propósito: sem ele, uma rota que nem existe faz o teste de recusa
+    # passar com 404 e a proteção some sem ninguém notar.
+    dono = client.post(f"/api/tarefas/{t['id']}/tipo-documento", json={"tipo": "contrato"},
+                       headers=bearer(lawyer["token"]))
+    assert dono.status_code == 200, dono.text
+
+    alheio = client.post(f"/api/tarefas/{t['id']}/tipo-documento", json={"tipo": "peca_processual"},
+                         headers=bearer(citizen["token"]))
+    assert alheio.status_code in (403, 404), alheio.text
+    from core import document_type as dt_
+
+    assert dt_.saved(t["hash"])["tipo"] == "contrato", "a recusa não impediu a gravação"
+
+    invalido = client.post(f"/api/tarefas/{t['id']}/tipo-documento", json={"tipo": "qualquer coisa"},
+                           headers=bearer(lawyer["token"]))
+    assert invalido.status_code == 422, invalido.text
+
+
+def test_a_class_the_type_does_not_have_is_not_missing_from_the_explanation():
+    """`pedidos: 0` e `fundamentos: 0` num contrato de honorários estão certos, e hoje são indistinguíveis de
+    classe vazia por falha do motor. Quem lê o relatório precisa ver a diferença; a porta continua julgando
+    só o que chega à tela, e não o que o protocolo pediu."""
+    from core import document_type as dt
+
+    assert "pedidos" not in dt.expected_classes("contrato"), "contrato não tem pedido processual"
+    assert "pedidos" in dt.expected_classes("peca_processual"), "peça processual sem pedidos é peça incompleta"
+    assert dt.expected_classes(dt.INDEFINIDO) == [], "sem tipo reconhecido não dá para cobrar classe nenhuma"
+
+    ausentes = dt.missing_classes("contrato", presentes=["identificacao", "datas_valores"])
+    assert "pedidos" not in ausentes and "fatos" in ausentes, ausentes

@@ -5,7 +5,14 @@
 
 /* LeIA: score (0..1 or 0..100) only on topics from the external "Resumo estruturado" flow */
 export type Topic = { id: number; titulo: string; explicacao?: string; explicacao_md?: string; trecho?: string; clausula?: string; score?: number; conferencia?: import("./inferences").Anchor };
-/* LeIA: one of the 14 workflow steps as the public route reports it (docs/API-V3-CONTRACT.md, "Preparação visível") */
+/* LeIA: the species the engine read the document as. It comes first in the pipeline and it is what chooses
+   the vocabulary every later step uses to name the parties, so it travels with every task: `conferido` says
+   whether `trecho` was found in the document, `revisado_por_advogado` that a person answered instead of the
+   model, and `aplicado` whether the explanation on screen was actually produced with it. */
+export type DocumentType = { tipo: string; rotulo: string; trecho: string; pos: [number, number] | null;
+                             conferido: boolean; revisado_por_advogado: boolean; aplicado?: boolean };
+export type DocumentTypeOption = { tipo: string; rotulo: string };
+/* LeIA: one of the 15 workflow steps as the public route reports it (docs/API-V3-CONTRACT.md, "Preparação visível") */
 export type StageState = "pendente" | "em_andamento" | "concluida" | "erro";
 export type Stage = { id: string; nome: string; estado: StageState; tempo?: number | null };
 export type Question = { id: number; enunciado: string; alternativas: string[]; area?: string };
@@ -26,6 +33,7 @@ export type Task = {
   convite?: { enderecado: boolean; para: string | null; expira_em: string | null } | null;
   /* LeIA: visible preparation (docs/API-V3-CONTRACT.md, "Preparação visível e tarefas do fluxo externo") */
   etapas?: Stage[];
+  tipo_documento?: DocumentType | null;
   sem_perguntas?: boolean;
 };
 export type QuizResult = Attempt & { comprovante_token?: string; erros: { id: number; area?: string; enunciado?: string; escolhida?: number | null }[] };
@@ -201,6 +209,7 @@ export type ReviewQuestion = Question & { dificuldade?: string; correta: number;
 export type Review = {
   tarefa: { id: number; hash: string; titulo: string; status: TaskStatus; origem: "advogado" | "cidadao" };
   inferencias: Inferences; resumo_md: string; questoes: ReviewQuestion[]; link_cliente: string;
+  tipo_documento?: DocumentType | null; tipos_documento?: DocumentTypeOption[];
 };
 export async function getReview(id: string | number): Promise<Review> {
   const r = await check(await fetch(`/api/tarefas/${id}/revisao`, { headers: { Accept: "application/json" }, cache: "no-store" }));
@@ -220,6 +229,13 @@ export async function unbindTask(id: string | number): Promise<{ ok: boolean }> 
 }
 export async function revokeInvite(id: string | number): Promise<Invite> {
   const r = await check(await fetch(`/api/tarefas/${id}/convite`, { method: "DELETE", headers: jsonHeaders() }));
+  return r.json();
+}
+
+/* The lawyer's answer about the species. It does not redo the explanation: the run that produced what is on
+   screen already read the document with the old vocabulary, so the screen says so and offers "refazer". */
+export async function setDocumentType(id: string | number, tipo: string): Promise<{ ok: boolean; tipo_documento: DocumentType }> {
+  const r = await check(await fetch(`/api/tarefas/${id}/tipo-documento`, { method: "POST", headers: jsonHeaders(), body: JSON.stringify({ tipo }) }));
   return r.json();
 }
 
