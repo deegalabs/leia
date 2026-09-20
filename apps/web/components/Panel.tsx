@@ -88,10 +88,10 @@ function CitizenCard({ t }: { t: TaskSummary }) {
         <StatusChip tone={s.tone}>{s.label}</StatusChip>
       </div>
       <p className="mt-1 text-[0.95rem] text-ink-2">{t.advogado ? fmt(m.ch.sentBy, { lawyer: t.advogado.nome, date: formatDateTime(t.criada_em) }) : formatDateTime(t.criada_em)}</p>
-      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+      <div className="mt-3 grid gap-2 wide:grid-cols-2">
         <LinkButton href={`/t/${t.hash}`} variant={approved ? "secondary" : "primary"}>{m.ch.continue}</LinkButton>
         {approved && <LinkButton href={`/comprovante/${approved.comprovante_token ?? approved.hash_imutavel}`}>{m.ch.viewReceipt}</LinkButton>}
-        <Link href={`/painel/${t.id}`} className="inline-flex min-h-[48px] items-center gap-1 px-1 font-bold text-teal-deep underline underline-offset-4 sm:col-span-2">{m.panel.details} <ChevronRight size={18} aria-hidden /></Link>
+        <Link href={`/painel/${t.id}`} className="inline-flex min-h-[48px] items-center gap-1 px-1 font-bold text-teal-deep underline underline-offset-4 wide:col-span-2">{m.panel.details} <ChevronRight size={18} aria-hidden /></Link>
       </div>
     </Card>
   );

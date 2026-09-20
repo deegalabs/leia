@@ -52,7 +52,11 @@ mark { background: var(--color-teal-soft); color: inherit; text-decoration: unde
 .docs-prose table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
 .docs-prose th, .docs-prose td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; vertical-align: top; overflow-wrap: normal; } /* whole words in the grid; code breaks after slashes (see lib/markdown.ts) and the wrapper scrolls if it must */
 .docs-prose th { background: color-mix(in srgb, var(--muted) 85%, transparent); font-weight: 700; }
-@media (max-width: 639px) {
+/* Tabela vira cartão abaixo do ponto de virada do produto, e não numa largura própria. Era 639px, que era
+   um segundo ponto de virada escondido aqui dentro: a régua dizia que o layout mudava uma vez só e ele
+   mudava duas. O número está escrito porque consulta de mídia não lê variável de CSS; ele é o
+   `--breakpoint-wide` de tokens.css menos 1, e `lib/breakpoint.test.ts` reprova qualquer outro. */
+@media (max-width: 1023px) {
   .docs-prose table, .docs-prose tbody, .docs-prose tr, .docs-prose td { display: block; }
   .docs-prose thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .docs-prose tr { border: 1px solid var(--border); border-radius: 12px; background: var(--color-surface); padding: 6px 12px; margin: 0 0 10px; }

@@ -29,7 +29,7 @@ export function Card({ children, className = "", tone = "surface" }: { children:
 export function BottomActionBar({ children }: { children: ReactNode }) {
   return (
     <div className="no-print sticky bottom-0 -mx-4 mt-6 border-t border-line bg-paper-2/95 px-4 pb-[max(12px,env(safe-area-inset-bottom))] pt-3 backdrop-blur">
-      <div className="mx-auto grid max-w-[560px] gap-2 md:max-w-[680px]">{children}</div>
+      <div className="mx-auto grid max-w-[560px] gap-2 wide:max-w-[680px]">{children}</div>
     </div>
   );
 }
@@ -195,5 +195,5 @@ export function Field({ id, label, hint, children }: { id: string; label: string
 export const inputClass = "min-h-[48px] w-full rounded-button border-2 border-line-strong bg-surface px-3 text-[1.05rem] focus:border-teal-deep";
 
 export function Page({ children, wide = false }: { children: ReactNode; wide?: boolean }) {
-  return <main className={`mx-auto w-full flex-1 px-4 pb-6 ${wide ? "max-w-[760px]" : "max-w-[560px] md:max-w-[680px]"}`}>{children}</main>;
+  return <main className={`mx-auto w-full flex-1 px-4 pb-6 ${wide ? "max-w-[760px]" : "max-w-[560px] wide:max-w-[680px]"}`}>{children}</main>;
 }

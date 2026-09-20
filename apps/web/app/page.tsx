@@ -29,9 +29,9 @@ export default function Landing() {
             <img src="/logo-horizontal-dark.svg" alt="LeIA" className="h-10" />
             <AuthNav />
           </div>
-          <h1 className="mb-3 text-[2rem] leading-tight md:text-[2.6rem]">Entenda o seu documento jurídico em linguagem simples.</h1>
+          <h1 className="mb-3 text-[2rem] leading-tight wide:text-[2.6rem]">Entenda o seu documento jurídico em linguagem simples.</h1>
           <p className="mb-8 max-w-[560px] text-[1.15rem] text-paper/85">Um contrato, uma petição ou uma decisão vira uma explicação em partes, com o trecho original ao lado. Você pergunta, confere se entendeu e recebe um comprovante.</p>
-          <div className="grid gap-3 sm:max-w-[420px]">
+          <div className="grid gap-3 wide:max-w-[420px]">
             <LinkButton href={`/t/${demoHash}`} className="!bg-teal !text-navy hover:!bg-[#4FBDBD]">Ver um exemplo</LinkButton>
             <LinkButton href="/enviar" variant="secondary" className="!border-paper !text-paper hover:!bg-white/10">Enviar meu documento</LinkButton>
             <LinkButton href="/entrar" variant="ghost" className="!text-paper hover:!bg-white/10">Sou advogado: entrar</LinkButton>
@@ -42,7 +42,7 @@ export default function Landing() {
       <section className="px-4 py-10">
         <div className="mx-auto max-w-[680px]">
           <h2 className="mb-5 text-[1.5rem]">Como funciona</h2>
-          <ol className="grid gap-4 md:grid-cols-2">
+          <ol className="grid gap-4 wide:grid-cols-2">
             {steps.map(({ Icon, text }, i) => (
               <li key={i} className="rounded-card border border-line bg-surface p-5">
                 <Icon size={28} aria-hidden className="mb-3 text-teal-deep" />
@@ -55,7 +55,7 @@ export default function Landing() {
       <section className="px-4 pb-10">
         <div className="mx-auto max-w-[680px]">
           <h2 className="mb-5 text-[1.5rem]">Para quem</h2>
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 wide:grid-cols-3">
             <div className="rounded-card bg-teal-soft p-5"><h3 className="mb-1 text-[1.1rem]">Cidadã</h3><p className="text-[1rem]">Entender o que está escrito antes de decidir, no seu ritmo, sem juridiquês.</p></div>
             <div className="rounded-card bg-teal-soft p-5"><h3 className="mb-1 text-[1.1rem]">Advogado</h3><p className="text-[1rem]">Enviar o documento, acompanhar as respostas da cliente e ter o registro de que o esclarecimento aconteceu.</p></div>
             <div className="rounded-card bg-teal-soft p-5"><h3 className="mb-1 text-[1.1rem]">Acesso à justiça</h3><p className="text-[1rem]">Defensoria, advogados dativos e Espaço OAB Cidadania.</p></div>
@@ -65,7 +65,7 @@ export default function Landing() {
       <section className="px-4 pb-10">
         <div className="mx-auto max-w-[680px]">
           <h2 className="mb-5 text-[1.5rem]">Por que confiar</h2>
-          <ul className="grid gap-3 md:grid-cols-2">
+          <ul className="grid gap-3 wide:grid-cols-2">
             {trust.map((t) => <li key={t} className="flex gap-3 rounded-card border border-line bg-surface p-4"><BadgeCheck size={22} aria-hidden className="mt-0.5 flex-none text-teal-deep" /><span>{t}</span></li>)}
           </ul>
         </div>

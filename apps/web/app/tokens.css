@@ -2,6 +2,20 @@
    Tailwind v4: `@import "tailwindcss"; @import "../../docs/brand/tokens.css";` (or copy into the app). */
 
 @theme {
+  /* ── O único ponto de virada do produto ────────────────────────────────
+     A escala padrão do Tailwind é zerada de propósito. Com sm, md, lg, xl e 2xl disponíveis, o layout
+     mudava em cinco larguras diferentes e ninguém conseguia dizer o que a tela fazia em nenhuma delas:
+     eram 46 usos espalhados por 11 arquivos, escolhidos um a um, sem regra.
+
+     A regra passa a ser uma só. Abaixo de 1024 px a jornada da cidadã é sempre coluna única, porque o
+     aparelho dela é um celular básico e coluna única é o que se lê com o polegar. A partir de 1024 px o
+     painel do advogado ganha trilho, lista e detalhe lado a lado, porque ele trabalha em computador.
+
+     O custo está declarado: um tablet em pé (768 px) recebe o layout de celular. É mais alto e é legível.
+     Em troca, dá para responder "o que esta tela faz em tal largura" sem abrir onze arquivos. */
+  --breakpoint-*: initial;
+  --breakpoint-wide: 1024px;
+
   /* brand */
   --color-navy: #081820;        /* brand ground, splash, app icon, lawyer sidebar */
   --color-paper: #F0F0E8;       /* text on navy */

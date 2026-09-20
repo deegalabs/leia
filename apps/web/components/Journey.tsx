@@ -119,7 +119,7 @@ export function Journey({ hash }: { hash: string }) {
 
   /* floating "doubt" button only where the action bar has no such button */
   const fab = (step.kind === "question" || (step.kind === "result" && result?.aprovado)) && (
-    <button type="button" onClick={() => setChatOpen(true)} className="no-print fixed bottom-24 right-4 z-10 inline-flex min-h-[52px] items-center gap-2 rounded-full bg-navy px-4 font-bold text-paper shadow-lg md:bottom-8">
+    <button type="button" onClick={() => setChatOpen(true)} className="no-print fixed bottom-24 right-4 z-10 inline-flex min-h-[52px] items-center gap-2 rounded-full bg-navy px-4 font-bold text-paper shadow-lg wide:bottom-8">
       <MessageCircle size={20} aria-hidden /> Tenho uma dúvida
     </button>
   );
