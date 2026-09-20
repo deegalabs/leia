@@ -3,6 +3,8 @@
 # ║   Compat Starlette ≥ 0.36 (TemplateResponse(request, name, context))     ║
 # ╚══════════════════════════════════════════════════════════════════════════╝
 from __future__ import annotations
+
+import hashlib
 import os
 import json, logging, shutil, secrets
 from datetime import datetime
@@ -118,6 +120,9 @@ async def create_pdf_task(
         advogado_id=u.id,
         status="criada",
         pdf_nome=pdf.filename,
+        # Gravado aqui, com o arquivo ainda na mão: o `original.pdf` é apagado logo depois da
+        # extração, e o comprovante precisa continuar sabendo qual documento era.
+        document_sha256=hashlib.sha256(conteudo).hexdigest(),
         workspace_path=str(folder),
         rodada=1,
         origem=origem,
@@ -183,6 +188,9 @@ async def api_pdf_destilar(
         advogado_id=u.id,
         status="criada",
         pdf_nome=pdf.filename,
+        # Gravado aqui, com o arquivo ainda na mão: o `original.pdf` é apagado logo depois da
+        # extração, e o comprovante precisa continuar sabendo qual documento era.
+        document_sha256=hashlib.sha256(conteudo).hexdigest(),
         workspace_path=str(folder),
         rodada=1,
     )
@@ -373,10 +381,17 @@ async def nova_rodada(
 
     h = ws.new_hash()
     new_folder = ws.folder(h)
-    pdf_orig = Path(t.workspace_path) / "original.pdf"
-    if not pdf_orig.exists():
-        raise HTTPException(500, "PDF original não encontrado")
-    shutil.copy(pdf_orig, new_folder / "original.pdf")
+    # A rodada nova leva o texto, não o arquivo: o `original.pdf` é descartado logo depois da extração
+    # (E17-T06), e é o texto que o motor lê e contra o qual toda âncora é conferida. Enquanto o PDF ainda
+    # estiver lá, ele vai junto, e a rodada nova extrai de novo como sempre fez.
+    origem_pasta = Path(t.workspace_path)
+    pdf_orig, texto_orig = origem_pasta / "original.pdf", origem_pasta / "texto_extraido.txt"
+    if pdf_orig.exists():
+        shutil.copy(pdf_orig, new_folder / "original.pdf")
+    elif texto_orig.exists():
+        shutil.copy(texto_orig, new_folder / "texto_extraido.txt")
+    else:
+        raise HTTPException(409, "Não sobrou nem o documento nem o texto dele, então não dá para abrir outra rodada.")
 
     novo = Tarefa(
         hash=h,
@@ -384,6 +399,9 @@ async def nova_rodada(
         advogado_id=t.advogado_id,
         status="criada",
         pdf_nome=t.pdf_nome,
+        # O hash do documento acompanha a rodada nova: é o mesmo documento, e o comprovante dela precisa
+        # dizer qual era.
+        document_sha256=t.document_sha256,
         workspace_path=str(new_folder),
         clone_de=t.id,
         rodada=nova_rodada_n,
@@ -640,8 +658,6 @@ def _dados_assinatura(t: Tarefa, melhor: Tentativa) -> dict:
         "acertos": melhor.acertos,
         "total": melhor.total,
         "ts": melhor.criada_em.isoformat(),
-        "ip": melhor.ip,
-        "user_agent": melhor.user_agent,
         "hash_imutavel": melhor.hash_imutavel,
     }
 

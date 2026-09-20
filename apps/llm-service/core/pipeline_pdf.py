@@ -560,32 +560,57 @@ async def run_pdf_pipeline(
     _update_status(tarefa_id, "processando")
     record_event(hash_, "pipeline_start", tarefa_id=tarefa_id)
 
-    # ── 2. Extrai texto do PDF
-    try:
-        extracao = extract(pdf_path)
-        texto_pdf = extracao.text
-    except Exception as e:
-        log.error("💥 Extração falhou | %s", e)
-        _update_status(tarefa_id, "falhou")
-        _event(tarefa_id, "erro_extracao", {"erro": str(e)})
-        record_event(hash_, "erro_extracao", erro=str(e))
-        return
+    # ── 2. Extrai texto do PDF, ou reaproveita o texto já extraído
+    #
+    # Refazer um documento não pode depender de o PDF ainda estar guardado: ele é apagado logo depois da
+    # primeira extração, e é o `reprocessar` que aplica a correção de espécie feita pelo advogado. Sem isto,
+    # aquela correção seria um botão que não faz nada.
+    ja_extraido = folder(hash_) / "texto_extraido.txt"
+    if not pdf_path.exists() and ja_extraido.exists():
+        texto_pdf = ja_extraido.read_text(encoding="utf-8")
+        extracao = None
+        log.info("📄 texto reaproveitado | %d chars (o PDF já foi descartado)", len(texto_pdf))
+    else:
+        try:
+            extracao = extract(pdf_path)
+            texto_pdf = extracao.text
+        except Exception as e:
+            log.error("💥 Extração falhou | %s", e)
+            _update_status(tarefa_id, "falhou")
+            _event(tarefa_id, "erro_extracao", {"erro": str(e)})
+            record_event(hash_, "erro_extracao", erro=str(e))
+            return
 
     _save(hash_, "texto_extraido.txt", texto_pdf)
+    # O PDF sai do disco assim que o texto está gravado. Ele é o dado mais sensível que o produto toca, é o
+    # único que guarda a diagramação e a assinatura da pessoa, e depois daqui nada mais o lê: o motor
+    # trabalha sobre o texto, as âncoras são conferidas contra o texto, e o `documentSha256` do comprovante
+    # vem da coluna `Tarefa.document_sha256`, gravada no envio. Guardar o arquivo além disto é guardar por
+    # guardar, que é exatamente o que o art. 6º, III não admite.
+    original = folder(hash_) / "original.pdf"
+    if original.exists():
+        original.unlink()
+        _event(tarefa_id, "original_descartado", {})
+        record_event(hash_, "original_descartado")
     _event(tarefa_id, "texto_extraido", {"chars": len(texto_pdf)})
     record_event(hash_, "texto_extraido", chars=len(texto_pdf))
     log.info("📄 texto extraído | %d chars", len(texto_pdf))
 
     # A hostile PDF draws text nobody sees and hands it to the model as content. What the extraction dropped
-    # is written down on every run, zeros included: an event that only shows up when something was removed
-    # cannot tell a clean document apart from an extraction that never looked, and this count is what the
-    # audit compares between the clean file and the hostile one.
-    oculto = {"caracteres": extracao.hidden_text_chars, "trechos": extracao.hidden_text_runs,
-              "invisiveis": extracao.invisible_chars}
-    _event(tarefa_id, "texto_oculto_removido", oculto)
-    record_event(hash_, "texto_oculto_removido", **oculto)
-    if any(oculto.values()):
-        log.warning("🙈 texto oculto descartado | %s", oculto)
+    # is written down on every run that extracts, zeros included: an event that only shows up when something
+    # was removed cannot tell a clean document apart from an extraction that never looked, and this count is
+    # what the audit compares between the clean file and the hostile one.
+    #
+    # A rodada que reaproveita o texto já gravado não extraiu nada, e por isso não escreve este evento:
+    # zeros ali diriam "olhei e não achei" sem ninguém ter olhado, que é a leitura errada que o parágrafo
+    # acima existe para impedir. A contagem verdadeira está na rodada que extraiu.
+    if extracao is not None:
+        oculto = {"caracteres": extracao.hidden_text_chars, "trechos": extracao.hidden_text_runs,
+                  "invisiveis": extracao.invisible_chars}
+        _event(tarefa_id, "texto_oculto_removido", oculto)
+        record_event(hash_, "texto_oculto_removido", **oculto)
+        if any(oculto.values()):
+            log.warning("🙈 texto oculto descartado | %s", oculto)
 
     # ── 3. Carrega protocolo
     try:

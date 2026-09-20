@@ -7,12 +7,12 @@
   {
    "id": 1,
    "titulo": "Resumo em uma linha",
-   "explicacao_md": "Contrato de prestação de serviços entre pessoa física e advogada, com pagamento de honorários iniciais de R$ 1.500,00 (mil e quinhentos reais) e honorários de êxito de 20 % (vinte por cento) sobre o valor recebido."
+   "explicacao_md": "Contrato de prestação de serviços entre pessoa física e advogada, com pagamento de honorários iniciais de R$ 1.500,00 (mil e quinhentos reais) e honorários de êxito de 20% (vinte por cento) sobre o valor recebido."
   },
   {
    "id": 2,
    "titulo": "👥 Quem está nesta história",
-   "explicacao_md": "CONTRATANTE: pessoa física (quem contrata o serviço).  \nCONTRATADA: advogada (quem presta o serviço).",
+   "explicacao_md": "CONTRATANTE: pessoa física (quem contrata o serviço).\nCONTRATADA: advogada (quem presta o serviço).",
    "trecho": "CONTRATANTE: pessoa física, aqui identificada apenas como CONTRATANTE.",
    "pos": [
     89,
@@ -26,11 +26,11 @@
   {
    "id": 3,
    "titulo": "📖 O que aconteceu",
-   "explicacao_md": "O CONTRATANTE contrata a CONTRATADA para propor e acompanhar ação de cobrança de verbas trabalhistas contra ex‑empregador, até decisão final em primeira instância.  \nPelos serviços, o CONTRATANTE pagará honorários iniciais de R$ 1.500,00 (mil e quinhentos reais), em três parcelas mensais de R$ 500,00 (quinhentos reais), vencendo a primeira em 10 dias após a assinatura deste contrato.  \nAlém dos honorários iniciais, o CONTRATANTE pagará à CONTRATADA honorários de êxito de 20 % (vinte por cento) sobre o valor efetivamente recebido na ação, no momento do recebimento.  \nAs despesas do processo, como custas, cópias e perícias, correm por conta do CONTRATANTE e serão pagas mediante apresentação de comprovante.  \nO CONTRATANTE poderá encerrar este contrato a qualquer tempo, por escrito, ficando devidos os honorários iniciais já vencidos e os honorários de êxito proporcionais ao trabalho realizado até a data do encerramento.  \nA CONTRATADA manterá o CONTRATANTE informado sobre os atos relevantes do processo, por telefone ou mensagem, no prazo de 5 dias úteis após cada ato.  \nFica eleito o foro da comarca de Curitiba, Paraná, para resolver qualquer dúvida sobre este contrato.  \nCuritiba, 13 de setembro de 2026.",
-   "trecho": "O CONTRATANTE contrata a CONTRATADA para propor e acompanhar\nação de cobrança de verbas trabalhistas em face de seu ex-empregador, até decisão final\nem primeira instância.",
+   "explicacao_md": "O contrato foi firmado em Curitiba, 13 de setembro de 2026 (13 de setembro de 2026). O CONTRATANTE contratou a CONTRATADA para propor e acompanhar ação de cobrança de verbas trabalhistas contra seu ex‑empregador, até decisão final em primeira instância.\nO CONTRATANTE pagará honorários iniciais de R$ 1.500,00 (mil e quinhentos reais) em três parcelas mensais de R$ 500,00 (quinhentos reais), vencendo a primeira em 10 dias (10 dias) após a assinatura do contrato.\nAlém dos honorários iniciais, o CONTRATANTE pagará à CONTRATADA honorários de êxito de 20% (vinte por cento) sobre o valor efetivamente recebido na ação.\nAs despesas do processo, como custas, cópias e perícias, correm por conta do CONTRATANTE e serão pagas mediante apresentação de comprovante.\nO CONTRATANTE pode encerrar o contrato a qualquer tempo, por escrito, devendo pagar honorários iniciais já vencidos e honorários de êxito proporcionais ao trabalho realizado até a data de encerramento.\nA CONTRATADA manterá o CONTRATANTE informado sobre os atos relevantes do processo, por telefone ou mensagem, no prazo de 5 dias úteis (5 dias úteis) após cada ato.\nFica eleito o foro da comarca de Curitiba, Paraná, para resolver qualquer dúvida sobre este contrato.",
+   "trecho": "CONTRATANTE: pessoa física, aqui identificada apenas como CONTRATANTE.\nCONTRATADA: advogada, aqui identificada apenas como CONTRATADA.",
    "pos": [
-    333,
-    504
+    89,
+    223
    ],
    "conferencia": {
     "metodo": "exato",
@@ -40,11 +40,11 @@
   {
    "id": 4,
    "titulo": "💭 O que a pessoa sente e busca",
-   "explicacao_md": "O CONTRATANTE afirma que precisa cobrar verbas trabalhistas e busca que a advogada conduza a ação até a decisão final, pagando os honorários combinados.",
-   "trecho": "O CONTRATANTE contrata a CONTRATADA para propor e acompanhar\nação de cobrança de verbas trabalhistas em face de seu ex-empregador, até decisão final\nem primeira instância.",
+   "explicacao_md": "O CONTRATANTE busca que a advogada cobre as verbas trabalhistas devidas e que o contrato estabeleça claramente como serão pagos os honorários e as despesas.",
+   "trecho": "CONTRATANTE: pessoa física, aqui identificada apenas como CONTRATANTE.\nCONTRATADA: advogada, aqui identificada apenas como CONTRATADA.",
    "pos": [
-    333,
-    504
+    89,
+    223
    ],
    "conferencia": {
     "metodo": "exato",
@@ -55,12 +55,12 @@
  "questoes": [
   {
    "id": 1,
-   "enunciado": "Quem é o contratante neste contrato?",
+   "enunciado": "Quem é o contratante?",
    "alternativas": [
-    "Advogada",
-    "Empresa",
-    "Pessoa jurídica",
-    "Pessoa física"
+    "pessoa física",
+    "pessoa jurídica",
+    "governo",
+    "empresa"
    ],
    "area": "identificacao",
    "secao": "👥 Quem está nesta história",
@@ -74,14 +74,14 @@
    "id": 2,
    "enunciado": "Qual a profissão da contratada?",
    "alternativas": [
-    "Médica",
-    "Contadora",
-    "Advogada",
-    "Engenheira"
+    "professora",
+    "médica",
+    "advogada",
+    "engenheira"
    ],
    "area": "identificacao",
    "secao": "👥 Quem está nesta história",
-   "trecho": "CONTRATADA: advogada, aqui identificada apenas como CONTRATADA. Documento",
+   "trecho": "CONTRATADA: advogada, aqui identificada apenas como CONTRATADA.",
    "conferencia": {
     "metodo": "exato",
     "score": 1.0
@@ -89,69 +89,52 @@
   },
   {
    "id": 3,
-   "enunciado": "Em que data o contrato foi firmado?",
-   "alternativas": [
-    "01 de janeiro de 2026",
-    "13 de setembro de 2026",
-    "13 de outubro de 2026",
-    "31 de dezembro de 2025"
-   ],
-   "area": "datas_valores",
-   "secao": "👥 Quem está nesta história",
-   "trecho": "13 de setembro de 2026",
-   "conferencia": {
-    "metodo": "exato",
-    "score": 1.0
-   }
-  },
-  {
-   "id": 4,
    "enunciado": "Qual o valor total dos honorários iniciais?",
    "alternativas": [
-    "R$ 500,00",
-    "R$ 1.500,00",
-    "R$ 2.000,00",
-    "R$ 1.000,00"
+    "R$ 1.000,00",
+    "R$ 1.500,00",
+    "R$ 2.000,00",
+    "R$ 500,00"
    ],
    "area": "fatos",
    "secao": "📖 O que aconteceu",
    "trecho": "Pelos serviços, o CONTRATANTE pagará honorários iniciais de R$\n1.500,00 (mil e quinhentos reais), em três parcelas mensais de R$ 500,00, vencendo a\nprimeira em 10 dias após a assinatura deste contrato.",
    "conferencia": {
-    "metodo": "exato",
+    "metodo": "normalizado",
     "score": 1.0
    }
   },
   {
    "id": 5,
-   "enunciado": "Em quantas parcelas o valor dos honorários iniciais será pago?",
+   "enunciado": "Qual a porcentagem dos honorários de êxito?",
    "alternativas": [
-    "Duas parcelas",
-    "Três parcelas",
-    "Uma parcela",
-    "Cinco parcelas"
+    "10%",
+    "20%",
+    "5%",
+    "30%"
    ],
    "area": "fatos",
-   "secao": "📖 O que aconteceu",
-   "trecho": "Pelos serviços, o CONTRATANTE pagará honorários iniciais de R$\n1.500,00 (mil e quinhentos reais), em três parcelas mensais de R$ 500,00, vencendo a\nprimeira em 10 dias após a assinatura deste contrato.",
+   "secao": "💭 O que a pessoa sente e busca",
+   "trecho": "Além dos honorários iniciais, o CONTRATANTE pagará à CONTRATADA\nhonorários de êxito de 20% (vinte por cento) sobre o valor efetivamente recebido na ação,\nno momento do recebimento.",
    "conferencia": {
-    "metodo": "exato",
+    "metodo": "normalizado",
     "score": 1.0
    }
   },
   {
    "id": 6,
-   "enunciado": "Qual o percentual dos honorários de êxito?",
+   "enunciado": "Qual o foro eleito para resolver dúvidas?",
    "alternativas": [
-    "10 %",
-    "20 %",
-    "5 %",
-    "30 %"
+    "São Paulo, SP",
+    "Rio de Janeiro, RJ",
+    "Brasília, DF",
+    "Curitiba, Paraná"
    ],
    "area": "fatos",
-   "secao": "📖 O que aconteceu",
-   "trecho": "Além dos honorários iniciais, o CONTRATANTE pagará à CONTRATADA\nhonorários de êxito de 20% (vinte por cento) sobre o valor efetivamente recebido na ação,\nno momento do recebimento.",
+   "secao": "💭 O que a pessoa sente e busca",
+   "trecho": "Fica eleito o foro da comarca de Curitiba, Paraná, para resolver qualquer\ndúvida sobre este contrato.",
    "conferencia": {
-    "metodo": "exato",
+    "metodo": "normalizado",
     "score": 1.0
    }
   }
@@ -183,10 +166,10 @@
       "ref": "identificacao[1]",
       "campo": "contratada",
       "valor": "advogada",
-      "trecho": "CONTRATADA: advogada, aqui identificada apenas como CONTRATADA. Documento",
+      "trecho": "CONTRATADA: advogada, aqui identificada apenas como CONTRATADA.",
       "pos": [
        160,
-       233
+       223
       ],
       "conferido": true,
       "cor": "#D2E3FC",
@@ -205,8 +188,8 @@
      {
       "ref": "datas_valores[0]",
       "campo": "valor_contrato",
-      "valor": "R$\\n1.500,00",
-      "trecho": "R$\n1.500,00",
+      "valor": "R$ 1.500,00",
+      "trecho": "R$ 1.500,00",
       "pos": null,
       "conferido": false,
       "cor": "#C8E6C9"
@@ -232,11 +215,18 @@
      {
       "ref": "datas_valores[3]",
       "campo": "prazo",
-      "valor": "5 dias",
-      "trecho": "5 dias",
-      "pos": null,
-      "conferido": false,
-      "cor": "#C8E6C9"
+      "valor": "5 dias úteis",
+      "trecho": "5 dias úteis",
+      "pos": [
+       1425,
+       1437
+      ],
+      "conferido": true,
+      "cor": "#C8E6C9",
+      "conferencia": {
+       "metodo": "exato",
+       "score": 1.0
+      }
      },
      {
       "ref": "datas_valores[4]",
@@ -263,12 +253,12 @@
     "itens": [
      {
       "ref": "fatos[0]",
-      "campo": "acontecimento_principal",
-      "valor": "O CONTRATANTE contrata a CONTRATADA para propor e acompanhar ação de cobrança de verbas trabalhistas contra ex‑empregador, até decisão final em primeira instância.",
-      "trecho": "O CONTRATANTE contrata a CONTRATADA para propor e acompanhar\nação de cobrança de verbas trabalhistas em face de seu ex-empregador, até decisão final\nem primeira instância.",
+      "campo": "contexto",
+      "valor": "Identificação das partes: pessoa física como CONTRATANTE e advogada como CONTRATADA.",
+      "trecho": "CONTRATANTE: pessoa física, aqui identificada apenas como CONTRATANTE.\nCONTRATADA: advogada, aqui identificada apenas como CONTRATADA.",
       "pos": [
-       333,
-       504
+       89,
+       223
       ],
       "conferido": true,
       "cor": "#F9DEDC",
@@ -279,8 +269,24 @@
      },
      {
       "ref": "fatos[1]",
+      "campo": "acontecimento_principal",
+      "valor": "O CONTRATANTE contrata a CONTRATADA para propor e acompanhar ação de cobrança de verbas trabalhistas contra seu ex‑empregador, até decisão final em primeira instância.",
+      "trecho": "O CONTRATANTE contrata a CONTRATADA para propor e acompanhar\nação de cobrança de verbas trabalhistas em face de seu ex-empregador, até decisão final\nem primeira instância.",
+      "pos": [
+       333,
+       504
+      ],
+      "conferido": true,
+      "cor": "#F9DEDC",
+      "conferencia": {
+       "metodo": "normalizado",
+       "score": 1.0
+      }
+     },
+     {
+      "ref": "fatos[2]",
       "campo": "fato_secundario",
-      "valor": "O CONTRATANTE pagará honorários iniciais de R$1.500,00 em três parcelas mensais de R$500,00, com vencimento da primeira em 10 dias após a assinatura.",
+      "valor": "O CONTRATANTE pagará honorários iniciais de R$ 1.500,00 em três parcelas mensais de R$ 500,00, vencendo a primeira em 10 dias após a assinatura do contrato.",
       "trecho": "Pelos serviços, o CONTRATANTE pagará honorários iniciais de R$\n1.500,00 (mil e quinhentos reais), em três parcelas mensais de R$ 500,00, vencendo a\nprimeira em 10 dias após a assinatura deste contrato.",
       "pos": [
        517,
@@ -289,14 +295,14 @@
       "conferido": true,
       "cor": "#F9DEDC",
       "conferencia": {
-       "metodo": "exato",
+       "metodo": "normalizado",
        "score": 1.0
       }
      },
      {
-      "ref": "fatos[2]",
+      "ref": "fatos[3]",
       "campo": "fato_secundario",
-      "valor": "O CONTRATANTE pagará à CONTRATADA honorários de êxito de 20% sobre o valor efetivamente recebido na ação, no momento do recebimento.",
+      "valor": "O CONTRATANTE pagará honorários de êxito de 20 % sobre o valor efetivamente recebido na ação.",
       "trecho": "Além dos honorários iniciais, o CONTRATANTE pagará à CONTRATADA\nhonorários de êxito de 20% (vinte por cento) sobre o valor efetivamente recebido na ação,\nno momento do recebimento.",
       "pos": [
        731,
@@ -305,14 +311,14 @@
       "conferido": true,
       "cor": "#F9DEDC",
       "conferencia": {
-       "metodo": "exato",
+       "metodo": "normalizado",
        "score": 1.0
       }
      },
      {
-      "ref": "fatos[3]",
+      "ref": "fatos[4]",
       "campo": "fato_secundario",
-      "valor": "As despesas do processo, como custas, cópias e perícias, são de responsabilidade do CONTRATANTE, que as pagará mediante comprovação.",
+      "valor": "As despesas do processo (custas, cópias e perícias) correrão por conta do CONTRATANTE, que as pagará mediante comprovante.",
       "trecho": "As despesas do processo, como custas, cópias e perícias, correm por\nconta do CONTRATANTE e serão pagas mediante apresentação de comprovante.",
       "pos": [
        924,
@@ -321,14 +327,14 @@
       "conferido": true,
       "cor": "#F9DEDC",
       "conferencia": {
-       "metodo": "exato",
+       "metodo": "normalizado",
        "score": 1.0
       }
      },
      {
-      "ref": "fatos[4]",
+      "ref": "fatos[5]",
       "campo": "fato_secundario",
-      "valor": "O CONTRATANTE pode rescindir o contrato a qualquer tempo por escrito, devendo honorários iniciais vencidos e honorários de êxito proporcionais ao trabalho realizado.",
+      "valor": "O CONTRATANTE pode encerrar o contrato a qualquer tempo, devendo honorários iniciais vencidos e honorários de êxito proporcionais ao trabalho realizado até a data de encerramento.",
       "trecho": "O CONTRATANTE poderá encerrar este contrato a qualquer tempo, por\nescrito, ficando devidos os honorários iniciais já vencidos e os honorários de êxito\nproporcionais ao trabalho realizado até a data do encerramento.",
       "pos": [
        1077,
@@ -337,14 +343,14 @@
       "conferido": true,
       "cor": "#F9DEDC",
       "conferencia": {
-       "metodo": "exato",
+       "metodo": "normalizado",
        "score": 1.0
       }
      },
      {
-      "ref": "fatos[5]",
+      "ref": "fatos[6]",
       "campo": "fato_secundario",
-      "valor": "A CONTRATADA manterá o CONTRATANTE informado sobre atos relevantes do processo, por telefone ou mensagem, em até 5 dias úteis após cada ato.",
+      "valor": "A CONTRATADA manterá o CONTRATANTE informado sobre atos relevantes do processo, por telefone ou mensagem, no prazo de 5 dias úteis após cada ato.",
       "trecho": "A CONTRATADA manterá o CONTRATANTE informado sobre os atos\nrelevantes do processo, por telefone ou mensagem, no prazo de 5 dias úteis após cada\nato.",
       "pos": [
        1304,
@@ -353,14 +359,14 @@
       "conferido": true,
       "cor": "#F9DEDC",
       "conferencia": {
-       "metodo": "exato",
+       "metodo": "normalizado",
        "score": 1.0
       }
      },
      {
-      "ref": "fatos[6]",
-      "campo": "contexto",
-      "valor": "O foro eleito para questões contratuais é o da comarca de Curitiba, Paraná.",
+      "ref": "fatos[7]",
+      "campo": "fato_secundario",
+      "valor": "Fica eleito o foro da comarca de Curitiba, Paraná, para resolver quaisquer dúvidas sobre o contrato.",
       "trecho": "Fica eleito o foro da comarca de Curitiba, Paraná, para resolver qualquer\ndúvida sobre este contrato.",
       "pos": [
        1465,
@@ -369,14 +375,14 @@
       "conferido": true,
       "cor": "#F9DEDC",
       "conferencia": {
-       "metodo": "exato",
+       "metodo": "normalizado",
        "score": 1.0
       }
      },
      {
-      "ref": "fatos[7]",
+      "ref": "fatos[8]",
       "campo": "contexto",
-      "valor": "O contrato foi firmado em Curitiba, no dia 13 de setembro de 2026.",
+      "valor": "O contrato foi datado em Curitiba, 13 de setembro de 2026.",
       "trecho": "Curitiba, 13 de setembro de 2026.",
       "pos": [
        1567,
@@ -408,17 +414,16 @@
    {
     "classe": "identificacao",
     "rotulo": "Quem é quem",
-    "texto": "O CONTRATANTE, pessoa física, e a CONTRATADA, advogada, celebraram o contrato em 13 de setembro de 2026, em Curitiba.",
+    "texto": "O CONTRATANTE, pessoa física, celebra o contrato com a CONTRATADA, advogada, em 13 de setembro de 2026, em Curitiba, estabelecendo as obrigações das partes.",
     "lastro": [
      "identificacao[0]",
-     "identificacao[1]",
-     "datas_valores[4]"
+     "identificacao[1]"
     ]
    },
    {
     "classe": "fatos",
     "rotulo": "Fatos",
-    "texto": "O CONTRATANTE, pessoa física, contratou a CONTRATADA, advogada, em 13 de setembro de 2026, em Curitiba, para propor e acompanhar ação de cobrança de verbas trabalhistas contra ex‑empregador, até decisão final em primeira instância. O pagamento dos honorários iniciais será de R$ 1.500,00, divididos em três parcelas mensais de R$ 500,00, com a primeira vencendo em 10 dias após a assinatura. Além disso, a CONTRATADA receberá honorários de êxito de 20 % sobre o valor efetivamente recebido na ação.",
+    "texto": "O CONTRATANTE, pessoa física, contratou a CONTRATADA, advogada, em 13 de setembro de 2026, em Curitiba, para propor e acompanhar ação de cobrança de verbas trabalhistas contra seu ex‑empregador, até decisão final em primeira instância. O pagamento dos honorários iniciais será de R$ 1.500,00 em três parcelas mensais de R$ 500,00, com a primeira vencendo em 10 dias após a assinatura; além disso, haverá honorários de êxito de 20 % sobre o valor recebido. As despesas processuais ficam a cargo do CONTRATANTE, e a CONTRATADA deverá informar os atos relevantes dentro de 5 dias úteis, podendo o contrato ser rescindido a qualquer tempo mediante pagamento proporcional dos honorários, sendo o foro da comarca de Curitiba, Paraná, o competente para eventuais questões.",
     "lastro": [
      "fatos[0]",
      "fatos[1]"
