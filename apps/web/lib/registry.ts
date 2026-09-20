@@ -2,7 +2,7 @@
    so the Python service and this TypeScript mock produce identical hashes for identical attempts. */
 import { createHash, randomBytes } from "node:crypto";
 
-export const PAYLOAD_SCHEMA = "leia.payload.v3";
+export const PAYLOAD_SCHEMA = "leia.payload.v4";
 
 type Json = string | number | boolean | null | Json[] | { [k: string]: Json };
 function sortKeys(v: Json): Json {
@@ -15,7 +15,7 @@ export const canonical = (obj: Json) => JSON.stringify(sortKeys(obj));
 export const sha256 = (s: string) => createHash("sha256").update(s, "utf8").digest("hex");
 export const nowIso = () => new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
 
-export type AttemptRecord = { tarefa_hash: string; numero: number; respostas: Record<string, number>; acertos: number; total: number; aprovado: boolean; criada_em: string; salt: string; revisado?: boolean };
+export type AttemptRecord = { tarefa_hash: string; numero: number; respostas: Record<string, number>; acertos: number; total: number; aprovado: boolean; criada_em: string; salt: string; revisado?: boolean; consultas?: Record<string, number> };
 
 /* Mesma régua do serviço (core/attempts.pass_mark): arredonda para cima, senão o piso declarado não é o piso. */
 export const passMark = (total: number, ratio = 0.83) => Math.max(1, Math.ceil(total * ratio));
@@ -28,7 +28,8 @@ export function buildPayload(a: AttemptRecord) {
   return {
     schema: PAYLOAD_SCHEMA, documentRef: sha256(a.tarefa_hash), attemptRound: a.numero, attemptSha256: attemptHash(a),
     documentSha256: "", summarySha256: "", understood: a.aprovado,
-    instrument: "multiple-choice", passMark: passMark(a.total), answered: a.total,
+    instrument: "multiple-choice-anchored-in-clause", passMark: passMark(a.total), answered: a.total,
+    consulted: Object.values(a.consultas ?? {}).reduce((n, v) => n + v, 0),
     reviewedByLawyer: a.revisado !== false, createdAt: a.criada_em,
   };
 }

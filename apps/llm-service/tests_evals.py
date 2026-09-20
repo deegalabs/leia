@@ -60,11 +60,12 @@ def test_an_item_that_claims_a_position_it_does_not_occupy_is_a_violation(caso):
     assert any("posição" in v for v in r.violacoes), r.violacoes
 
 
-def test_the_answer_key_reaching_the_citizen_is_a_violation(caso):
-    ruim = copy.deepcopy(caso)
-    if not ruim["questoes"]:
-        pytest.skip("o caso não tem perguntas")
-    ruim["questoes"][0]["correta"] = 2
+def test_the_answer_key_reaching_the_citizen_is_a_violation():
+    """Montado aqui, e não tirado do corpus: enquanto dependia do caso gravado, ele se pulava sozinho no dia
+    em que aquele caso ficasse sem perguntas, e foi o que aconteceu em 20/09. Regra que se cala quando o
+    corpus muda não é regra."""
+    ruim = copy.deepcopy(plantado("question-without-anchor.json"))
+    ruim["questoes"] = [{**ruim["questoes"][0], "correta": 2}]
     r = avaliar(ruim)
     assert any("gabarito" in v for v in r.violacoes), r.violacoes
 
@@ -179,9 +180,12 @@ def test_a_chain_of_anchors_that_never_reaches_an_item_is_a_violation(caso):
     assert any("nenhum lastro chega" in v for v in r.violacoes), r.violacoes
 
 
-def test_a_question_that_declares_a_section_that_was_not_published_is_a_violation(caso):
-    ruim = copy.deepcopy(caso)
-    ruim["questoes"][0]["secao"] = "Seção que o resumo não publicou"
+def test_a_question_that_declares_a_section_that_was_not_published_is_a_violation():
+    """A pergunta ruim é montada aqui, e não tirada do corpus: prova de porta que depende de o caso de
+    produção estar quebrado some no dia em que alguém conserta o produto. Foi o que aconteceu em 20/09,
+    quando as perguntas passaram a nascer presas a uma cláusula."""
+    ruim = copy.deepcopy(plantado("question-without-anchor.json"))
+    ruim["questoes"] = [{**ruim["questoes"][0], "secao": "Seção que o resumo não publicou"}]
     r = avaliar(ruim)
     assert any("seção declarada" in v for v in r.violacoes), r.violacoes
 
@@ -215,9 +219,15 @@ def test_the_share_of_syntheses_with_anchor_is_measured():
 
 
 def test_the_share_of_questions_declaring_a_published_section_is_measured(caso):
-    """O caso gravado não traz seção em pergunta nenhuma, e a medida precisa mostrar isso em vez de calar."""
-    assert avaliar(caso).metricas["perguntas_com_secao"] == 0.0
+    """A medida mostra a fatia que declara seção publicada.
+
+    No caso plantado da pergunta sem lastro são 2 de 3: uma não declara seção nenhuma. No caso gravado, que
+    é captura de rodada real, toda pergunta publicada declara uma seção que a pessoa vê: a que aponta para
+    seção descartada cai no `_ancorar_questoes`, antes de chegar ao arquivo."""
+    assert avaliar(plantado("question-without-anchor.json")).metricas["perguntas_com_secao"] == round(2 / 3, 3)
     assert avaliar(plantado("synthesis-without-anchor.json")).metricas["perguntas_com_secao"] == 1.0
+    assert caso["questoes"], "o caso gravado ficou sem pergunta, e aí esta medida não mede nada"
+    assert avaliar(caso).metricas["perguntas_com_secao"] == 1.0
 
 
 # ── E11-T12: os pisos ─────────────────────────────────────────────────────────
@@ -313,3 +323,34 @@ def test_a_section_that_was_promised_a_quote_and_shows_none_still_lowers_the_cov
     r = avaliar(caso)
     assert r.metricas["cobertura_ancora"] == 0.5, r.metricas
     assert any("cobertura_ancora" in a for a in r.avisos), r.avisos
+
+
+# ── A bateria reprova pergunta sem lastro (E12-T11) ──────────────────────────
+
+def _caso_com_perguntas(questoes: list[dict]) -> dict:
+    documento = "CLÁUSULA 2. O CONTRATANTE pagará honorários de vinte por cento ao final."
+    return {
+        "nome": "perguntas", "documento": documento,
+        "topicos": [{"id": 1, "titulo": "🤝 O que está sendo pedido", "trecho": "vinte por cento",
+                     "pos": [documento.index("vinte por cento"), documento.index("vinte por cento") + 15]}],
+        "questoes": questoes,
+        "inferencias": {"classes": [], "sinteses": []},
+    }
+
+
+def test_the_battery_refuses_a_question_that_points_at_nothing():
+    """A pergunta é o que vira comprovante. Sem seção e sem trecho ela mede a lembrança de uma conversa, e o
+    comprovante que sai dali diz "entendeu o documento" sobre uma coisa que não foi o documento."""
+    from evals.regras import avaliar
+
+    boa = {"id": 1, "enunciado": "Quanto?", "alternativas": ["20%", "nada"],
+           "secao": "🤝 O que está sendo pedido", "trecho": "vinte por cento"}
+    assert avaliar(_caso_com_perguntas([boa])).violacoes == []
+
+    sem_secao = {**boa, "secao": ""}
+    sem_trecho = {**boa, "trecho": ""}
+    trecho_inventado = {**boa, "trecho": "isto não está no documento"}
+    for questao, esperado in ((sem_secao, "seção"), (sem_trecho, "trecho"), (trecho_inventado, "documento")):
+        violacoes = avaliar(_caso_com_perguntas([questao])).violacoes
+        assert violacoes, f"pergunta {esperado} passou pela camada 1"
+        assert any(esperado in v for v in violacoes), violacoes

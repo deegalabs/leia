@@ -28,3 +28,31 @@ describe("erro vindo do serviço", () => {
     expect(erro?.message).toContain("500");
   });
 });
+
+/* LeIA (E12-T09): a consulta é a diferença entre responder de memória e responder relendo o documento.
+   Ela entra no hash da tentativa, do lado do serviço, e por isso precisa sair daqui junto das respostas:
+   número que circula ao lado da prova sem estar dentro dela é número que qualquer um troca depois. */
+describe("o que o app manda ao conferir", () => {
+  it("manda as consultas junto com as respostas", async () => {
+    const enviado: RequestInit[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (_url: string, init: RequestInit) => {
+      enviado.push(init);
+      return resposta(200, { aprovado: true, acertos: 6, total: 6, hash_imutavel: "h", erros: [] });
+    }));
+    const { submitQuiz } = await import("./api");
+    await submitQuiz("abc", { "1": 0 }, { "1": 2 });
+    const corpo = JSON.parse(String(enviado[0]?.body));
+    expect(corpo).toEqual({ respostas: { "1": 0 }, consultas: { "1": 2 } });
+  });
+
+  it("manda consultas vazias quando ela respondeu sem reabrir nada", async () => {
+    const enviado: RequestInit[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (_url: string, init: RequestInit) => {
+      enviado.push(init);
+      return resposta(200, { aprovado: true, acertos: 6, total: 6, hash_imutavel: "h", erros: [] });
+    }));
+    const { submitQuiz } = await import("./api");
+    await submitQuiz("abc", { "1": 0 });
+    expect(JSON.parse(String(enviado[0]?.body)).consultas).toEqual({});
+  });
+});

@@ -12,8 +12,11 @@ export async function POST(req: Request, { params }: RouteContext<"/api/t/[hash]
   const body = await req.json().catch(() => ({}));
   const respostas: Record<string, number> = {};
   for (const [k, v] of Object.entries(body?.respostas ?? {})) respostas[String(k)] = Number(v);
+  /* LeIA: quantas vezes a pessoa reabriu o trecho antes de responder. Entra no comprovante (E12-T09). */
+  const consultas: Record<string, number> = {};
+  for (const [k, v] of Object.entries(body?.consultas ?? {})) if (Number(v) > 0) consultas[String(k)] = Number(v);
   /* LeIA: v3 keeps the attempt on the task so the panels can show it */
-  const result = evaluateQuiz(f, respostas, nextAttemptNumber(hash));
+  const result = evaluateQuiz(f, respostas, nextAttemptNumber(hash), consultas);
   recordAttempt(hash, result);
   return Response.json(result);
 }

@@ -82,6 +82,10 @@ class Tentativa(SQLModel, table=True):
     total: int
     aprovado: bool
     hash_imutavel: str = Field(unique=True)
+    # LeIA: quantas vezes a pessoa pediu para rever o trecho antes de responder cada pergunta, como JSON
+    # ``{"id_da_pergunta": vezes}``. Entra no preimage do hash (``leia.attempt.v3``) e no comprovante, porque
+    # número que circula ao lado da prova sem estar dentro dela é número que qualquer um troca depois.
+    consultas: Optional[str] = None
     ip: Optional[str] = None
     user_agent: Optional[str] = None
     criada_em: datetime = Field(default_factory=datetime.utcnow)
@@ -180,6 +184,11 @@ def _aplicar_migracoes() -> None:
                 "ALTER TABLE tarefa ADD COLUMN origem VARCHAR NOT NULL DEFAULT 'advogado'"
             ))
             print("🔧 migração: tarefa.origem adicionada")
+
+        # ── Tabela tentativa ─────────────────────────────────────────────
+        if inspect(conn).has_table("tentativa") and "consultas" not in _colunas(conn, "tentativa"):
+            conn.execute(text("ALTER TABLE tentativa ADD COLUMN consultas VARCHAR"))
+            print("🔧 migração: tentativa.consultas adicionada")
 
 
 # LeIA: ``create_all`` cria tabela que falta, nunca restrição em tabela que já existe. Um índice único

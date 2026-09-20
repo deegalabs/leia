@@ -15,7 +15,12 @@ export type DocumentTypeOption = { tipo: string; rotulo: string };
 /* LeIA: one of the 15 workflow steps as the public route reports it (docs/API-V3-CONTRACT.md, "Preparação visível") */
 export type StageState = "pendente" | "em_andamento" | "concluida" | "erro";
 export type Stage = { id: string; nome: string; estado: StageState; tempo?: number | null };
-export type Question = { id: number; enunciado: string; alternativas: string[]; area?: string };
+/* LeIA: a pergunta nasce presa a um ponto do documento (E12). `secao` é o título exato da seção da
+   explicação de onde ela veio e `trecho` é a fatia literal do documento que sustenta a resposta: são
+   os dois que o "não lembro, mostra de novo" abre. O gabarito nunca viaja junto. */
+export type Question = { id: number; enunciado: string; alternativas: string[]; area?: string;
+                         secao?: string | null; trecho?: string | null;
+                         conferencia?: import("./inferences").Anchor | null };
 export type Attempt = { aprovado: boolean; hash_imutavel: string; acertos: number; total: number; numero?: number };
 export type Task = {
   tarefa: { hash: string; titulo: string; status: string };
@@ -43,8 +48,8 @@ export type VerifyResult = {
      can weigh the receipt instead of accepting it blind. */
   payload: { schema: string; documentRef: string; attemptRound: number; attemptSha256: string;
              documentSha256: string; summarySha256: string; understood: boolean;
-             instrument: string; passMark: number; answered: number; reviewedByLawyer: boolean;
-             createdAt: string };
+             instrument: string; passMark: number; answered: number; consulted: number;
+             reviewedByLawyer: boolean; createdAt: string };
   canonical: string;
   payloadHash: string;
   otsPresent: boolean;
@@ -71,9 +76,13 @@ export async function getTask(hash: string): Promise<Task> {
   return r.json();
 }
 
-export async function submitQuiz(hash: string, respostas: Record<string, number>): Promise<QuizResult> {
+/* `consultas` conta quantas vezes a pessoa abriu "não lembro, mostra de novo" em cada pergunta. Viaja junto
+   com as respostas porque entra no hash da tentativa e no comprovante: número que circula ao lado da prova
+   sem estar dentro dela é número que qualquer um troca depois. */
+export async function submitQuiz(hash: string, respostas: Record<string, number>,
+                                 consultas: Record<string, number> = {}): Promise<QuizResult> {
   const r = await check(await fetch(`/api/t/${hash}/quiz`, {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ respostas }),
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ respostas, consultas }),
   }));
   return r.json();
 }
@@ -236,6 +245,15 @@ export async function revokeInvite(id: string | number): Promise<Invite> {
    screen already read the document with the old vocabulary, so the screen says so and offers "refazer". */
 export async function setDocumentType(id: string | number, tipo: string): Promise<{ ok: boolean; tipo_documento: DocumentType }> {
   const r = await check(await fetch(`/api/tarefas/${id}/tipo-documento`, { method: "POST", headers: jsonHeaders(), body: JSON.stringify({ tipo }) }));
+  return r.json();
+}
+
+/* O que o advogado deixou é o que a cliente vai ler, e é para onde o comprovante vai apontar. A resposta
+   traz a medida da porta de qualidade sobre o que acabou de ser gravado, porque renomear um título de seção
+   desliga a âncora dela sem barulho nenhum e isso precisa aparecer antes de liberar. */
+export async function saveReview(id: string | number, input: { resumo_md?: string; questoes?: number[] }):
+  Promise<{ ok: boolean; porta_qualidade: { motivo: string | null } }> {
+  const r = await check(await fetch(`/api/tarefas/${id}/revisao`, { method: "POST", headers: jsonHeaders(), body: JSON.stringify(input) }));
   return r.json();
 }
 

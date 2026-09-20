@@ -29,7 +29,10 @@ export function Receipt({ attempt }: { attempt: string }) {
         <>
           <StatusChip tone={stamp.tone}>{stamp.chip}</StatusChip>
           <Card className="mt-3">
-            <p className="mb-1">{data.payload.understood ? "Você entendeu o documento" : "Registro da sua tentativa"}: {formatDateTime(data.payload.createdAt)}</p>
+            {/* O comprovante afirma o que mediu, e não o que isso prova. "Você entendeu o documento" é
+                conclusão sobre uma pessoa a partir de seis múltiplas escolhas, e quem recebe o comprovante
+                não tem como pesar isso. A régua está logo abaixo, em m.c6.measured. */}
+            <p className="mb-1">{data.payload.understood ? m.c6.answered : m.c6.attempted}: {formatDateTime(data.payload.createdAt)}</p>
             <p className="mb-4 text-[0.95rem] text-ink-2">Tentativa {data.payload.attemptRound}, {data.payload.answered} perguntas respondidas.</p>
             <QrCode value={verifyPath} label="QR para conferir o registro nesta mesma página de verificação" />
             <p className="mb-4 mt-2 text-center text-[0.95rem] text-ink-2">Aponte a câmera para conferir</p>
@@ -41,9 +44,18 @@ export function Receipt({ attempt }: { attempt: string }) {
             <h2 className="mb-2 text-[1.15rem]">{m.c6.reviewedTitle}</h2>
             <p>{data.payload.reviewedByLawyer ? m.c6.reviewedYes : m.c6.reviewedNo}</p>
             {data.payload.understood && (
-              <p className="mt-2 text-[0.95rem] text-ink-2">
-                {fmt(m.c6.measured, { piso: data.payload.passMark, total: data.payload.answered })}
-              </p>
+              <>
+                <p className="mt-2 text-[0.95rem] text-ink-2">
+                  {fmt(m.c6.measured, { piso: data.payload.passMark, total: data.payload.answered })}
+                </p>
+                {/* Consultar não reprova e não é vigilância: é a diferença entre responder de memória e
+                    responder relendo, e sem ela o comprovante afirma uma autonomia que não mediu. */}
+                <p className="mt-1 text-[0.95rem] text-ink-2">
+                  {data.payload.consulted === 0 ? m.c6.consultedNone
+                    : data.payload.consulted === 1 ? m.c6.consultedOnce
+                    : fmt(m.c6.consulted, { n: data.payload.consulted ?? 0 })}
+                </p>
+              </>
             )}
           </Card>
           <Card tone="soft" className="mt-3">

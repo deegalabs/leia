@@ -19,6 +19,10 @@ export function Journey({ hash }: { hash: string }) {
   const [error, setError] = useState<string | null>(null);
   const [step, setStep] = useState<Step>({ kind: "welcome" });
   const [answers, setAnswers] = useState<Record<string, number>>({});
+  /* Quantas vezes ela pediu para rever o trecho de cada pergunta, e qual está aberto agora. A contagem
+     viaja com as respostas e entra no hash da tentativa. */
+  const [consultas, setConsultas] = useState<Record<string, number>>({});
+  const [mostrando, setMostrando] = useState<string | null>(null);
   const [result, setResult] = useState<QuizResult | null>(null);
   const [sending, setSending] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
@@ -84,7 +88,7 @@ export function Journey({ hash }: { hash: string }) {
 
   async function send() {
     setSending(true);
-    try { const r = await submitQuiz(hash, answers); setResult(r); setStep({ kind: "result" }); }
+    try { const r = await submitQuiz(hash, answers, consultas); setResult(r); setStep({ kind: "result" }); }
     catch (e) {
       /* 403 aqui é a recusa explicada pelo serviço: o comprovante afirma que uma pessoa entendeu, e quem
          responde precisa ser ela. O texto vem de lá, já escrito para a cidadã ler. */
@@ -201,7 +205,7 @@ export function Journey({ hash }: { hash: string }) {
               )}
             </Card>
             <BottomActionBar>
-              <Button onClick={() => (last ? (noQuestions ? setStep({ kind: "done" }) : setStep({ kind: "question", k: firstUnanswered(questions, answers) })) : setStep({ kind: "topic", n: step.n + 1 }))}>
+              <Button onClick={() => (last ? (noQuestions ? setStep({ kind: "done" }) : setStep({ kind: "review" })) : setStep({ kind: "topic", n: step.n + 1 }))}>
                 {last ? (noQuestions ? m.journey.understoodLast : "Entendi, vamos conferir") : "Entendi, próximo"}
               </Button>
               <LinkButton href={`/t/${hash}/documento`} variant="ghost">Ver o documento com as marcações</LinkButton>
@@ -214,8 +218,37 @@ export function Journey({ hash }: { hash: string }) {
         );
       })()}
 
+      {/* LeIA (E12-T07): quem lê com esforço chega na primeira pergunta sem lembrar do primeiro ponto. A
+          alternativa a esta tela é voltar ponto por ponto, o que é caro em celular básico, ou responder no
+          chute, que é o que o comprovante não pode registrar. */}
+      {step.kind === "review" && (
+        <>
+          <Card tone="soft">
+            <h1 className="mb-1 text-[1.35rem]">{m.c4.reviewTitle}</h1>
+            <p className="text-[0.95rem] text-ink-2">{m.c4.reviewIntro}</p>
+          </Card>
+          <div className="mt-3 grid gap-2.5">
+            {topics.map((t, n) => (
+              <Card key={t.id}>
+                <h2 className="mb-1 text-[1.1rem]">{t.titulo}</h2>
+                {t.trecho && <q className="text-[0.95rem] text-ink-2">{t.trecho}</q>}
+                <Button variant="ghost" className="!w-auto" onClick={() => setStep({ kind: "topic", n })}>
+                  {m.c4.reviewBack}
+                </Button>
+              </Card>
+            ))}
+          </div>
+          <BottomActionBar>
+            <Button onClick={() => setStep({ kind: "question", k: firstUnanswered(questions, answers) })}>
+              {m.c4.reviewGo}
+            </Button>
+            <Button variant="secondary" onClick={() => setStep({ kind: "topic", n: topics.length - 1 })}>Voltar</Button>
+          </BottomActionBar>
+        </>
+      )}
       {step.kind === "question" && (() => {
         const q = questions[step.k]; const last = step.k === questions.length - 1; const chosen = answers[String(q.id)];
+        const aberto = mostrando === String(q.id);
         return (
           <>
             <ProgressSteps total={questions.length} current={step.k} label={`Conferindo ${step.k + 1} de ${questions.length}`} />
@@ -235,13 +268,28 @@ export function Journey({ hash }: { hash: string }) {
                 ))}
               </div>
               <SpeakButton text={`${q.enunciado}. ${q.alternativas.map((a, i) => `${"ABCD"[i]}: ${a}`).join(". ")}`} label="Ouvir a pergunta" />
+              {/* Reler o documento não é cola: o documento é dela e está na frente dela. O que muda é que
+                  agora o produto sabe a diferença entre responder de memória e responder relendo, e diz isso
+                  no comprovante em vez de afirmar uma autonomia que não mediu. */}
+              <button type="button" aria-expanded={aberto}
+                onClick={() => { if (!aberto) setConsultas((c) => ({ ...c, [String(q.id)]: (c[String(q.id)] ?? 0) + 1 })); setMostrando(aberto ? null : String(q.id)); }}
+                className="mt-3 inline-flex min-h-[48px] items-center font-bold text-teal-deep underline underline-offset-4">
+                {aberto ? m.c5.remindClose : m.c5.remind}
+              </button>
+              {aberto && (
+                <div className="mt-2 rounded-[12px] border border-line bg-paper p-3">
+                  {q.secao && <p className="mb-1 text-[0.95rem] text-ink-2">{fmt(m.c5.remindFrom, { secao: q.secao })}</p>}
+                  {q.trecho ? <q className="text-[1.05rem]">{q.trecho}</q>
+                            : <p className="text-[0.95rem] text-ink-2">{m.c5.remindNoQuote}</p>}
+                </div>
+              )}
               {error && <p role="alert" className="mt-2 text-[#8A1C1C]">{error}</p>}
             </Card>
             <BottomActionBar>
               <Button disabled={chosen === undefined || sending} onClick={() => (last ? send() : setStep({ kind: "question", k: step.k + 1 }))}>
                 {sending ? "Conferindo suas respostas" : last ? "Enviar minhas respostas" : "Próxima pergunta"}
               </Button>
-              <Button variant="secondary" onClick={() => (step.k === 0 ? setStep({ kind: "topic", n: topics.length - 1 }) : setStep({ kind: "question", k: step.k - 1 }))}>
+              <Button variant="secondary" onClick={() => (step.k === 0 ? setStep({ kind: "review" }) : setStep({ kind: "question", k: step.k - 1 }))}>
                 {step.k === 0 ? "Rever a explicação" : "Voltar"}
               </Button>
             </BottomActionBar>

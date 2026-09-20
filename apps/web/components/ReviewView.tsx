@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Check, CheckCircle2, ExternalLink } from "lucide-react";
-import { approveTask, clientLinkUrl, formatDateTime, getReview, getTaskDetail, topicsOf, type Review, type Task } from "@/lib/api";
+import { approveTask, clientLinkUrl, formatDateTime, getReview, getTaskDetail, saveReview, topicsOf, type Review, type Task } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { fmt, m } from "@/lib/i18n";
 import { hasReview, needsReview, statusInfo } from "@/lib/status";
@@ -41,6 +41,14 @@ function Body({ id }: { id: string }) {
   const [pendingRef, setPendingRef] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [approveError, setApproveError] = useState<string | null>(null);
+  /* A edição do advogado. `undefined` em `draft` significa "ele não mexeu no texto", e aí o texto não é
+     reenviado: mandar o mesmo markdown de volta é reescrever o artefato sem motivo. */
+  const [draft, setDraft] = useState<string | undefined>(undefined);
+  const [keep, setKeep] = useState<Set<number> | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const QUESTION_FLOOR = 4;
 
   useEffect(() => { if (ready && isCitizen) router.replace(`/painel/${id}`); }, [ready, isCitizen, router, id]);
 
@@ -72,6 +80,25 @@ function Body({ id }: { id: string }) {
 
   const allItems = useMemo(() => (data ? data.inferencias.classes.flatMap((c) => c.itens) : []), [data]);
   const topics = useMemo(() => (data ? topicsOf({ tarefa: data.tarefa, resumo_md: data.resumo_md, topicos: null, questoes: [], ultima_tentativa: null } as Task) : []), [data]);
+
+  const kept = (q: { id: number }) => (keep ? keep.has(q.id) : true);
+
+  async function save() {
+    if (!data || saving) return;
+    const marcadas = data.questoes.filter(kept).map((q) => q.id);
+    if (marcadas.length > 0 && marcadas.length < QUESTION_FLOOR) {
+      setSaveError(fmt(m.panel.review.edit.floor, { n: QUESTION_FLOOR }));
+      return;
+    }
+    setSaving(true); setSaveError(null); setSaved(null);
+    try {
+      const r = await saveReview(id, { ...(draft !== undefined ? { resumo_md: draft } : {}), questoes: marcadas });
+      setSaved(r.porta_qualidade?.motivo
+        ? fmt(m.panel.review.edit.lostGround, { motivo: r.porta_qualidade.motivo })
+        : m.panel.review.edit.saved);
+      setTick((n) => n + 1);
+    } catch { setSaveError(m.panel.review.edit.failed); } finally { setSaving(false); }
+  }
 
   async function approve() {
     if (!data || busy) return;
@@ -165,7 +192,14 @@ function Body({ id }: { id: string }) {
             <h2 className="mb-1 text-[1.15rem]">{m.panel.review.explanationTitle}</h2>
             <p className="text-[0.95rem] text-ink-2">{m.panel.review.explanationIntro}</p>
           </Card>
-          {topics.map((t, i) => (
+          {pending ? (
+            <Card>
+              <label htmlFor="review-summary" className="mb-1 block font-bold">{m.panel.review.edit.summaryLabel}</label>
+              <p className="mb-2 text-[0.95rem] text-ink-2">{m.panel.review.edit.summaryHint}</p>
+              <textarea id="review-summary" value={draft ?? data.resumo_md} onChange={(e) => setDraft(e.target.value)}
+                rows={20} spellCheck className="w-full rounded-[12px] border-2 border-line bg-surface p-3 font-mono text-[0.95rem] text-ink" />
+            </Card>
+          ) : topics.map((t, i) => (
             <Card key={t.id}>
               <p className="mb-1 text-[0.9rem] text-ink-2">{fmt(m.common.topicOf, { n: i + 1, total: topics.length })}</p>
               <h2 className="mb-2 text-[1.2rem]">{cleanTitle(t.titulo)}</h2>
@@ -180,9 +214,30 @@ function Body({ id }: { id: string }) {
             <h2 className="mb-1 text-[1.15rem]">{m.panel.review.questionsTitle}</h2>
             <p className="text-[0.95rem] text-ink-2">{m.panel.review.questionsIntro}</p>
           </Card>
+          {pending && (
+            <p role="status" className={`text-[0.95rem] ${data.questoes.filter(kept).length === 0 ? "text-pend" : "text-ink-2"}`}>
+              {data.questoes.filter(kept).length === 0
+                ? m.panel.review.edit.none
+                : fmt(m.panel.review.edit.kept, { n: data.questoes.filter(kept).length, total: data.questoes.length })}
+            </p>
+          )}
           {data.questoes.map((q, i) => (
             <Card key={q.id}>
               <p className="mb-1 text-[0.9rem] text-ink-2">{i + 1} de {data.questoes.length}{q.area ? ` · ${q.area}` : ""}{q.dificuldade ? ` · ${q.dificuldade}` : ""}</p>
+              {pending && (
+                <label className="mb-2 flex min-h-[44px] items-center gap-2.5 font-bold">
+                  <input type="checkbox" checked={kept(q)} className="h-6 w-6 accent-[#1F7373]"
+                    onChange={(e) => setKeep((s) => {
+                      const next = new Set(s ?? data.questoes.map((x) => x.id));
+                      if (e.target.checked) next.add(q.id); else next.delete(q.id);
+                      return next;
+                    })} />
+                  {m.panel.review.edit.keep}
+                </label>
+              )}
+              {/* De onde a pergunta nasceu, que é o que o advogado precisa conferir antes de mantê-la. */}
+              {q.secao && <p className="mb-1 text-[0.9rem] text-ink-2">{q.secao}</p>}
+              {q.trecho && <p className="mb-2 text-[0.95rem] text-ink-2"><q className="text-ink">{q.trecho}</q></p>}
               <h2 className="mb-3 text-[1.15rem]">{q.enunciado}</h2>
               <ol className="grid gap-2">
                 {q.alternativas.map((a, k) => {
@@ -206,6 +261,11 @@ function Body({ id }: { id: string }) {
         <BottomActionBar>
           {pending && (
             <>
+              {saved && <p role="status" className="text-center text-[0.95rem]">{saved}</p>}
+              {saveError && <p role="alert" className="text-danger">{saveError}</p>}
+              <Button variant="secondary" onClick={save} disabled={saving}>
+                {saving ? m.panel.review.edit.saving : m.panel.review.edit.save}
+              </Button>
               {approveError && <p role="alert" className="text-danger">{approveError}</p>}
               <Button onClick={approve} disabled={busy}><CheckCircle2 size={20} aria-hidden /> {busy ? m.panel.review.approving : m.panel.review.approve}</Button>
               <p className="text-center text-[0.9rem] text-ink-2">{m.panel.review.approveHint}</p>

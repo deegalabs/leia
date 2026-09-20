@@ -657,10 +657,15 @@ def test_attempt_hash_carries_no_personal_data(lawyer):
 
 
 def test_attempt_hash_is_reproducible_from_what_is_stored(lawyer):
+    """Tudo que entra no hash está na linha gravada, e nada além dela. A consulta entrou no preimage em
+    20/09 e por isso entrou também na coluna: número que circula ao lado da prova sem estar dentro dela é
+    número que qualquer um troca depois."""
     import core.attempts as tn
     t = _tarefa_de_teste("hash-tentativa-2")
-    tent = tn.record(t, {"1": 0, "2": 1, "3": 2}, QUESTOES, "203.0.113.7", "Mozilla/5.0")
-    recalculado = tn.attempt_hash(t.hash, tent.numero, tent.respostas, tent.criada_em)
+    tent = tn.record(t, {"1": 0, "2": 1, "3": 2}, QUESTOES, "203.0.113.7", "Mozilla/5.0", consultas={"2": 1})
+    gravadas = json.loads(tent.consultas)
+    assert gravadas == {"2": 1}, "a consulta não ficou gravada, então ninguém tem como recalcular"
+    recalculado = tn.attempt_hash(t.hash, tent.numero, tent.respostas, tent.criada_em, consultas=gravadas)
     assert recalculado == tent.hash_imutavel, "ninguém consegue recalcular o hash a partir do que está gravado"
 
 
@@ -668,7 +673,7 @@ def test_attempt_hash_does_not_depend_on_the_client(lawyer):
     import core.attempts as tn
     t = _tarefa_de_teste("hash-tentativa-3")
     a = tn.record(t, {"1": 0, "2": 1, "3": 2}, QUESTOES, "203.0.113.7", "Chrome")
-    b = tn.attempt_hash(t.hash, a.numero, a.respostas, a.criada_em)
+    b = tn.attempt_hash(t.hash, a.numero, a.respostas, a.criada_em, consultas=json.loads(a.consultas))
     assert a.hash_imutavel == b
     assert "PARA.AI" not in tn.PREIMAGE_SCHEMA, "a marca do produto de origem ainda está no hash"
 
@@ -1456,7 +1461,9 @@ def test_the_receipt_says_what_it_measured(monkeypatch):
     tent = tn.record(t, {"1": 0, "2": 1, "3": 2}, QUESTOES)
     freeze_record(t.hash, tent.numero, tent.hash_imutavel)
     p = build_payload(get_attempt(tent.hash_imutavel))
-    assert p["instrument"] == "multiple-choice", "o comprovante não diz por qual instrumento mediu"
+    # Desde E12 a palavra mudou junto com o que ela descreve: a pergunta nasce presa a uma cláusula, e medir
+    # múltipla escolha sobre narrativa não é a mesma coisa que medir sobre cláusula.
+    assert p["instrument"] == "multiple-choice-anchored-in-clause", "o comprovante não diz por qual instrumento mediu"
     assert p["passMark"] == tn.pass_mark(p["answered"]), "o comprovante não diz qual era o piso"
     assert p["answered"] == len(QUESTOES)
 
@@ -1998,9 +2005,24 @@ RUN_OUTPUTS = {
     "T10_SINTESE_IDENTIFICACAO": {"sintese_identificacao": {"valor": "Duas pessoas assinaram.", "lastro": ["identificacao[0]"]}},
     "T11_SINTESE_CONTEXTO": {"sintese_contexto": {"valor": "O contrato está em vigor.", "lastro": ["fatos[0]"]}},
     "T13_HUMANIZACAO": {"resumo_humanizado": GATE_SUMMARY, "termos": []},
-    "T14_QUESTOES": {"questoes": [{"id": 1, "area": "pedidos", "enunciado": "Quando você paga?",
-                                   "alternativas": ["Sempre", "Só se ganhar"], "correta": 1,
-                                   "justificativa": "Está na cláusula 2.", "dificuldade": "facil"}]},
+    # Quatro perguntas, que é o piso: abaixo dele o motor publica zero e a jornada termina sem comprovante,
+    # e uma rodada completa que não exercita a conferência não prova que ela existe.
+    "T14_QUESTOES": {"questoes": [
+        {"id": 1, "area": "pedidos", "enunciado": "Quando você paga?", "alternativas": ["Sempre", "Só se ganhar"],
+         "correta": 1, "justificativa": "Está na cláusula 2.", "dificuldade": "facil",
+         "secao": "🤝 O que está sendo pedido", "ref": "pedidos[0]", "trecho_verbatim": "só se ganhar a ação"},
+        {"id": 2, "area": "datas_valores", "enunciado": "Quanto são os honorários?",
+         "alternativas": ["Vinte por cento", "Metade"], "correta": 0, "justificativa": "Cláusula 2.",
+         "dificuldade": "facil", "secao": "🤝 O que está sendo pedido", "ref": "datas_valores[0]",
+         "trecho_verbatim": "vinte por cento ao final"},
+        {"id": 3, "area": "identificacao", "enunciado": "Quem paga?", "alternativas": ["O CONTRATANTE", "O juiz"],
+         "correta": 0, "justificativa": "Cláusula 2.", "dificuldade": "facil",
+         "secao": "👥 Quem está nesta história", "ref": "identificacao[0]",
+         "trecho_verbatim": "O CONTRATANTE pagará honorários"},
+        {"id": 4, "area": "fatos", "enunciado": "Onde isso está escrito?",
+         "alternativas": ["Na cláusula 2", "Em lugar nenhum"], "correta": 0, "justificativa": "Cláusula 2.",
+         "dificuldade": "facil", "secao": "👥 Quem está nesta história", "ref": "fatos[0]",
+         "trecho_verbatim": "CLÁUSULA 2. O CONTRATANTE"}]},
 }
 
 
@@ -2335,3 +2357,332 @@ def test_a_class_the_type_does_not_have_is_not_missing_from_the_explanation():
 
     ausentes = dt.missing_classes("contrato", presentes=["identificacao", "datas_valores"])
     assert "pedidos" not in ausentes and "fatos" in ausentes, ausentes
+
+
+# ── A pergunta nasce presa a uma cláusula, com trecho literal ─────────────────
+#
+# O T14 gerava pergunta sobre "a HISTÓRIA" e sobre a "SIMBOLOGIA" dela, e o T13 parou de contar história em
+# 19/09. Sobrou uma conferência que mede uma narrativa que o motor não produz mais, e um comprovante que diz
+# "você entendeu o documento" a partir dela.
+
+QUESTION_SECTION = "👥 Quem está nesta história"
+
+
+def _questoes_de(hash_: str) -> list[dict]:
+    import json as _json
+    from core.workspace import folder
+    return _json.loads((folder(hash_) / "questoes.json").read_text(encoding="utf-8")).get("questoes") or []
+
+
+def test_a_question_must_declare_the_section_and_the_clause_it_came_from():
+    """Sem isso a pergunta não tem como ser conferida contra o documento, e a bateria não tem o que medir."""
+    task = protocol_task("T14_QUESTOES")
+    completa = {"questoes": [{"enunciado": "Quanto você paga?", "alternativas": ["20%", "nada"], "correta": 0,
+                              "secao": QUESTION_SECTION, "ref": "pedidos[0]",
+                              "trecho_verbatim": "O CONTRATANTE pagará honorários de vinte por cento"}]}
+    assert _rodar(task, json.dumps(completa, ensure_ascii=False))["ok"] is True
+
+    for falta in ("secao", "ref", "trecho_verbatim"):
+        crua = json.loads(json.dumps(completa))
+        del crua["questoes"][0][falta]
+        res = _rodar(task, json.dumps(crua, ensure_ascii=False))
+        assert res["ok"] is False, f"pergunta sem {falta} passou pelo contrato da etapa"
+        assert falta in str(res.get("erro", "")), res.get("erro")
+
+
+def test_the_quote_beside_a_question_is_the_slice_of_the_document_at_that_position(citizen, monkeypatch):
+    """Mesma regra da #88, agora na pergunta: o trecho publicado é a fatia do documento, nunca a transcrição
+    do modelo. E a pergunta cujo trecho ninguém acha no documento não chega à cidadã."""
+    import asyncio
+
+    from core import pipeline_pdf
+    from core.pdf_extract import Extraction
+
+    t = create_task(citizen["token"], "Perguntas ancoradas")
+    saidas = {**RUN_OUTPUTS, "T14_QUESTOES": {"questoes": [
+        {"id": i, "area": "pedidos", "dificuldade": "facil", "enunciado": f"Pergunta {i}?",
+         "alternativas": ["Sim", "Não"], "correta": 0, "justificativa": "Está na cláusula 2.",
+         "secao": QUESTION_SECTION, "ref": "pedidos[0]", "trecho_verbatim": trecho}
+        for i, trecho in enumerate([
+            "O CONTRATANTE pagará honorarios de vinte por cento",   # sem acento: o locate acha assim mesmo
+            "pagará honorários de vinte por cento ao final",
+            "só se ganhar a ação",
+            "ao final, só se ganhar a ação",
+            "CLÁUSULA 2. O CONTRATANTE pagará",
+            "esta frase não está no documento de jeito nenhum",     # esta tem que cair
+        ], start=1)]}}
+    monkeypatch.setattr(pipeline_pdf, "extract", lambda caminho: Extraction(FAKE_TEXT, 0, 0, 0))
+    loop = asyncio.new_event_loop()
+    try:
+        loop.run_until_complete(pipeline_pdf.run_pdf_pipeline(t["id"], _scripted_groq(saidas)))
+    finally:
+        loop.close()
+
+    assert status_of(t["hash"]) == "pronta", ws.read_events(t["hash"])[-3:]
+    guardadas = _questoes_de(t["hash"])
+    assert len(guardadas) == 5, f"a pergunta sem lastro no documento não foi descartada: {len(guardadas)}"
+    for q in guardadas:
+        a, b = q["pos"]
+        assert FAKE_TEXT[a:b] == q["trecho"], (
+            f"o trecho da pergunta não é o que está no documento naquela posição:\n"
+            f"  publicado : {q['trecho']!r}\n  documento : {FAKE_TEXT[a:b]!r}")
+    ev = last_event(t["hash"], "questoes_ancoradas")
+    assert (ev["geradas"], ev["mantidas"]) == (6, 5), ev
+
+
+def test_too_few_anchored_questions_means_no_conference_instead_of_a_weak_one(citizen, monkeypatch):
+    """Duas perguntas de quatro alternativas passam por chute em 6,25% das vezes, e três tentativas levam isso
+    a 17,6%. Um comprovante apoiado nisso afirma mais do que mediu. Abaixo do piso o produto já sabe terminar
+    sem conferência e sem comprovante (`sem_perguntas`), e é o que ele faz."""
+    import asyncio
+
+    from core import pipeline_pdf
+    from core.pdf_extract import Extraction
+
+    t = create_task(citizen["token"], "Perguntas de menos")
+    saidas = {**RUN_OUTPUTS, "T14_QUESTOES": {"questoes": [
+        {"id": 1, "area": "pedidos", "dificuldade": "facil", "enunciado": "Vale?", "alternativas": ["Sim", "Não"],
+         "correta": 0, "justificativa": "x", "secao": QUESTION_SECTION, "ref": "pedidos[0]",
+         "trecho_verbatim": "só se ganhar a ação"},
+        {"id": 2, "area": "pedidos", "dificuldade": "facil", "enunciado": "Invenção?", "alternativas": ["Sim", "Não"],
+         "correta": 0, "justificativa": "x", "secao": QUESTION_SECTION, "ref": "pedidos[0]",
+         "trecho_verbatim": "isto não existe no documento"}]}}
+    monkeypatch.setattr(pipeline_pdf, "extract", lambda caminho: Extraction(FAKE_TEXT, 0, 0, 0))
+    loop = asyncio.new_event_loop()
+    try:
+        loop.run_until_complete(pipeline_pdf.run_pdf_pipeline(t["id"], _scripted_groq(saidas)))
+    finally:
+        loop.close()
+
+    assert status_of(t["hash"]) == "pronta", "a explicação foi derrubada por causa da conferência"
+    assert _questoes_de(t["hash"]) == [], "sobrou conferência fraca em vez de nenhuma"
+    publicado = client.get(f"/api/t/{t['hash']}").json()
+    assert publicado["resumo_md"], "a explicação sumiu junto com as perguntas"
+    assert publicado["sem_perguntas"] is True and publicado["questoes"] == []
+    assert last_event(t["hash"], "questoes_ancoradas")["abaixo_do_piso"] is True
+
+
+def test_the_public_question_carries_the_section_and_the_quote_but_never_the_key():
+    """`secao` e `trecho` são o que fazem a pessoa poder voltar ao ponto do documento. `correta` e
+    `justificativa` continuam do lado de cá."""
+    from leia.api_citizen import _public_questions
+
+    doc = {"questoes": [{"id": 1, "enunciado": "Quanto?", "alternativas": ["20%", "nada"], "area": "pedidos",
+                         "correta": 0, "justificativa": "Está na cláusula 2.", "secao": QUESTION_SECTION,
+                         "ref": "pedidos[0]", "trecho": "vinte por cento", "pos": [10, 25],
+                         "conferencia": {"metodo": "exato", "score": 1.0}}]}
+    saiu = _public_questions(doc)[0]
+    assert saiu["secao"] == QUESTION_SECTION and saiu["trecho"] == "vinte por cento"
+    assert saiu["conferencia"] == {"metodo": "exato", "score": 1.0}
+    for gabarito in ("correta", "justificativa"):
+        assert gabarito not in saiu, f"o gabarito viajou junto: {gabarito}"
+
+
+# ── A consulta entra no registro, e o comprovante diz o que mediu (E12-T09/T10) ──
+
+def test_the_attempt_hash_stays_recomputable_for_what_was_already_recorded():
+    """Nenhuma tentativa já gravada pode mudar de hash: o hash é o identificador público do comprovante, e
+    mudá-lo transforma comprovante emitido em link quebrado. Quem não tem consulta continua em v2."""
+    from datetime import datetime as _dt
+
+    from core.attempts import attempt_hash
+
+    quando = _dt(2026, 9, 20, 12, 0, 0)
+    antigo = attempt_hash("abc123", 1, '{"1": 0}', quando)
+    assert attempt_hash("abc123", 1, '{"1": 0}', quando, consultas=None) == antigo, \
+        "tentativa sem consulta mudou de hash"
+    assert attempt_hash("abc123", 1, '{"1": 0}', quando, consultas={}) != antigo, \
+        "a consulta entrou no registro e não mudou o hash, então ela não está sendo provada"
+    assert attempt_hash("abc123", 1, '{"1": 0}', quando, consultas={"1": 2}) != \
+        attempt_hash("abc123", 1, '{"1": 0}', quando, consultas={"1": 3}), \
+        "duas consultas diferentes produziram o mesmo hash"
+
+
+def test_the_receipt_says_it_measured_multiple_choice_anchored_in_a_clause():
+    """`understood: true` sozinho é afirmação forte demais para o que uma múltipla escolha mede. O terceiro
+    que recebe o comprovante precisa da régua: qual instrumento, qual piso, e quantas vezes a pessoa pediu
+    para rever o trecho antes de responder."""
+    from datetime import datetime as _dt, timezone as _tz
+
+    from leia.registry import PAYLOAD_SCHEMA, build_payload
+
+    payload = build_payload({"tarefa_hash": "abc", "numero": 1, "hash_imutavel": "h", "aprovado": True,
+                             "total": 6, "piso": 5, "criada_em": _dt(2026, 9, 20, tzinfo=_tz.utc),
+                             "consultas": {"1": 2, "3": 1}})
+    assert payload["schema"] == PAYLOAD_SCHEMA and PAYLOAD_SCHEMA.endswith("v4")
+    assert "clause" in payload["instrument"], payload["instrument"]
+    assert payload["consulted"] == 3, "o comprovante não diz quantas vezes a pessoa precisou rever"
+    assert build_payload({"tarefa_hash": "a", "numero": 1, "criada_em": "x"})["consulted"] == 0
+
+
+# ── O advogado edita a explicação e escolhe o que vai ser perguntado (E12-T05) ──
+
+def _rodada_pronta(token: str, titulo: str, monkeypatch) -> dict:
+    """Uma rodada completa de verdade, para a revisão ter o que revisar."""
+    import asyncio
+
+    from core import pipeline_pdf
+    from core.pdf_extract import Extraction
+
+    t = create_task(token, titulo)
+    monkeypatch.setattr(pipeline_pdf, "extract", lambda caminho: Extraction(FAKE_TEXT, 0, 0, 0))
+    loop = asyncio.new_event_loop()
+    try:
+        loop.run_until_complete(pipeline_pdf.run_pdf_pipeline(t["id"], _scripted_groq(RUN_OUTPUTS)))
+    finally:
+        loop.close()
+    assert status_of(t["hash"]) == "pronta", ws.read_events(t["hash"])[-3:]
+    return t
+
+
+def test_the_lawyer_keeps_a_subset_of_the_questions_and_the_citizen_gets_exactly_that(lawyer, monkeypatch):
+    """Metade da tese do produto é a supervisão humana, e até aqui ela só podia aprovar ou não aprovar. Quem
+    responde por aquele documento precisa poder tirar a pergunta que não serve, sem refazer a rodada."""
+    t = _rodada_pronta(lawyer["token"], "Revisão salva", monkeypatch)
+    antes = _questoes_de(t["hash"])
+    assert len(antes) == 4
+
+    mantidas = [q["id"] for q in antes[:3]] + [antes[3]["id"]]
+    r = client.post(f"/api/tarefas/{t['id']}/revisao",
+                    json={"resumo_md": "# Resumo em uma linha\n\nTexto que o advogado escreveu.",
+                          "questoes": mantidas[:4]},
+                    headers=bearer(lawyer["token"]))
+    assert r.status_code == 200, r.text
+
+    from app_gestao import _read_artifact
+    assert "Texto que o advogado escreveu." in (_read_artifact(t["hash"], "resumo_humanizado.md") or "")
+    assert [q["id"] for q in _questoes_de(t["hash"])] == mantidas[:4]
+    assert last_event(t["hash"], "revisao_salva")["questoes"] == 4
+
+
+def test_the_lawyer_cannot_leave_a_conference_below_the_floor(lawyer, monkeypatch):
+    """O mesmo piso que vale para o motor vale para a pessoa: conferência fraca faz o comprovante afirmar
+    mais do que mediu, e de onde veio o corte não muda isso. Zero continua valendo, porque zero é a decisão
+    explícita de não conferir, e o produto já sabe terminar assim."""
+    t = _rodada_pronta(lawyer["token"], "Revisão curta", monkeypatch)
+    ids = [q["id"] for q in _questoes_de(t["hash"])]
+
+    curta = client.post(f"/api/tarefas/{t['id']}/revisao", json={"questoes": ids[:2]},
+                        headers=bearer(lawyer["token"]))
+    assert curta.status_code == 422, curta.text
+    assert len(_questoes_de(t["hash"])) == 4, "a recusa não impediu a gravação"
+
+    nenhuma = client.post(f"/api/tarefas/{t['id']}/revisao", json={"questoes": []}, headers=bearer(lawyer["token"]))
+    assert nenhuma.status_code == 200, nenhuma.text
+    assert _questoes_de(t["hash"]) == []
+    # Documento de advogado só chega à cidadã depois de liberado, então a tela dela se olha depois disso.
+    assert client.post(f"/api/tarefas/{t['id']}/aprovar", headers=bearer(lawyer["token"])).status_code == 200
+    publicado = client.get(f"/api/t/{t['hash']}").json()
+    assert publicado["sem_perguntas"] is True and publicado["questoes"] == []
+    assert publicado["resumo_md"], "a explicação sumiu junto com as perguntas"
+
+
+def test_the_review_cannot_be_rewritten_after_the_link_was_released(lawyer, monkeypatch):
+    """Depois de liberado, a cidadã pode já ter lido, respondido e recebido comprovante. Reescrever a
+    explicação por baixo disso faria o comprovante apontar para um texto que não é o que ela leu."""
+    t = _rodada_pronta(lawyer["token"], "Revisão tardia", monkeypatch)
+    assert client.post(f"/api/tarefas/{t['id']}/aprovar", headers=bearer(lawyer["token"])).status_code == 200
+
+    tarde = client.post(f"/api/tarefas/{t['id']}/revisao", json={"resumo_md": "outra coisa"},
+                        headers=bearer(lawyer["token"]))
+    assert tarde.status_code == 409, tarde.text
+
+
+def test_only_who_sent_the_document_can_save_the_review(lawyer, citizen, monkeypatch):
+    t = _rodada_pronta(lawyer["token"], "Revisão alheia", monkeypatch)
+    alheio = client.post(f"/api/tarefas/{t['id']}/revisao", json={"resumo_md": "x"},
+                         headers=bearer(citizen["token"]))
+    assert alheio.status_code in (403, 404), alheio.text
+
+
+def test_saving_the_review_says_which_sections_lost_their_ground(lawyer, monkeypatch):
+    """Editar o texto pode tirar o chão de uma seção sem que ninguém perceba: o vínculo entre seção e classe
+    é pelo título, então renomear um título desliga a âncora. A resposta devolve a medida, para a tela
+    avisar em vez de o advogado liberar às cegas."""
+    t = _rodada_pronta(lawyer["token"], "Revisão medida", monkeypatch)
+    r = client.post(f"/api/tarefas/{t['id']}/revisao",
+                    json={"resumo_md": "# Título que ninguém mapeou\n\nTexto solto."},
+                    headers=bearer(lawyer["token"]))
+    assert r.status_code == 200, r.text
+    medida = r.json()["porta_qualidade"]
+    assert medida["motivo"], "a explicação ficou sem seção com trecho e a resposta não disse nada"
+
+
+def test_a_question_about_a_section_the_citizen_never_sees_is_dropped(citizen, monkeypatch):
+    """Medido em 20/09/2026 no contrato fictício: 4 das 6 perguntas apontavam para seções que a porta de
+    fidelidade tinha descartado por falta de lastro. A pessoa recebia pergunta sobre uma parte da explicação
+    que não está na tela dela, e o "não lembro, mostra de novo" abriria o nada.
+
+    Quem decide quais seções existem é a mesma função que monta a tela, e não uma lista paralela."""
+    import asyncio
+
+    from core import pipeline_pdf
+    from core.pdf_extract import Extraction
+
+    t = create_task(citizen["token"], "Pergunta órfã")
+    saidas = {**RUN_OUTPUTS,
+              # Sem lastro, esta síntese é descartada e a seção "O que está sendo pedido" não é publicada.
+              "T9_SINTESE_PEDIDOS": {"sintese_pedidos": {"valor": "", "lastro": []}},
+              "T14_QUESTOES": {"questoes": [
+                  {**q, "secao": "🤝 O que está sendo pedido"} if q["id"] in (1, 2) else q
+                  for q in RUN_OUTPUTS["T14_QUESTOES"]["questoes"]]}}
+    monkeypatch.setattr(pipeline_pdf, "extract", lambda caminho: Extraction(FAKE_TEXT, 0, 0, 0))
+    loop = asyncio.new_event_loop()
+    try:
+        loop.run_until_complete(pipeline_pdf.run_pdf_pipeline(t["id"], _scripted_groq(saidas)))
+    finally:
+        loop.close()
+
+    secoes = {t_["titulo"] for t_ in client.get(f"/api/t/{t['hash']}").json()["topicos"]}
+    assert "🤝 O que está sendo pedido" not in secoes, "a seção sem lastro foi publicada, e o teste mede outra coisa"
+    publicadas = client.get(f"/api/t/{t['hash']}").json()["questoes"]
+    assert [q["id"] for q in publicadas] == [], \
+        "sobraram perguntas, e as que apontavam para a seção descartada deviam cair junto"
+    assert last_event(t["hash"], "questoes_ancoradas")["sem_secao"] == 2
+
+
+def test_the_quote_of_a_published_section_is_the_slice_of_the_document_too():
+    """Medido em 20/09/2026 no agravo real: 2 de 5 tópicos mostravam trecho que não está no documento, e a
+    `precisao_ancora` caiu para 0.6.
+
+    É a mesma contradição da #88 num caminho vizinho: o `locate` confirma que o trecho existe, e o que vai
+    para a tela continua sendo a transcrição do modelo. No contrato fictício os dois coincidem, e foi por
+    isso que passou despercebido."""
+    from leia.api_citizen import topics_from_summary
+
+    documento = "CLÁUSULA 2. A compa nhia pagará honorários de vinte por cento ao final."
+    memoria = {"memoria_persistente": {"pedidos": [
+        {"campo": "principal", "valor": "pagamento",
+         "trecho_verbatim": "A companhia pagará honorários de vinte por cento"}]}}
+    sinteses = [("pedidos", {"sintese_pedidos": {"valor": "Ela paga ao final.", "lastro": ["pedidos[0]"]}})]
+    resumo = "# Resumo em uma linha\n\nVocê paga ao final.\n\n## 🤝 O que está sendo pedido\n\nO pagamento é ao final."
+
+    topicos = topics_from_summary(resumo, memoria, documento, sinteses)
+    alvo = next(t for t in topicos if "pedido" in t["titulo"])
+    assert alvo.get("trecho"), "a seção foi retida, e aí o teste mede outra coisa"
+    assert alvo["trecho"] in documento, (
+        f"o trecho do tópico não está no documento:\n  publicado : {alvo['trecho']!r}\n  documento : {documento!r}")
+    assert "compa nhia" in alvo["trecho"], "o trecho foi limpo, e deixou de ser o que a pessoa vê no papel"
+
+
+def test_a_synthesis_never_publishes_a_ground_that_reaches_nothing():
+    """Medido em 20/09/2026 no agravo real: a síntese de fundamentos declarou `fundamentos[16]` a
+    `fundamentos[19]` num documento com 16 itens. A síntese era publicada inteira, com refs válidas e
+    inválidas misturadas, e o advogado que clicasse numa das inválidas não achava nada.
+
+    Bastava uma ref boa para a síntese passar, e esse critério continua certo: ele decide se ela é publicada.
+    O que não podia continuar é ela **publicar** a ref que não chega a lugar nenhum."""
+    from leia.api_citizen import CLASS_LABELS, _syntheses
+    from core.anchors import norm_map
+
+    texto = "CLÁUSULA 2. O CONTRATANTE pagará honorários de vinte por cento ao final."
+    memoria = {"memoria_persistente": {"pedidos": [
+        {"campo": "principal", "valor": "pagamento", "trecho_verbatim": "pagará honorários de vinte por cento"}]}}
+    sinteses_raw = [("pedidos", {"sintese_pedidos": {"valor": "Ela paga ao final.",
+                                                     "lastro": ["pedidos[0]", "pedidos[7]", "fundamentos[3]"]}})]
+    text_norm, idx = norm_map(texto)
+    publicadas, _ = _syntheses(sinteses_raw, CLASS_LABELS, memoria, texto, text_norm, idx)
+
+    assert len(publicadas) == 1, "a síntese com uma ref boa deixou de ser publicada"
+    assert publicadas[0]["lastro"] == ["pedidos[0]"], (
+        f"a síntese publicou lastro que não chega a nada: {publicadas[0]['lastro']}")

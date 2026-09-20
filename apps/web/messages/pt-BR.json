@@ -106,14 +106,22 @@
     "whatDiffers": "O que está diferente no documento:",
     "answerAgain": "Responder de novo",
     "thirdAttempt": "Vou deixar este ponto marcado para {lawyer} conversar com você. Podemos seguir para o próximo tópico.",
-    "understood": "Entendido. Vamos para o próximo."
+    "understood": "Entendido. Vamos para o próximo.",
+    "reviewTitle": "Antes de conferir, os pontos de uma vez",
+    "reviewIntro": "Toque em qualquer ponto para voltar a ele. Quando estiver pronta, siga para as perguntas.",
+    "reviewBack": "Voltar a este ponto",
+    "reviewGo": "Estou pronta, vamos conferir"
   },
   "c5": {
     "title": "O que você entendeu",
     "notSignature": "Ao confirmar, você diz que entendeu o que está acima. Isso não é a assinatura do contrato.",
     "confirm": "Confirmo que entendi",
     "review": "Quero rever uma parte",
-    "markedFor": "marcado para {lawyer} explicar"
+    "markedFor": "marcado para {lawyer} explicar",
+    "remind": "Não lembro, mostra de novo",
+    "remindClose": "Fechar o trecho",
+    "remindFrom": "Esta pergunta veio de: {secao}",
+    "remindNoQuote": "Esta pergunta não trouxe trecho do documento."
   },
   "c6": {
     "title": "Seu comprovante",
@@ -125,7 +133,12 @@
     "reviewedTitle": "Quem conferiu esta explicação",
     "reviewedYes": "Um advogado revisou a explicação antes de ela chegar até você.",
     "reviewedNo": "Esta explicação não passou por um advogado. Você mesma enviou o documento, e a assistente é automática.",
-    "measured": "A conferência foi por perguntas de múltipla escolha: você acertou o mínimo de {piso} de {total}."
+    "measured": "A conferência foi por perguntas de múltipla escolha, e cada pergunta mostrava o trecho do documento de onde ela veio: você acertou o mínimo de {piso} de {total}.",
+    "answered": "Você respondeu a conferência deste documento",
+    "attempted": "Registro da sua tentativa",
+    "consultedOnce": "Você abriu o trecho no documento 1 vez antes de responder.",
+    "consulted": "Você abriu o trecho no documento {n} vezes antes de responder.",
+    "consultedNone": "Você respondeu sem precisar reabrir o trecho no documento."
   },
   "a0": {
     "title": "Entrar",
@@ -378,6 +391,19 @@
         "saving": "Salvando.",
         "saved": "Tipo salvo.",
         "failed": "Não foi possível salvar o tipo. Tente de novo."
+      },
+      "edit": {
+        "summaryLabel": "Explicação que a cliente vai ler",
+        "summaryHint": "Mantenha os títulos das seções como estão. O vínculo entre a seção e o trecho do documento é pelo título, e renomear um título tira o trecho da tela.",
+        "keep": "Perguntar isto",
+        "kept": "{n} de {total} perguntas marcadas",
+        "floor": "Marque pelo menos {n} perguntas, ou nenhuma. Com menos que isso o comprovante afirma mais do que mediu.",
+        "none": "Nenhuma pergunta marcada: a cliente vai ler a explicação e terminar sem conferência e sem comprovante.",
+        "save": "Salvar alterações",
+        "saving": "Salvando.",
+        "saved": "Alterações salvas.",
+        "failed": "Não foi possível salvar. Tente de novo.",
+        "lostGround": "Atenção: depois desta edição, {motivo}"
       }
     }
   },

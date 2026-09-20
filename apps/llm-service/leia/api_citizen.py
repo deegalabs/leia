@@ -117,8 +117,15 @@ router = APIRouter()
 
 
 def _public_questions(doc: Any) -> list[dict[str, Any]]:
+    """A pergunta como a pessoa a recebe: com o ponto do documento de onde ela nasceu, sem o gabarito.
+
+    ``secao`` e ``trecho`` são o que permitem voltar ao ponto no papel dela em vez de tentar lembrar, e são o
+    que o "não lembro, mostra de novo" abre. ``correta`` e ``justificativa`` continuam do lado de cá: quem
+    responde não pode receber a resposta junto com a pergunta."""
     items = doc.get("questoes", []) if isinstance(doc, dict) else []
-    return [{"id": q.get("id"), "enunciado": q.get("enunciado"), "alternativas": q.get("alternativas", []), "area": q.get("area")}
+    return [{"id": q.get("id"), "enunciado": q.get("enunciado"), "alternativas": q.get("alternativas", []),
+             "area": q.get("area"), "secao": q.get("secao"), "trecho": q.get("trecho"),
+             "conferencia": q.get("conferencia")}
             for q in items if isinstance(q, dict)]
 
 
@@ -235,7 +242,13 @@ def _sections(resumo_md: str, memoria: Any, documento: str = "",
                 q = _quote_of(memoria, ref)
                 found = locate(documento, text_norm, idx, q) if q else None
                 if found:
-                    topic["trecho"] = q
+                    # A fatia do documento naquela posição, nunca a transcrição do modelo. Mesma regra do
+                    # item marcado (ver ``_item``), e pelo mesmo motivo: medido em 20/09/2026 no agravo
+                    # real, 2 de 5 tópicos mostravam um trecho que a pessoa não acha no papel dela, com a
+                    # explicação ao lado apresentando aquilo como copiado do documento.
+                    a, b = found["pos"]
+                    topic["trecho"] = documento[a:b]
+                    topic["pos"] = [a, b]
                     topic["conferencia"] = {"metodo": found["metodo"], "score": found["score"]}
                     break
             if "trecho" not in topic:
@@ -516,8 +529,12 @@ def get_attempt(hash_imutavel: str) -> Optional[dict[str, Any]]:
     revisada = (t.origem or "advogado") != "cidadao"
     dados = {"hash_imutavel": tent.hash_imutavel, "tarefa_hash": t.hash, "numero": tent.numero, "acertos": tent.acertos,
              "total": tent.total, "aprovado": tent.aprovado, "criada_em": created,
-             "revisado_por_advogado": revisada, "instrumento": "multiple-choice",
+             "revisado_por_advogado": revisada,
+             # Sem `instrumento` fixo aqui: quem sabe qual instrumento é o produto é `build_payload`, e
+             # cravar "multiple-choice" neste dicionário fazia o campo continuar dizendo a palavra antiga
+             # depois de a pergunta passar a nascer presa a uma cláusula.
              "piso": _tn.pass_mark(tent.total),
+             "consultas": json.loads(tent.consultas) if tent.consultas else {},
              "pdf_sha256": gravado.get("pdf_sha256", ""), "resumo_sha256": gravado.get("resumo_sha256", ""),
              "registro": gravado or None,
              "ots": proof}
@@ -639,8 +656,13 @@ def _syntheses(sinteses_raw: list[tuple[str, Any]], labels: dict[str, tuple[str,
         body = _synthesis_body(raw)
         if body is None:
             continue
-        lastro = [str(x) for x in (body.get("lastro") or [])]
-        if not any(_reaches_document(ref, bodies, memoria, texto, text_norm, idx, set()) for ref in lastro):
+        # Uma ref boa basta para a síntese ser publicada, e esse critério continua sendo esse. O que não
+        # pode é ela **publicar** a ref que não chega a nada: medido em 20/09/2026 no agravo real, a síntese
+        # de fundamentos declarou `fundamentos[16]` a `fundamentos[19]` num documento com 16 itens, e quem
+        # clicasse numa delas na tela de revisão não achava nada do outro lado.
+        lastro = [ref for ref in (str(x) for x in (body.get("lastro") or []))
+                  if _reaches_document(ref, bodies, memoria, texto, text_norm, idx, set())]
+        if not lastro:
             sem_lastro.append(cls)
             continue
         sinteses.append({"classe": cls, "rotulo": labels.get(cls, ("Contexto do processo", "#E3F1F1"))[0],

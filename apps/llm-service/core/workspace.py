@@ -24,6 +24,15 @@ def save_meta(h: str, meta: dict) -> None:
     )
 
 
+def write_artifact(h: str, nome: str, conteudo: str) -> Path:
+    """Grava um artefato da tarefa. Existe aqui, e não em quem chama, porque quem escreve no workspace é
+    este módulo: o advogado revisando e o pipeline gravam o mesmo arquivo, e não podem fazê-lo de dois
+    jeitos diferentes."""
+    alvo = folder(h) / nome
+    alvo.write_text(conteudo, encoding="utf-8")
+    return alvo
+
+
 def record_event(h: str, tipo: str, **dados) -> None:
     linha = {"ts": datetime.utcnow().isoformat(), "tipo": tipo, **dados}
     with (folder(h) / "log.jsonl").open("a", encoding="utf-8") as f:

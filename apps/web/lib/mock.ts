@@ -6,7 +6,7 @@ import { tokenFromRequest } from "./server/session";
 import { findSpan, type Anchor, type InferenceClass, type Inferences } from "./inferences"; /* LeIA: review flow shares the inferences with the public route */
 import type { Stage } from "./api";
 
-type FixtureQuestion = { id: number; area: string; dificuldade: string; enunciado: string; alternativas: string[]; correta: number; justificativa: string };
+type FixtureQuestion = { id: number; area: string; dificuldade: string; enunciado: string; alternativas: string[]; correta: number; justificativa: string; secao?: string; trecho?: string; conferencia?: Anchor };
 /* LeIA: topics come from the local pipeline (clausula) */
 type FixtureTopic = { id: number; titulo: string; explicacao: string; trecho: string; clausula?: string; classe?: string; score?: number };
 type Fixture = Omit<typeof fixture, "topicos" | "documento_texto"> & { topicos: FixtureTopic[]; documento_texto: { clausula?: string; texto: string }[]; sem_perguntas?: boolean };
@@ -36,13 +36,13 @@ function checkedTopics(f: Fixture) {
 export function publicTask(f: Fixture) {
   return {
     tarefa: f.tarefa, resumo_md: f.resumo_md, topicos: checkedTopics(f),
-    questoes: (f.questoes.questoes as FixtureQuestion[]).map((q) => ({ id: q.id, enunciado: q.enunciado, alternativas: q.alternativas, area: q.area })),
+    questoes: (f.questoes.questoes as FixtureQuestion[]).map((q) => ({ id: q.id, enunciado: q.enunciado, alternativas: q.alternativas, area: q.area, secao: q.secao ?? null, trecho: q.trecho ?? null, conferencia: q.conferencia ?? null })),
     ultima_tentativa: null,
     sem_perguntas: Boolean(f.sem_perguntas),
   };
 }
 
-export function evaluateQuiz(f: Fixture, respostas: Record<string, number>, numero = 1 /* LeIA: v3 counts attempts per task */) {
+export function evaluateQuiz(f: Fixture, respostas: Record<string, number>, numero = 1 /* LeIA: v3 counts attempts per task */, consultas: Record<string, number> = {}) {
   const questions = f.questoes.questoes as FixtureQuestion[];
   const erros: { id: number; area: string; enunciado: string; escolhida: number | null }[] = [];
   let acertos = 0;
@@ -51,7 +51,7 @@ export function evaluateQuiz(f: Fixture, respostas: Record<string, number>, nume
     if (chosen === q.correta) acertos += 1;
     else erros.push({ id: q.id, area: q.area, enunciado: q.enunciado, escolhida: chosen ?? null });
   }
-  const record: AttemptRecord = { tarefa_hash: f.tarefa.hash, numero, respostas, acertos, total: questions.length, aprovado: acertos >= passMark(questions.length), criada_em: nowIso(), salt: newSalt() };
+  const record: AttemptRecord = { tarefa_hash: f.tarefa.hash, numero, respostas, acertos, total: questions.length, aprovado: acertos >= passMark(questions.length), criada_em: nowIso(), salt: newSalt(), consultas };
   return { aprovado: record.aprovado, acertos, total: record.total, numero, hash_imutavel: attemptHash(record), comprovante_token: encodeToken(record), erros };
 }
 
@@ -93,6 +93,9 @@ export type MockTask = {
   etapas_iniciadas: number; etapas_feitas: number;
   /* LeIA: a espécie com que o motor leu o documento, e a correção do advogado quando existe */
   tipo_documento?: MockDocumentType | null;
+  /* LeIA: o que o advogado deixou na revisão (E12-T05) */
+  resumo_editado?: string;
+  questoes_mantidas?: number[];
   /* LeIA: o convite que governa o link; ausente significa link aberto, como sempre foi */
   convite?: MockInvite | null;
 };
@@ -420,6 +423,25 @@ export function setDocumentType(u: MockUser, id: number, tipo: string) {
   t.tipo_documento = { ...escolhido, trecho: "", pos: null, conferido: false, revisado_por_advogado: true, aplicado: false };
   t.eventos.push({ tipo: "tipo_documento", ts: nowIso() });
   return { ok: true, tipo_documento: t.tipo_documento };
+}
+
+/* LeIA (E12-T05): a demonstração guarda a edição na tarefa, do mesmo jeito que o serviço guarda no
+   workspace. O piso é o mesmo: ou nenhuma pergunta, ou pelo menos QUESTION_FLOOR. */
+const QUESTION_FLOOR = 4;
+export function saveReview(u: MockUser, id: number, body: { resumo_md?: string; questoes?: number[] }) {
+  const t = storeTaskById(id);
+  if (!t) throw fail(404, "não encontrado");
+  if (!canManage(u, t)) throw fail(403, "sem acesso");
+  if (t.status === "enviada" || t.status === "assinada")
+    throw fail(409, "Este documento já foi liberado. Para mudar a explicação, refaça o documento.");
+  if (body.questoes) {
+    if (body.questoes.length > 0 && body.questoes.length < QUESTION_FLOOR)
+      throw fail(422, `Com menos de ${QUESTION_FLOOR} perguntas o comprovante afirma mais do que mediu.`);
+    t.questoes_mantidas = body.questoes;
+  }
+  if (typeof body.resumo_md === "string") t.resumo_editado = body.resumo_md;
+  t.eventos.push({ tipo: "revisao_salva", ts: nowIso() });
+  return { ok: true, porta_qualidade: { motivo: null } };
 }
 
 export function approve(u: MockUser, id: number) {

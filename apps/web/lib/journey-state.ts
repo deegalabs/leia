@@ -8,6 +8,10 @@
 export type Step =
   | { kind: "welcome" }
   | { kind: "topic"; n: number }
+  /* A revisão antes de conferir: todos os pontos de uma vez, com o trecho de cada um, e um caminho de
+     volta para qualquer um deles. Quem lê com esforço chega na primeira pergunta sem lembrar do primeiro
+     ponto, e a alternativa a esta tela é a pessoa voltar ponto por ponto ou responder no chute. */
+  | { kind: "review" }
   | { kind: "question"; k: number }
   | { kind: "result" }
   | { kind: "done" };
@@ -21,7 +25,7 @@ export type Bounds = { topics: number; questions: number };
 export function fitsStep(step: Step, b: Bounds): boolean {
   if (step.kind === "topic") return Number.isInteger(step.n) && step.n >= 0 && step.n < b.topics;
   if (step.kind === "question") return Number.isInteger(step.k) && step.k >= 0 && step.k < b.questions;
-  return step.kind === "welcome" || step.kind === "result" || step.kind === "done";
+  return step.kind === "welcome" || step.kind === "review" || step.kind === "result" || step.kind === "done";
 }
 
 /** O que restaurar ao abrir o link de novo. Aceita o formato antigo, sem `step`, porque ele já está gravado
