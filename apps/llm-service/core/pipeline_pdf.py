@@ -327,10 +327,27 @@ def _ancorar_questoes(doc: Any, texto: str, tarefa_id: int, hash_: str) -> Any:
     if not isinstance(questoes, list):
         return doc
 
+    # Quais seções a pessoa vai de fato ver, pela mesma função que monta a tela dela e nunca por uma lista
+    # paralela. Medido em 20/09/2026 no contrato fictício: 4 das 6 perguntas apontavam para seções que a
+    # porta de fidelidade tinha descartado por falta de lastro, e o "não lembro, mostra de novo" abriria o
+    # nada. A síntese que sustenta a seção pode cair depois de a pergunta ter nascido dela.
+    from app_gestao import _read_artifact, _read_json
+    from leia.api_citizen import SYNTHESIS_FILES, _section_key, topics_from_summary
+
+    publicadas = {_section_key(t.get("titulo") or "")
+                  for t in (topics_from_summary(_read_artifact(hash_, "resumo_humanizado.md") or "",
+                                                _read_json(hash_, "memoria_persistente.json"), texto or "",
+                                                [(cls, _read_json(hash_, nome)) for nome, cls in SYNTHESIS_FILES])
+                            or [])}
+
     text_norm, idx = norm_map(texto or "")
     mantidas: list[dict[str, Any]] = []
+    sem_secao = 0
     for q in questoes:
         if not isinstance(q, dict):
+            continue
+        if publicadas and _section_key(str(q.get("secao") or "")) not in publicadas:
+            sem_secao += 1
             continue
         found = locate(texto or "", text_norm, idx, str(q.get("trecho_verbatim") or ""))
         if not found:
@@ -341,7 +358,8 @@ def _ancorar_questoes(doc: Any, texto: str, tarefa_id: int, hash_: str) -> Any:
                          "conferencia": {"metodo": found["metodo"], "score": found["score"]}})
 
     abaixo = len(mantidas) < QUESTIONS_FLOOR
-    dados = {"geradas": len(questoes), "mantidas": 0 if abaixo else len(mantidas), "abaixo_do_piso": abaixo}
+    dados = {"geradas": len(questoes), "mantidas": 0 if abaixo else len(mantidas),
+             "sem_secao": sem_secao, "abaixo_do_piso": abaixo}
     _event(tarefa_id, "questoes_ancoradas", dados)
     record_event(hash_, "questoes_ancoradas", **dados)
     if abaixo:

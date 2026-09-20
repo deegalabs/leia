@@ -221,12 +221,12 @@ def test_the_share_of_syntheses_with_anchor_is_measured():
 def test_the_share_of_questions_declaring_a_published_section_is_measured(caso):
     """A medida mostra a fatia que declara seção publicada.
 
-    No caso plantado da pergunta sem lastro são 2 de 3: uma não declara seção nenhuma. No caso gravado não
-    há pergunta, e aí a medida é 1.0 pela mesma convenção do resto da bateria: nada foi prometido, nada foi
-    quebrado. A ausência aparece em `questoes_removidas_em`, dentro do próprio caso."""
+    No caso plantado da pergunta sem lastro são 2 de 3: uma não declara seção nenhuma. No caso gravado, que
+    é captura de rodada real, toda pergunta publicada declara uma seção que a pessoa vê: a que aponta para
+    seção descartada cai no `_ancorar_questoes`, antes de chegar ao arquivo."""
     assert avaliar(plantado("question-without-anchor.json")).metricas["perguntas_com_secao"] == round(2 / 3, 3)
     assert avaliar(plantado("synthesis-without-anchor.json")).metricas["perguntas_com_secao"] == 1.0
-    assert caso["questoes"] == [] and caso["questoes_removidas_em"]
+    assert caso["questoes"], "o caso gravado ficou sem pergunta, e aí esta medida não mede nada"
     assert avaliar(caso).metricas["perguntas_com_secao"] == 1.0
 
 

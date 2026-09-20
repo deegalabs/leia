@@ -242,7 +242,13 @@ def _sections(resumo_md: str, memoria: Any, documento: str = "",
                 q = _quote_of(memoria, ref)
                 found = locate(documento, text_norm, idx, q) if q else None
                 if found:
-                    topic["trecho"] = q
+                    # A fatia do documento naquela posição, nunca a transcrição do modelo. Mesma regra do
+                    # item marcado (ver ``_item``), e pelo mesmo motivo: medido em 20/09/2026 no agravo
+                    # real, 2 de 5 tópicos mostravam um trecho que a pessoa não acha no papel dela, com a
+                    # explicação ao lado apresentando aquilo como copiado do documento.
+                    a, b = found["pos"]
+                    topic["trecho"] = documento[a:b]
+                    topic["pos"] = [a, b]
                     topic["conferencia"] = {"metodo": found["metodo"], "score": found["score"]}
                     break
             if "trecho" not in topic:
@@ -650,8 +656,13 @@ def _syntheses(sinteses_raw: list[tuple[str, Any]], labels: dict[str, tuple[str,
         body = _synthesis_body(raw)
         if body is None:
             continue
-        lastro = [str(x) for x in (body.get("lastro") or [])]
-        if not any(_reaches_document(ref, bodies, memoria, texto, text_norm, idx, set()) for ref in lastro):
+        # Uma ref boa basta para a síntese ser publicada, e esse critério continua sendo esse. O que não
+        # pode é ela **publicar** a ref que não chega a nada: medido em 20/09/2026 no agravo real, a síntese
+        # de fundamentos declarou `fundamentos[16]` a `fundamentos[19]` num documento com 16 itens, e quem
+        # clicasse numa delas na tela de revisão não achava nada do outro lado.
+        lastro = [ref for ref in (str(x) for x in (body.get("lastro") or []))
+                  if _reaches_document(ref, bodies, memoria, texto, text_norm, idx, set())]
+        if not lastro:
             sem_lastro.append(cls)
             continue
         sinteses.append({"classe": cls, "rotulo": labels.get(cls, ("Contexto do processo", "#E3F1F1"))[0],

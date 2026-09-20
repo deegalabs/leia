@@ -2606,3 +2606,83 @@ def test_saving_the_review_says_which_sections_lost_their_ground(lawyer, monkeyp
     assert r.status_code == 200, r.text
     medida = r.json()["porta_qualidade"]
     assert medida["motivo"], "a explicação ficou sem seção com trecho e a resposta não disse nada"
+
+
+def test_a_question_about_a_section_the_citizen_never_sees_is_dropped(citizen, monkeypatch):
+    """Medido em 20/09/2026 no contrato fictício: 4 das 6 perguntas apontavam para seções que a porta de
+    fidelidade tinha descartado por falta de lastro. A pessoa recebia pergunta sobre uma parte da explicação
+    que não está na tela dela, e o "não lembro, mostra de novo" abriria o nada.
+
+    Quem decide quais seções existem é a mesma função que monta a tela, e não uma lista paralela."""
+    import asyncio
+
+    from core import pipeline_pdf
+    from core.pdf_extract import Extraction
+
+    t = create_task(citizen["token"], "Pergunta órfã")
+    saidas = {**RUN_OUTPUTS,
+              # Sem lastro, esta síntese é descartada e a seção "O que está sendo pedido" não é publicada.
+              "T9_SINTESE_PEDIDOS": {"sintese_pedidos": {"valor": "", "lastro": []}},
+              "T14_QUESTOES": {"questoes": [
+                  {**q, "secao": "🤝 O que está sendo pedido"} if q["id"] in (1, 2) else q
+                  for q in RUN_OUTPUTS["T14_QUESTOES"]["questoes"]]}}
+    monkeypatch.setattr(pipeline_pdf, "extract", lambda caminho: Extraction(FAKE_TEXT, 0, 0, 0))
+    loop = asyncio.new_event_loop()
+    try:
+        loop.run_until_complete(pipeline_pdf.run_pdf_pipeline(t["id"], _scripted_groq(saidas)))
+    finally:
+        loop.close()
+
+    secoes = {t_["titulo"] for t_ in client.get(f"/api/t/{t['hash']}").json()["topicos"]}
+    assert "🤝 O que está sendo pedido" not in secoes, "a seção sem lastro foi publicada, e o teste mede outra coisa"
+    publicadas = client.get(f"/api/t/{t['hash']}").json()["questoes"]
+    assert [q["id"] for q in publicadas] == [], \
+        "sobraram perguntas, e as que apontavam para a seção descartada deviam cair junto"
+    assert last_event(t["hash"], "questoes_ancoradas")["sem_secao"] == 2
+
+
+def test_the_quote_of_a_published_section_is_the_slice_of_the_document_too():
+    """Medido em 20/09/2026 no agravo real: 2 de 5 tópicos mostravam trecho que não está no documento, e a
+    `precisao_ancora` caiu para 0.6.
+
+    É a mesma contradição da #88 num caminho vizinho: o `locate` confirma que o trecho existe, e o que vai
+    para a tela continua sendo a transcrição do modelo. No contrato fictício os dois coincidem, e foi por
+    isso que passou despercebido."""
+    from leia.api_citizen import topics_from_summary
+
+    documento = "CLÁUSULA 2. A compa nhia pagará honorários de vinte por cento ao final."
+    memoria = {"memoria_persistente": {"pedidos": [
+        {"campo": "principal", "valor": "pagamento",
+         "trecho_verbatim": "A companhia pagará honorários de vinte por cento"}]}}
+    sinteses = [("pedidos", {"sintese_pedidos": {"valor": "Ela paga ao final.", "lastro": ["pedidos[0]"]}})]
+    resumo = "# Resumo em uma linha\n\nVocê paga ao final.\n\n## 🤝 O que está sendo pedido\n\nO pagamento é ao final."
+
+    topicos = topics_from_summary(resumo, memoria, documento, sinteses)
+    alvo = next(t for t in topicos if "pedido" in t["titulo"])
+    assert alvo.get("trecho"), "a seção foi retida, e aí o teste mede outra coisa"
+    assert alvo["trecho"] in documento, (
+        f"o trecho do tópico não está no documento:\n  publicado : {alvo['trecho']!r}\n  documento : {documento!r}")
+    assert "compa nhia" in alvo["trecho"], "o trecho foi limpo, e deixou de ser o que a pessoa vê no papel"
+
+
+def test_a_synthesis_never_publishes_a_ground_that_reaches_nothing():
+    """Medido em 20/09/2026 no agravo real: a síntese de fundamentos declarou `fundamentos[16]` a
+    `fundamentos[19]` num documento com 16 itens. A síntese era publicada inteira, com refs válidas e
+    inválidas misturadas, e o advogado que clicasse numa das inválidas não achava nada.
+
+    Bastava uma ref boa para a síntese passar, e esse critério continua certo: ele decide se ela é publicada.
+    O que não podia continuar é ela **publicar** a ref que não chega a lugar nenhum."""
+    from leia.api_citizen import CLASS_LABELS, _syntheses
+    from core.anchors import norm_map
+
+    texto = "CLÁUSULA 2. O CONTRATANTE pagará honorários de vinte por cento ao final."
+    memoria = {"memoria_persistente": {"pedidos": [
+        {"campo": "principal", "valor": "pagamento", "trecho_verbatim": "pagará honorários de vinte por cento"}]}}
+    sinteses_raw = [("pedidos", {"sintese_pedidos": {"valor": "Ela paga ao final.",
+                                                     "lastro": ["pedidos[0]", "pedidos[7]", "fundamentos[3]"]}})]
+    text_norm, idx = norm_map(texto)
+    publicadas, _ = _syntheses(sinteses_raw, CLASS_LABELS, memoria, texto, text_norm, idx)
+
+    assert len(publicadas) == 1, "a síntese com uma ref boa deixou de ser publicada"
+    assert publicadas[0]["lastro"] == ["pedidos[0]"], (
+        f"a síntese publicou lastro que não chega a nada: {publicadas[0]['lastro']}")
