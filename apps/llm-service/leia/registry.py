@@ -15,8 +15,11 @@ import hashlib
 import io
 import json
 import os
+import time
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Iterator, Optional
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, Response
@@ -93,41 +96,171 @@ def payload_hash(payload: dict[str, Any]) -> tuple[str, str]:
     return canonical, sha256_hex(canonical)
 
 
-def ots_stamp(hash_hex: str) -> Optional[bytes]:
-    """Timestamp a sha256 digest with public OpenTimestamps calendars. Returns the .ots proof or None."""
-    if os.getenv("OTS_ENABLED", "true").lower() not in ("1", "true", "yes"):
-        return None
-    try:
-        from opentimestamps.calendar import RemoteCalendar  # type: ignore
-        from opentimestamps.core.op import OpSHA256  # type: ignore
-        from opentimestamps.core.timestamp import DetachedTimestampFile, Timestamp  # type: ignore
-        from opentimestamps.core.serialize import BytesSerializationContext  # type: ignore
+OTS_CALENDARS = (
+    "https://a.pool.opentimestamps.org",
+    "https://b.pool.opentimestamps.org",
+    "https://alice.btc.calendar.opentimestamps.org",
+    "https://bob.btc.calendar.opentimestamps.org",
+)
+# The stamp is the only public proof of the consent, and the network fails. A single pass lost that proof
+# for good; these waits give the calendar time to come back before the case is left to the sweep.
+OTS_RETRY_WAITS = (2, 8, 30)
+_sleep = time.sleep  # single waiting point, so a test can watch the backoff grow without living through it
 
-        digest = bytes.fromhex(hash_hex)
-        timestamp = Timestamp(digest)
-        detached = DetachedTimestampFile(OpSHA256(), timestamp)
-        calendars = [
-            "https://a.pool.opentimestamps.org",
-            "https://b.pool.opentimestamps.org",
-            "https://alice.btc.calendar.opentimestamps.org",
-            "https://bob.btc.calendar.opentimestamps.org",
-        ]
-        stamped = False
-        for url in calendars:
+
+@dataclass(frozen=True)
+class StampOutcome:
+    """What one stamping run produced.
+
+    ``proof`` is the detached .ots file, or None when the run failed. Failure used to be a mute None, so the
+    caller could not tell a disabled stamp from four calendars down, and nobody could say what to retry:
+    ``reason`` is that sentence, and ``attempts`` counts the calendar submissions it took to get there.
+    """
+
+    proof: Optional[bytes]
+    reason: str = ""
+    attempts: int = 0
+    rounds: int = 0
+
+    def __bool__(self) -> bool:
+        """True only when a proof came back, so ``if outcome:`` asks what the caller means to ask."""
+        return self.proof is not None
+
+
+def ots_timeout() -> float:
+    """Seconds a calendar has to answer. Eight was not enough for the pool under load."""
+    try:
+        return float(os.getenv("OTS_TIMEOUT", "15"))
+    except ValueError:
+        return 15.0
+
+
+def _submit_round(digest: bytes, timeout: float) -> tuple[list[Any], list[str]]:
+    """One round: submit to every calendar at the same time and keep every answer that arrives.
+
+    The old code stopped at the first calendar that answered, so the proof hung on that one calendar being
+    up. Submitting to all of them costs nothing extra in wall clock and the attestations merge.
+    """
+    from opentimestamps.calendar import RemoteCalendar  # type: ignore
+
+    answers: list[Any] = []
+    failures: list[str] = []
+    with ThreadPoolExecutor(max_workers=len(OTS_CALENDARS)) as pool:
+        running = {pool.submit(RemoteCalendar(url).submit, digest, timeout): url for url in OTS_CALENDARS}
+        for future, url in running.items():
             try:
-                calendar_ts = RemoteCalendar(url).submit(digest, timeout=8)
-                timestamp.merge(calendar_ts)
-                stamped = True
-                break
-            except Exception:
-                continue
-        if not stamped:
-            return None
+                answers.append(future.result())
+            except Exception as erro:
+                # An exception object is always truthy, so the fallback has to test the message itself:
+                # socket timeouts arrive with an empty one and would report the calendar and nothing else.
+                failures.append(f"{url}: {str(erro) or type(erro).__name__}")
+    return answers, failures
+
+
+def ots_stamp(hash_hex: str) -> StampOutcome:
+    """Timestamp a sha256 digest with the public OpenTimestamps calendars, insisting when they do not answer."""
+    if os.getenv("OTS_ENABLED", "true").lower() not in ("1", "true", "yes"):
+        return StampOutcome(None, "carimbo desligado por OTS_ENABLED")
+    try:
+        from opentimestamps.core.op import OpSHA256  # type: ignore
+        from opentimestamps.core.serialize import BytesSerializationContext  # type: ignore
+        from opentimestamps.core.timestamp import DetachedTimestampFile, Timestamp  # type: ignore
+    except Exception as erro:
+        return StampOutcome(None, f"biblioteca de carimbo indisponível: {erro}")
+    try:
+        digest = bytes.fromhex(hash_hex)
+    except ValueError as erro:
+        return StampOutcome(None, f"hash fora de formato para carimbo: {erro}")
+
+    timestamp = Timestamp(digest)
+    detached = DetachedTimestampFile(OpSHA256(), timestamp)
+    timeout = ots_timeout()
+    attempts = 0
+    failures: list[str] = []
+    for round_number, wait in enumerate((0, *OTS_RETRY_WAITS), start=1):
+        if wait:
+            _sleep(wait)
+        answers, failures = _submit_round(digest, timeout)
+        attempts += len(answers) + len(failures)
+        if not answers:
+            continue
+        for calendar_ts in answers:
+            timestamp.merge(calendar_ts)
         ctx = BytesSerializationContext()
         detached.serialize(ctx)
-        return ctx.getbytes()
+        return StampOutcome(ctx.getbytes(), "", attempts, round_number)
+    return StampOutcome(None, "; ".join(failures) or "nenhum calendário respondeu",
+                        attempts, len(OTS_RETRY_WAITS) + 1)
+
+
+def _attested(stamp: Any) -> Iterator[Any]:
+    """The sub-timestamps that carry attestations, which are the ones a calendar can still complete."""
+    if stamp.attestations:
+        yield stamp
+        return
+    for sub in stamp.ops.values():
+        yield from _attested(sub)
+
+
+def ots_bitcoin_height(proof: bytes) -> Optional[int]:
+    """Block that anchors the proof, or None while it is still a calendar promise."""
+    from opentimestamps.core.notary import BitcoinBlockHeaderAttestation  # type: ignore
+    from opentimestamps.core.serialize import BytesDeserializationContext  # type: ignore
+    from opentimestamps.core.timestamp import DetachedTimestampFile  # type: ignore
+
+    try:
+        detached = DetachedTimestampFile.deserialize(BytesDeserializationContext(proof))
+        for _, attestation in detached.timestamp.all_attestations():
+            if isinstance(attestation, BitcoinBlockHeaderAttestation):
+                return attestation.height
     except Exception:
         return None
+    return None
+
+
+def upgrade_proof(proof: bytes, timeout: Optional[float] = None) -> Optional[bytes]:
+    """Fetch the attestations a pending proof is still missing. Returns the bigger proof, or None if unchanged.
+
+    What the calendar hands back at stamping time is a promise: it commits to publish the digest in a Bitcoin
+    block. Only after that block exists does the promise become something a third party can check without
+    trusting the calendar, and nothing in the service ever came back to collect it.
+    """
+    try:
+        from opentimestamps.calendar import DEFAULT_CALENDAR_WHITELIST, RemoteCalendar  # type: ignore
+        from opentimestamps.core.notary import PendingAttestation  # type: ignore
+        from opentimestamps.core.serialize import (BytesDeserializationContext,  # type: ignore
+                                                   BytesSerializationContext)
+        from opentimestamps.core.timestamp import DetachedTimestampFile  # type: ignore
+
+        detached = DetachedTimestampFile.deserialize(BytesDeserializationContext(proof))
+    except Exception:
+        return None
+    if ots_bitcoin_height(proof) is not None:
+        return None  # already anchored: there is no attestation left to fetch
+
+    timeout = ots_timeout() if timeout is None else timeout
+    known = {attestation for _, attestation in detached.timestamp.all_attestations()}
+    changed = False
+    for stamp in _attested(detached.timestamp):
+        for attestation in list(stamp.attestations):
+            # Only the calendar that made the promise can complete it, and only if the official client
+            # trusts it: a URI read from the file would let the file choose who we talk to.
+            if not isinstance(attestation, PendingAttestation) or attestation.uri not in DEFAULT_CALENDAR_WHITELIST:
+                continue
+            try:
+                upgraded = RemoteCalendar(attestation.uri).get_timestamp(stamp.msg, timeout=timeout)
+            except Exception:
+                continue
+            fresh = {att for _, att in upgraded.all_attestations()} - known
+            if fresh:
+                known |= fresh
+                stamp.merge(upgraded)
+                changed = True
+    if not changed:
+        return None
+    ctx = BytesSerializationContext()
+    detached.serialize(ctx)
+    return ctx.getbytes()
 
 
 def qr_png_base64(text: str) -> str:
@@ -193,8 +326,11 @@ def build_router(get_attempt: Callable[[str], Optional[dict[str, Any]]], templat
     def verify(request: Request, attempt_hash: str, format: str = "html"):
         data = _load(attempt_hash)
         if format == "json":
+            # otsState, otsBlockHeight e otsLastAttempt vêm de quem guarda a prova (ots_status do serviço):
+            # "tem carimbo" sozinho não distingue a promessa do calendário do bloco que a fecha.
             return JSONResponse({"payload": data["payload"], "canonical": data["canonical"],
-                                 "payloadHash": data["payload_hash"], "otsPresent": data["ots_present"]})
+                                 "payloadHash": data["payload_hash"], "otsPresent": data["ots_present"],
+                                 **(data["attempt"].get("ots_status") or {})})
         return render(templates, request, "leia/verify.html", data)
 
     @router.get("/verify/{attempt_hash}/proof.ots")

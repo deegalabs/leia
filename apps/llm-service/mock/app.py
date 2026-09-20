@@ -100,7 +100,9 @@ async def quiz(hash_: str, body: dict[str, Any]):
                    sort_keys=True).encode()).hexdigest()
     if aprovado:
         _, digest = payload_hash(build_payload(attempt))
-        attempt["ots"] = await asyncio.to_thread(ots_stamp, digest)
+        # Only the .ots bytes: the receipt reads this field with ots_digest, which answers None for
+        # anything else and would drop the proof without a word.
+        attempt["ots"] = (await asyncio.to_thread(ots_stamp, digest)).proof
     STATE["tentativas"].append(attempt)
     ATTEMPTS[attempt["hash_imutavel"]] = attempt
     return {"aprovado": aprovado, "acertos": acertos, "total": total, "numero": numero,

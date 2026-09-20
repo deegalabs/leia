@@ -20,5 +20,5 @@ Ordem pensada para as três dimensões do manual. Um PDF de exemplo já processa
 3. Por que a janela de contexto não estoura: síntese só sobre a memória, nunca relendo o PDF.
 
 ## 4. Fechamento (1 min)
-Limites declarados: não aconselha, não substitui advogado, hash não é assinatura, carimbo público em rede de testes.
+Limites declarados: não aconselha, não substitui advogado, hash não é assinatura, carimbo público do OpenTimestamps ancorado no Bitcoin (ADR-0010).
 Como rodar em 5 minutos: `README.md`.

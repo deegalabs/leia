@@ -46,9 +46,18 @@
     "awaitingReview": "Aguardando revisão",
     "linkSent": "Link enviado",
     "awaitingValidation": "Aguardando validação",
-    "registered": "Registrado",
-    "stampPending": "Carimbo pendente",
     "pendingForLawyer": "Marcado para o advogado"
+  },
+  "stamp": {
+    "absentChip": "Sem carimbo ainda",
+    "pendingChip": "Carimbo em andamento",
+    "confirmedChip": "Carimbo confirmado",
+    "absent": "Este registro ainda não foi carimbado. O código já existe e qualquer pessoa pode conferi-lo agora.",
+    "pending": "O carimbo de tempo está sendo feito. Quando ficar pronto, a prova aparece aqui.",
+    "confirmed": "A prova existe desde o bloco {bloco} do Bitcoin: ela mostra que este código já existia quando esse bloco foi fechado.",
+    "confirmedNoBlock": "A prova já está no Bitcoin: ela mostra que este código existia quando o bloco foi fechado.",
+    "network": "Carimbo de tempo do OpenTimestamps, com calendários públicos ancorados no Bitcoin.",
+    "download": "Baixar prova (.ots)"
   },
   "ch": {
     "title": "Seus documentos",
@@ -109,7 +118,6 @@
   "c6": {
     "title": "Seu comprovante",
     "waitingLawyer": "Aguardando {lawyer} validar. Você recebe um aviso quando o comprovante estiver pronto.",
-    "stampPending": "Registro em andamento. O código já existe; o carimbo de tempo chega em alguns minutos.",
     "proves": "Este código mostra que você respondeu estas perguntas neste dia.",
     "doesNotContain": "Ele não contém seu documento nem suas respostas. Não é a assinatura do contrato. Qualquer pessoa pode conferir pelo QR.",
     "save": "Salvar comprovante",
@@ -199,15 +207,15 @@
     "title": "Verificação do registro",
     "hash": "Código (SHA-256)",
     "canonical": "JSON canônico",
-    "transaction": "Transação",
+    "proof": "Prova do carimbo (.ots)",
     "blockTime": "Data e hora do registro",
-    "network": "Rede de testes (Polygon Amoy)",
+    "network": "OpenTimestamps, ancorado no Bitcoin",
     "howTo": "Como conferir",
     "steps": [
       "Baixe o JSON canônico.",
       "Rode sha256sum no arquivo.",
       "Compare com o código acima.",
-      "Abra a transação e confira o mesmo código."
+      "Baixe a prova .ots e rode ots verify para ver a data carimbada."
     ],
     "noPersonalData": "Esta página não contém nome, documento nem respostas."
   },

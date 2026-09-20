@@ -698,10 +698,11 @@ def test_the_cap_does_not_exist_before_it_is_reached(lawyer, monkeypatch):
 
 def test_a_stale_proof_does_not_block_a_new_stamp(tmp_path, monkeypatch):
     from leia import api_citizen as ac
-    from leia.registry import ots_digest
+    from leia.registry import StampOutcome, ots_digest
 
     chamadas = {"n": 0}
-    monkeypatch.setattr(ac, "ots_stamp", lambda digest: chamadas.__setitem__("n", chamadas["n"] + 1) or b"prova-falsa")
+    monkeypatch.setattr(ac, "ots_stamp",
+                        lambda digest: chamadas.__setitem__("n", chamadas["n"] + 1) or StampOutcome(b"prova-falsa"))
     assert ots_digest(b"prova-falsa") is None, "uma prova ilegível não pode contar como carimbo válido"
 
     t = _tarefa_de_teste("hash-recarimbo")
@@ -1438,3 +1439,124 @@ def test_only_the_owner_retries_and_never_while_it_runs(lawyer, citizen):
     set_status(t["hash"], "processando")
     r = client.post(f"/api/tarefas/{t['id']}/reprocessar", headers=bearer(lawyer["token"]))
     assert r.status_code == 409, "refez por cima de um documento que está rodando"
+
+
+# ── O carimbo público: a falha deixa rastro e o comprovante diz em que estado está ──
+
+def _stamp_proof(digest_hex: str, height: int | None = None) -> bytes:
+    """Prova .ots montada aqui, sem rede: promessa de calendário, ou já ancorada no bloco ``height``."""
+    from opentimestamps.core.notary import BitcoinBlockHeaderAttestation, PendingAttestation
+    from opentimestamps.core.op import OpSHA256
+    from opentimestamps.core.serialize import BytesSerializationContext
+    from opentimestamps.core.timestamp import DetachedTimestampFile, Timestamp
+
+    stamp = Timestamp(bytes.fromhex(digest_hex))
+    stamp.attestations.add(PendingAttestation("https://alice.btc.calendar.opentimestamps.org")
+                           if height is None else BitcoinBlockHeaderAttestation(height))
+    ctx = BytesSerializationContext()
+    DetachedTimestampFile(OpSHA256(), stamp).serialize(ctx)
+    return ctx.getbytes()
+
+
+def _stamp_frozen_attempt(hash_: str):
+    """Tentativa aprovada com o registro já congelado, que é o que o carimbo carimba."""
+    import core.attempts as tn
+    from leia.api_citizen import freeze_record, stored_record
+
+    t = _tarefa_com_documento(hash_, small_pdf(f"Contrato {hash_}."), "# Explicação\n\nTexto simples.")
+    tent = tn.record(t, {"1": 0, "2": 1, "3": 2}, QUESTOES)
+    freeze_record(t.hash, tent.numero, tent.hash_imutavel)
+    return t, tent, stored_record(tent.hash_imutavel)["payload_sha256"]
+
+
+def test_stamp_a_failure_is_written_down_with_the_reason_and_the_count(monkeypatch):
+    """O carimbo que não sai não deixava rastro nenhum: só existia evento quando dava certo, então ninguém
+    sabia se o comprovante estava sem prova porque os calendários caíram ou porque nunca foi tentado."""
+    from leia import api_citizen as ac
+    from leia.registry import StampOutcome
+
+    t, tent, _ = _stamp_frozen_attempt("carimbo-falhou")
+    monkeypatch.setattr(ac, "ots_stamp",
+                        lambda digest: StampOutcome(None, "https://a.pool.opentimestamps.org: timed out", 8, 4))
+
+    ac.stamp_attempt(t.hash, tent.numero, tent.hash_imutavel)
+
+    falhas = [e for e in ws.read_events(t.hash) if e.get("tipo") == "carimbo_falhou"]
+    assert falhas, "o carimbo falhou e o comprovante não registra nada disso"
+    assert "timed out" in falhas[-1]["motivo"], f"o motivo da falha não chegou ao registro: {falhas[-1]}"
+    assert falhas[-1]["tentativas"] == 8, "o registro não diz quantas submissões foram feitas"
+    assert not ac._ots_path(t.hash, tent.numero).exists(), "gravou arquivo de prova sem prova nenhuma"
+    assert "carimbo_falhou" in [e["tipo"] for e in ac.public_events(ws.read_events(t.hash))], \
+        "a tela do cidadão não vê que o carimbo falhou"
+
+
+def test_stamp_a_proof_that_comes_back_is_saved_and_announced(monkeypatch):
+    """O caminho de sucesso grava o arquivo .ots e o evento; sem isso o /verify continua devolvendo 404."""
+    from leia import api_citizen as ac
+    from leia.registry import StampOutcome, ots_digest
+
+    t, tent, digest = _stamp_frozen_attempt("carimbo-saiu")
+    monkeypatch.setattr(ac, "ots_stamp", lambda d: StampOutcome(_stamp_proof(d), "", 2, 1))
+
+    ac.stamp_attempt(t.hash, tent.numero, tent.hash_imutavel)
+
+    caminho = ac._ots_path(t.hash, tent.numero)
+    assert caminho.exists(), "o carimbo voltou e a prova não foi gravada"
+    assert ots_digest(caminho.read_bytes()) == digest, "a prova gravada não fala do registro congelado"
+    assert [e for e in ws.read_events(t.hash) if e.get("tipo") == "carimbo_publico"], "o sucesso não deixou rastro"
+
+
+def test_stamp_the_receipt_says_which_of_the_three_states_it_is_in(monkeypatch):
+    """`ausente`, `pendente` e `confirmado` (ADR-0010): a tela prometia "chega em alguns minutos" mesmo
+    quando nada tinha sido carimbado, e não sabia dizer quando a promessa do calendário virou bloco."""
+    from leia import api_citizen as ac
+    from leia.registry import StampOutcome
+
+    t, tent, digest = _stamp_frozen_attempt("carimbo-estados")
+    caminho = ac._ots_path(t.hash, tent.numero)
+
+    assert ac.get_attempt(tent.hash_imutavel)["ots_status"] == {
+        "otsState": "ausente", "otsBlockHeight": None, "otsLastAttempt": None}
+
+    caminho.write_bytes(_stamp_proof("f" * 64))
+    assert ac.get_attempt(tent.hash_imutavel)["ots_status"]["otsState"] == "ausente", \
+        "prova feita sobre outro registro contou como carimbo deste"
+
+    monkeypatch.setattr(ac, "ots_stamp", lambda d: StampOutcome(_stamp_proof(d), "", 1, 1))
+    ac.stamp_attempt(t.hash, tent.numero, tent.hash_imutavel)
+    pendente = ac.get_attempt(tent.hash_imutavel)["ots_status"]
+    assert pendente["otsState"] == "pendente" and pendente["otsBlockHeight"] is None
+    assert pendente["otsLastAttempt"] and pendente["otsLastAttempt"].endswith("Z"), \
+        f"a data da última tentativa não veio em UTC: {pendente['otsLastAttempt']!r}"
+
+    caminho.write_bytes(_stamp_proof(digest, height=850123))
+    confirmado = ac.get_attempt(tent.hash_imutavel)["ots_status"]
+    assert confirmado["otsState"] == "confirmado" and confirmado["otsBlockHeight"] == 850123
+
+
+def test_stamp_the_public_json_publishes_the_state_of_the_stamp(monkeypatch):
+    """Quem audita parte só do link do comprovante: `otsPresent` dizia sim ou não e a tela preenchia o resto
+    com uma promessa. O JSON público agora diz em que estado o carimbo está, quando foi tentado pela última
+    vez e, quando confirmado, em que bloco."""
+    from leia import api_citizen as ac
+    from leia.registry import StampOutcome
+
+    t, tent, digest = _stamp_frozen_attempt("carimbo-json")
+    url = f"/verify/{tent.hash_imutavel}?format=json"
+
+    ausente = client.get(url).json()
+    assert ausente["otsPresent"] is False
+    assert ausente["otsState"] == "ausente" and ausente["otsBlockHeight"] is None
+    assert ausente["otsLastAttempt"] is None
+
+    monkeypatch.setattr(ac, "ots_stamp", lambda d: StampOutcome(_stamp_proof(d), "", 1, 1))
+    ac.stamp_attempt(t.hash, tent.numero, tent.hash_imutavel)
+    pendente = client.get(url).json()
+    assert pendente["otsPresent"] is True and pendente["otsState"] == "pendente"
+    assert pendente["otsBlockHeight"] is None and pendente["otsLastAttempt"].endswith("Z")
+
+    ac._ots_path(t.hash, tent.numero).write_bytes(_stamp_proof(digest, height=850124))
+    confirmado = client.get(url).json()
+    assert confirmado["otsState"] == "confirmado" and confirmado["otsBlockHeight"] == 850124
+    assert client.get(f"/verify/{tent.hash_imutavel}/proof.ots").status_code == 200, \
+        "o comprovante diz que tem carimbo e a prova não baixa"

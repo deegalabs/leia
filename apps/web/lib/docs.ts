@@ -6,7 +6,7 @@ export const DOCS: DocEntry[] = [
   { slug: "posicionamento", title: "Posicionamento e limites", file: "POSITIONING.md", source: "docs/POSITIONING.md", group: "Produto" },
   { slug: "casos-de-uso", title: "Personas e casos de uso", file: "USE-CASES.md", source: "docs/USE-CASES.md", group: "Produto" },
   { slug: "telas", title: "Telas", file: "SCREENS.md", source: "docs/SCREENS.md", group: "Produto" },
-  { slug: "situacao", title: "Situação atual", file: "STATUS.md", source: "docs/STATUS.md", group: "Produto" },
+  { slug: "situacao", title: "Situação em 13/09/2026", file: "STATUS.md", source: "docs/STATUS.md", group: "Produto" },
   { slug: "arquitetura", title: "Arquitetura", file: "ARCHITECTURE.md", source: "docs/ARCHITECTURE.md", group: "Técnico" },
   { slug: "api", title: "API do serviço", file: "API-V3-CONTRACT.md", source: "docs/API-V3-CONTRACT.md", group: "Técnico" },
   { slug: "servico", title: "Mapa do serviço cognitivo", file: "SERVICE-V2-MAP.md", source: "docs/SERVICE-V2-MAP.md", group: "Técnico" },
