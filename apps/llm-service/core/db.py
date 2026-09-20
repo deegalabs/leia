@@ -49,6 +49,11 @@ class Tarefa(SQLModel, table=True):
     advogado_id: int = Field(foreign_key="usuario.id", index=True)
     status: str = "criada"
     pdf_nome: Optional[str] = None
+    # LeIA: o SHA-256 do PDF como ele chegou, gravado no envio. O `documentSha256` do comprovante era
+    # recalculado lendo `original.pdf`, e o arquivo passa a ser apagado logo depois da extração: sem esta
+    # coluna, todo comprovante emitido depois disso apontaria para um documento que ninguém pode mais
+    # conferir. O hash não é dado pessoal e sobrevive ao documento de propósito.
+    document_sha256: Optional[str] = None
     workspace_path: Optional[str] = None
     clone_de: Optional[int] = Field(default=None, foreign_key="tarefa.id")
     rodada: int = 1
@@ -86,8 +91,6 @@ class Tentativa(SQLModel, table=True):
     # ``{"id_da_pergunta": vezes}``. Entra no preimage do hash (``leia.attempt.v3``) e no comprovante, porque
     # número que circula ao lado da prova sem estar dentro dela é número que qualquer um troca depois.
     consultas: Optional[str] = None
-    ip: Optional[str] = None
-    user_agent: Optional[str] = None
     criada_em: datetime = Field(default_factory=datetime.utcnow)
 
 
@@ -185,10 +188,30 @@ def _aplicar_migracoes() -> None:
             ))
             print("🔧 migração: tarefa.origem adicionada")
 
+        if "document_sha256" not in cols:
+            conn.execute(text("ALTER TABLE tarefa ADD COLUMN document_sha256 VARCHAR"))
+            print("🔧 migração: tarefa.document_sha256 adicionada")
+
         # ── Tabela tentativa ─────────────────────────────────────────────
-        if inspect(conn).has_table("tentativa") and "consultas" not in _colunas(conn, "tentativa"):
-            conn.execute(text("ALTER TABLE tentativa ADD COLUMN consultas VARCHAR"))
-            print("🔧 migração: tentativa.consultas adicionada")
+        if inspect(conn).has_table("tentativa"):
+            cols_tent = _colunas(conn, "tentativa")
+            if "consultas" not in cols_tent:
+                conn.execute(text("ALTER TABLE tentativa ADD COLUMN consultas VARCHAR"))
+                print("🔧 migração: tentativa.consultas adicionada")
+            # Esta é a única migração que **apaga** dado, e é essa a intenção: endereço de rede e navegador
+            # ficaram no esquema depois que a v2 do hash parou de gravá-los, e o PDF assinado ainda os lia e
+            # imprimia. Guardar dado sem finalidade contraria o art. 6º, III, e o que está sendo removido não
+            # sustenta nada: não entra em prova, não entra no comprovante e nenhuma tela o usa.
+            # As duas instruções são escritas por extenso, e não montadas num laço com interpolação: nome de
+            # coluna não pode ser parâmetro de bind, então a única defesa é não construir o SQL por texto.
+            # A versão interpolada seria segura por acidente, que é exatamente o que já foi corrigido em
+            # ``_garantir_indices_unicos``.
+            if "ip" in cols_tent:
+                conn.execute(text("ALTER TABLE tentativa DROP COLUMN ip"))
+                print("🔧 migração: tentativa.ip removida")
+            if "user_agent" in cols_tent:
+                conn.execute(text("ALTER TABLE tentativa DROP COLUMN user_agent"))
+                print("🔧 migração: tentativa.user_agent removida")
 
 
 # LeIA: ``create_all`` cria tabela que falta, nunca restrição em tabela que já existe. Um índice único

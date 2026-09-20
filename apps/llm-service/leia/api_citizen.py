@@ -470,7 +470,15 @@ def ots_status(proof: Optional[bytes], payload_sha256: str, last_attempt: Option
 
 
 def _document_sha(tarefa_hash: str) -> str:
-    """The PDF the person actually received, as it was stored."""
+    """O hash do PDF como ele chegou, que é o que o comprovante afirma.
+
+    Vem da coluna gravada no envio, e não mais de ler o arquivo: o ``original.pdf`` é descartado logo depois
+    da extração. A leitura do disco fica como saída para tarefa criada antes da coluna existir, e some
+    sozinha à medida que essas tarefas saem."""
+    with Session(engine) as s:
+        t = s.exec(select(Tarefa).where(Tarefa.hash == tarefa_hash)).first()
+    if t and t.document_sha256:
+        return t.document_sha256
     caminho = ws.folder(tarefa_hash) / "original.pdf"
     return sha256_hex(caminho.read_bytes()) if caminho.exists() else ""
 

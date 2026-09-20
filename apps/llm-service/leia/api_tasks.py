@@ -178,12 +178,17 @@ def retry_task(tarefa_id: int, bg: BackgroundTasks, u: Usuario = Depends(api_use
     if t.status == "processando":
         raise HTTPException(409, "Este documento ainda está sendo preparado.")
     pasta = ws.folder(t.hash)
-    if not (pasta / "original.pdf").exists():
-        raise HTTPException(409, "O documento original não está mais guardado, então não dá para refazer.")
+    # O PDF é apagado logo depois da primeira extração, então refazer parte do texto guardado. Enquanto o
+    # PDF existe (tarefa que nem chegou a extrair), o texto é descartável e sai daqui para ser extraído de
+    # novo; quando não existe, ele é a única fonte que resta e fica.
+    tem_pdf = (pasta / "original.pdf").exists()
+    if not tem_pdf and not (pasta / "texto_extraido.txt").exists():
+        raise HTTPException(409, "Não sobrou nem o documento nem o texto dele, então não dá para refazer.")
     # ``tipo_documento.json`` é resultado da rodada e sai com ela. ``tipo_documento_revisado.json``, a
     # resposta do advogado, não está nesta lista nem casa com ``T*.json``: ela é entrada da próxima rodada,
     # e apagá-la aqui faria o motor refazer o palpite por cima de quem já tinha corrigido.
-    for nome in ("texto_extraido.txt", "memoria_persistente.json", "texto_tagueado.json",
+    for nome in (("texto_extraido.txt",) if tem_pdf else ()) + (
+                 "memoria_persistente.json", "texto_tagueado.json",
                  "resumo_humanizado.md", "questoes.json", "pdf_assinado.pdf", dt.ARQUIVO_PUBLICO):
         alvo = pasta / nome
         if alvo.exists():

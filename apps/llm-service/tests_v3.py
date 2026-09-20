@@ -174,7 +174,10 @@ def test_create_task_and_read_it(lawyer, lawyer_task):
     assert data["resumo_md"] is None and data["tentativas"] == [] and data["duvidas"] == []
     assert data["advogado"] == {"nome": "Dra. Ana"} and data["cidadao"] is None
     assert any(e["tipo"] == "pdf_salvo" for e in data["eventos"])
-    assert (ws.folder(lawyer_task["hash"]) / "original.pdf").exists()
+    # O `original.pdf` existe entre o envio e a extração, e some ali (E17-T06). Esta tarefa é criada sem
+    # chave da Groq, então a rodada falha logo depois de extrair, e o arquivo já saiu.
+    assert not (ws.folder(lawyer_task["hash"]) / "original.pdf").exists(), "o PDF continua guardado"
+    assert (ws.folder(lawyer_task["hash"]) / "texto_extraido.txt").exists(), "o texto do documento sumiu junto"
 
     lst = client.get("/api/tarefas", headers=bearer(lawyer["token"])).json()["tarefas"]
     mine = [t for t in lst if t["id"] == lawyer_task["id"]]
@@ -650,10 +653,18 @@ QUESTOES = [{"id": 1, "correta": 0}, {"id": 2, "correta": 1}, {"id": 3, "correta
 
 
 def test_attempt_hash_carries_no_personal_data(lawyer):
+    """As colunas deixaram de existir em 20/09 (E17-T07). `record` continua aceitando os dois argumentos e
+    continua os descartando, porque quem chama ainda os tem na mão e não pode passar a gravá-los por
+    engano."""
     import core.attempts as tn
+    from core.db import Tentativa
+
     t = _tarefa_de_teste("hash-tentativa-1")
     tent = tn.record(t, {"1": 0, "2": 1, "3": 2}, QUESTOES, "203.0.113.7", "Mozilla/5.0 (Android)")
-    assert tent.ip is None and tent.user_agent is None, "IP e navegador continuam sendo gravados"
+    assert tent.hash_imutavel
+    for morto in ("ip", "user_agent"):
+        assert morto not in Tentativa.model_fields, f"a coluna {morto} continua no modelo"
+        assert not hasattr(tent, morto), f"a linha gravada ainda carrega {morto}"
 
 
 def test_attempt_hash_is_reproducible_from_what_is_stored(lawyer):
@@ -1942,8 +1953,8 @@ def test_gate_the_hidden_text_that_was_dropped_is_counted_in_the_event(lawyer, m
     from core import pipeline_pdf
     from core.pdf_extract import Extraction
 
-    t = create_task(lawyer["token"], "PDF hostil")
     monkeypatch.setattr(pipeline_pdf, "extract", lambda caminho: Extraction("texto visível do contrato", 120, 3, 7))
+    t = create_task(lawyer["token"], "PDF hostil")
     # Loop próprio, fechado aqui: asyncio.run deixa a thread sem loop corrente e derruba quem, no resto da
     # bateria, chama asyncio.get_event_loop() depois deste teste.
     loop = asyncio.new_event_loop()
@@ -2035,8 +2046,8 @@ def test_gate_a_full_run_the_document_sustains_ends_in_pronta_for_the_citizen(ci
     from core import pipeline_pdf
     from core.pdf_extract import Extraction
 
-    t = create_task(citizen["token"], "Rodada completa")
     monkeypatch.setattr(pipeline_pdf, "extract", lambda caminho: Extraction(FAKE_TEXT, 0, 0, 0))
+    t = create_task(citizen["token"], "Rodada completa")
     loop = asyncio.new_event_loop()
     try:
         loop.run_until_complete(pipeline_pdf.run_pdf_pipeline(t["id"], _scripted_groq(RUN_OUTPUTS)))
@@ -2062,10 +2073,10 @@ def test_gate_a_full_run_drops_the_synthesis_without_ground_and_publishes_the_re
     from core import pipeline_pdf
     from core.pdf_extract import Extraction
 
+    monkeypatch.setattr(pipeline_pdf, "extract", lambda caminho: Extraction(FAKE_TEXT, 0, 0, 0))
     t = create_task(citizen["token"], "Rodada sem lastro")
     saidas = {**RUN_OUTPUTS, "T8_SINTESE_FUNDAMENTOS": {
         "sintese_fundamentos": {"valor": SINTESE_SEM_LASTRO, "lastro": ["fundamentos[3]"]}}}
-    monkeypatch.setattr(pipeline_pdf, "extract", lambda caminho: Extraction(FAKE_TEXT, 0, 0, 0))
     loop = asyncio.new_event_loop()
     try:
         loop.run_until_complete(pipeline_pdf.run_pdf_pipeline(t["id"], _scripted_groq(saidas)))
@@ -2398,6 +2409,7 @@ def test_the_quote_beside_a_question_is_the_slice_of_the_document_at_that_positi
     from core import pipeline_pdf
     from core.pdf_extract import Extraction
 
+    monkeypatch.setattr(pipeline_pdf, "extract", lambda caminho: Extraction(FAKE_TEXT, 0, 0, 0))
     t = create_task(citizen["token"], "Perguntas ancoradas")
     saidas = {**RUN_OUTPUTS, "T14_QUESTOES": {"questoes": [
         {"id": i, "area": "pedidos", "dificuldade": "facil", "enunciado": f"Pergunta {i}?",
@@ -2411,7 +2423,6 @@ def test_the_quote_beside_a_question_is_the_slice_of_the_document_at_that_positi
             "CLÁUSULA 2. O CONTRATANTE pagará",
             "esta frase não está no documento de jeito nenhum",     # esta tem que cair
         ], start=1)]}}
-    monkeypatch.setattr(pipeline_pdf, "extract", lambda caminho: Extraction(FAKE_TEXT, 0, 0, 0))
     loop = asyncio.new_event_loop()
     try:
         loop.run_until_complete(pipeline_pdf.run_pdf_pipeline(t["id"], _scripted_groq(saidas)))
@@ -2439,6 +2450,7 @@ def test_too_few_anchored_questions_means_no_conference_instead_of_a_weak_one(ci
     from core import pipeline_pdf
     from core.pdf_extract import Extraction
 
+    monkeypatch.setattr(pipeline_pdf, "extract", lambda caminho: Extraction(FAKE_TEXT, 0, 0, 0))
     t = create_task(citizen["token"], "Perguntas de menos")
     saidas = {**RUN_OUTPUTS, "T14_QUESTOES": {"questoes": [
         {"id": 1, "area": "pedidos", "dificuldade": "facil", "enunciado": "Vale?", "alternativas": ["Sim", "Não"],
@@ -2447,7 +2459,6 @@ def test_too_few_anchored_questions_means_no_conference_instead_of_a_weak_one(ci
         {"id": 2, "area": "pedidos", "dificuldade": "facil", "enunciado": "Invenção?", "alternativas": ["Sim", "Não"],
          "correta": 0, "justificativa": "x", "secao": QUESTION_SECTION, "ref": "pedidos[0]",
          "trecho_verbatim": "isto não existe no documento"}]}}
-    monkeypatch.setattr(pipeline_pdf, "extract", lambda caminho: Extraction(FAKE_TEXT, 0, 0, 0))
     loop = asyncio.new_event_loop()
     try:
         loop.run_until_complete(pipeline_pdf.run_pdf_pipeline(t["id"], _scripted_groq(saidas)))
@@ -2524,8 +2535,8 @@ def _rodada_pronta(token: str, titulo: str, monkeypatch) -> dict:
     from core import pipeline_pdf
     from core.pdf_extract import Extraction
 
-    t = create_task(token, titulo)
     monkeypatch.setattr(pipeline_pdf, "extract", lambda caminho: Extraction(FAKE_TEXT, 0, 0, 0))
+    t = create_task(token, titulo)
     loop = asyncio.new_event_loop()
     try:
         loop.run_until_complete(pipeline_pdf.run_pdf_pipeline(t["id"], _scripted_groq(RUN_OUTPUTS)))
@@ -2619,6 +2630,7 @@ def test_a_question_about_a_section_the_citizen_never_sees_is_dropped(citizen, m
     from core import pipeline_pdf
     from core.pdf_extract import Extraction
 
+    monkeypatch.setattr(pipeline_pdf, "extract", lambda caminho: Extraction(FAKE_TEXT, 0, 0, 0))
     t = create_task(citizen["token"], "Pergunta órfã")
     saidas = {**RUN_OUTPUTS,
               # Sem lastro, esta síntese é descartada e a seção "O que está sendo pedido" não é publicada.
@@ -2626,7 +2638,6 @@ def test_a_question_about_a_section_the_citizen_never_sees_is_dropped(citizen, m
               "T14_QUESTOES": {"questoes": [
                   {**q, "secao": "🤝 O que está sendo pedido"} if q["id"] in (1, 2) else q
                   for q in RUN_OUTPUTS["T14_QUESTOES"]["questoes"]]}}
-    monkeypatch.setattr(pipeline_pdf, "extract", lambda caminho: Extraction(FAKE_TEXT, 0, 0, 0))
     loop = asyncio.new_event_loop()
     try:
         loop.run_until_complete(pipeline_pdf.run_pdf_pipeline(t["id"], _scripted_groq(saidas)))
@@ -2686,3 +2697,76 @@ def test_a_synthesis_never_publishes_a_ground_that_reaches_nothing():
     assert len(publicadas) == 1, "a síntese com uma ref boa deixou de ser publicada"
     assert publicadas[0]["lastro"] == ["pedidos[0]"], (
         f"a síntese publicou lastro que não chega a nada: {publicadas[0]['lastro']}")
+
+
+# ── O produto para de guardar o que não tem uso (E17-T05, T06, T07) ──────────
+
+def test_the_document_hash_survives_the_document_being_deleted(citizen, monkeypatch):
+    """O `documentSha256` do comprovante é o hash do PDF como ele chegou, e hoje ele é recalculado lendo o
+    arquivo. Apagar o arquivo sem gravar o hash antes transformaria todo comprovante futuro num registro que
+    aponta para nada."""
+    import asyncio
+
+    from core import pipeline_pdf
+    from core.pdf_extract import Extraction
+    from core.db import Tarefa, engine as _engine
+    from sqlmodel import Session as _S, select as _sel
+    from leia.api_citizen import _document_sha
+
+    t = create_task(citizen["token"], "Hash do documento")
+    with _S(_engine) as s:
+        tarefa = s.exec(_sel(Tarefa).where(Tarefa.hash == t["hash"])).one()
+        assert tarefa.document_sha256, "o hash do PDF não foi gravado no envio"
+        gravado = tarefa.document_sha256
+
+    monkeypatch.setattr(pipeline_pdf, "extract", lambda caminho: Extraction(FAKE_TEXT, 0, 0, 0))
+    loop = asyncio.new_event_loop()
+    try:
+        loop.run_until_complete(pipeline_pdf.run_pdf_pipeline(t["id"], _scripted_groq(RUN_OUTPUTS)))
+    finally:
+        loop.close()
+
+    assert not (ws.folder(t["hash"]) / "original.pdf").exists(), "o PDF continua guardado depois da extração"
+    assert _document_sha(t["hash"]) == gravado, "o comprovante deixou de conseguir dizer qual documento era"
+
+
+def test_redoing_a_document_works_without_the_original_pdf(lawyer, monkeypatch):
+    """A correção de espécie do advogado só vale na rodada seguinte, e a rodada seguinte é o `reprocessar`.
+    Se apagar o PDF tirasse o `reprocessar`, a correção viraria botão que não faz nada. O texto extraído
+    continua guardado, e é dele que a rodada nova parte."""
+    import asyncio
+
+    from core import pipeline_pdf
+    from core.pdf_extract import Extraction
+
+    monkeypatch.setattr(pipeline_pdf, "extract", lambda caminho: Extraction(FAKE_TEXT, 0, 0, 0))
+    t = create_task(lawyer["token"], "Refazer sem PDF")
+    loop = asyncio.new_event_loop()
+    try:
+        loop.run_until_complete(pipeline_pdf.run_pdf_pipeline(t["id"], _scripted_groq(RUN_OUTPUTS)))
+    finally:
+        loop.close()
+    assert not (ws.folder(t["hash"]) / "original.pdf").exists()
+
+    r = client.post(f"/api/tarefas/{t['id']}/reprocessar", headers=bearer(lawyer["token"]))
+    assert r.status_code == 200, r.text
+    assert (ws.folder(t["hash"]) / "texto_extraido.txt").exists(), \
+        "o texto extraído foi apagado junto, e aí não sobra de onde refazer"
+
+
+def test_the_attempt_stops_carrying_the_network_address(lawyer):
+    """As colunas existiam sem ninguém gravar nelas desde a v2 do hash, e o PDF assinado ainda as lia e
+    imprimia. Dado sem finalidade não se guarda (art. 6º, III), e dado que ninguém escreve e alguém publica
+    é a pior combinação das duas."""
+    from core.db import Tentativa
+
+    for morto in ("ip", "user_agent"):
+        assert morto not in Tentativa.model_fields, f"a coluna {morto} continua no modelo"
+
+    from app_gestao import _dados_assinatura
+    import core.attempts as tn
+
+    t = _tarefa_de_teste("assinatura-sem-ip")
+    tent = tn.record(t, {"1": 0, "2": 1, "3": 2}, QUESTOES)
+    dados = _dados_assinatura(t, tent)
+    assert "ip" not in dados and "user_agent" not in dados, f"o PDF assinado ainda publica: {sorted(dados)}"
