@@ -21,8 +21,8 @@ Os casos são gravados, não gerados na hora. Rodar o pipeline dentro da bateria
 
 | Camada | Papel | O que confere |
 |---|---|---|
-| 1. Contrato | **reprova** | o trecho mostrado está no documento; a posição informada é a posição certa; o gabarito não viaja com a pergunta |
-| 2. Qualidade | informa, com piso | cobertura e precisão de âncora |
+| 1. Contrato | **reprova** | o trecho mostrado está no documento; a posição informada é a posição certa; o gabarito não viaja com a pergunta; a síntese aponta lastro que chega a item de memória; a lei citada na síntese tem item de fundamentos conferido; a pergunta declara seção que foi publicada |
+| 2. Qualidade | informa, com piso | cobertura e precisão de âncora, lastro por síntese, seção declarada por pergunta |
 | 3. Juiz | não implementada | apoio semântico e clareza |
 
 A camada 1 conta violações em vez de tirar média. Com conjunto pequeno, média não detecta queda pequena: um caso
@@ -34,6 +34,13 @@ melhorou o motor; cair abaixo dele é regressão e aparece como aviso.
 A camada 3 não existe ainda, e dizer isso é parte do desenho. Ela exige um modelo de família diferente da que
 gerou o texto e um conjunto rotulado à mão para calibrar, com a concordância entre o juiz e o humano publicada ao
 lado de todo número que ele produzir. Um juiz sem essa calibragem produz número que parece medida e não é.
+
+## Casos plantados
+
+`casos/planted/` guarda o caso feito a mão para provar que a bateria reprova: síntese com texto e lastro vazio,
+trecho que só existia na camada escondida do PDF, trecho com caractere invisível dentro da palavra. Eles ficam
+fora do corpus que `python -m evals.run` mede, porque existem para ficar vermelhos; quem os roda é
+`tests_evals.py`. Bateria que nunca reprova não é porta, é enfeite, e é isso que eles impedem.
 
 ## Crescer o corpus
 

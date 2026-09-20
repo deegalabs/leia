@@ -1,0 +1,114 @@
+{
+ "documento": "===== PÁGINA 1 =====\nCONTRATO DE LOCAÇÃO\nLOCADOR: pessoa física, aqui identificada apenas como LOCADOR.\nLOCATÁRIO: pessoa física, aqui identificada apenas como LOCATÁRIO.\nCLÁUSULA 1. O LOCATÁRIO pagará aluguel mensal de R$ 900,00, com vencimento todo dia 5.\n",
+ "topicos": [
+  {
+   "id": 1,
+   "titulo": "Quem está nesta história",
+   "explicacao_md": "O LOCADOR é quem aluga o imóvel.",
+   "trecho": "LOCADOR: pessoa física, aqui identificada apenas como LOCADOR.",
+   "conferencia": {
+    "metodo": "exato",
+    "score": 1.0
+   }
+  },
+  {
+   "id": 2,
+   "titulo": "O que está sendo pedido",
+   "explicacao_md": "O aluguel é de novecentos reais por mês.",
+   "trecho": "CLÁUSULA 1. O LOCATÁRIO pagará aluguel mensal de R$ 900,00, com vencimento todo dia 5.",
+   "conferencia": {
+    "metodo": "exato",
+    "score": 1.0
+   }
+  }
+ ],
+ "questoes": [
+  {
+   "id": 1,
+   "enunciado": "Quanto é o aluguel por mês?",
+   "alternativas": [
+    "R$ 900,00",
+    "R$ 90,00",
+    "R$ 9.000,00",
+    "Não diz"
+   ],
+   "area": "valores",
+   "secao": "O que está sendo pedido"
+  }
+ ],
+ "inferencias": {
+  "classes": [
+   {
+    "classe": "identificacao",
+    "rotulo": "Quem é quem",
+    "cor": "#D2E3FC",
+    "itens": [
+     {
+      "ref": "identificacao[0]",
+      "campo": "locador",
+      "valor": "LOCADOR",
+      "trecho": "LOCADOR: pessoa física, aqui identificada apenas como LOCADOR.",
+      "pos": [
+       41,
+       103
+      ],
+      "conferido": true,
+      "cor": "#D2E3FC",
+      "conferencia": {
+       "metodo": "exato",
+       "score": 1.0
+      }
+     }
+    ]
+   },
+   {
+    "classe": "pedidos",
+    "rotulo": "Pedidos",
+    "cor": "#FFDDBE",
+    "itens": [
+     {
+      "ref": "pedidos[0]",
+      "campo": "aluguel",
+      "valor": "aluguel mensal de R$ 900,00",
+      "trecho": "CLÁUSULA 1. O LOCATÁRIO pagará aluguel mensal de R$ 900,00, com vencimento todo dia 5.",
+      "pos": [
+       171,
+       257
+      ],
+      "conferido": true,
+      "cor": "#D2E3FC",
+      "conferencia": {
+       "metodo": "exato",
+       "score": 1.0
+      }
+     }
+    ]
+   },
+   {
+    "classe": "fundamentos",
+    "rotulo": "Fundamentos: leis e decisões citadas",
+    "cor": "#EADDFF",
+    "itens": []
+   }
+  ],
+  "sinteses": [
+   {
+    "classe": "identificacao",
+    "rotulo": "Quem é quem",
+    "texto": "O LOCADOR aluga o imóvel e o LOCATÁRIO paga o aluguel.",
+    "lastro": [
+     "identificacao[0]"
+    ]
+   },
+   {
+    "classe": "pedidos",
+    "rotulo": "Pedidos",
+    "texto": "Pede o pagamento do aluguel mensal e também da multa de dois aluguéis pela entrega atrasada das chaves.",
+    "lastro": []
+   }
+  ]
+ },
+ "nome": "plantado-sintese-sem-lastro",
+ "origem": "caso plantado a mão: a síntese abaixo não aponta para item nenhum da memória",
+ "capturado_em": "2026-09-17"
+}

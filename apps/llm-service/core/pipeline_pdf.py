@@ -31,7 +31,7 @@ from typing import Any, Optional
 from sqlmodel import Session
 
 from core.db import engine, Tarefa, LogEvento
-from core.pdf_extract import extract_text
+from core.pdf_extract import extract
 from core.workspace import folder, record_event
 
 log = logging.getLogger("pipeline_pdf")
@@ -39,7 +39,10 @@ log = logging.getLogger("pipeline_pdf")
 PROTOCOLO_PDF = Path(os.getenv("PDF_PROTOCOL_FILE", str(Path(__file__).resolve().parent.parent / "protocolo_pdf.json")))
 MODELO_PADRAO = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
 PIPELINE_TEMPERATURE = float(os.getenv("PIPELINE_TEMPERATURE", "0.0"))
-PIPELINE_MAX_TOKENS = int(os.getenv("PIPELINE_MAX_TOKENS", "8000"))
+PIPELINE_MAX_TOKENS = int(os.getenv("PIPELINE_MAX_TOKENS", "16000"))
+"""8000 nao servia: o gpt-oss-120b gasta tokens raciocinando antes de responder, e com o contrato de
+exemplo ele terminava em finish_reason \"length\" com conteudo vazio em 5 de 6 chamadas, matando a tarefa
+inteira. Medido em 17/09/2026; com 16000 nao falhou nenhuma vez."""
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -128,6 +131,17 @@ def _schema_problem(schema: Any, parsed: Any) -> Optional[str]:
             for exigido in regra.get("obrigatorios") or []:
                 if exigido not in valor:
                     return f"falta {exigido} em {nome}"
+            # ``obrigatorios`` keeps meaning "the key is there", and that is how a synthesis of 1293 characters
+            # citing six legal provisions came out with ``lastro: []`` and was published.
+            for exigido in regra.get("nao_vazios") or []:
+                if not valor.get(exigido):
+                    return f"{exigido} em {nome} está vazio"
+            # ``exige_par`` is the rule that actually matches the invariant: written text has to point at
+            # something. Demanding ground unconditionally killed whole tasks over a section the document
+            # legitimately does not have, because a fee contract has no pedidos and T9 works only on them.
+            par = regra.get("exige_par") or []
+            if len(par) == 2 and valor.get(par[0]) and not valor.get(par[1]):
+                return f"{par[0]} em {nome} tem texto e {par[1]} está vazio"
     return None
 
 
@@ -154,6 +168,10 @@ async def _run_task(
             top_p=1,
             stream=True,
         )
+        # O protocolo declara quanto cada etapa deve raciocinar e isso nunca era enviado, entao o modelo
+        # decidia sozinho. Declaracao que nao viaja e decoracao.
+        if task.get("reasoning_effort"):
+            kwargs["reasoning_effort"] = task["reasoning_effort"]
         # reasoning_format só existe em SDKs novos
         try:
             kwargs["reasoning_format"] = "parsed"
@@ -291,6 +309,124 @@ def _save(hash_: str, nome: str, conteudo: Any) -> Path:
 
 
 # ══════════════════════════════════════════════════════════════════════════
+#  PORTA DE FIDELIDADE (E11-T10)
+# ══════════════════════════════════════════════════════════════════════════
+QUALITY_FLOOR = 1.0
+"""Every section that declares a source has to carry a quote of the document, and every synthesis has to
+reach one. The landing page promises a literal excerpt beside every explanation, so a floor below 1.0 would
+be the product promising "most of it", which is precisely the sentence nobody can act on: the citizen has no
+way of telling which paragraph is the one that was not checked."""
+
+
+def fidelity_report(hash_: str) -> dict[str, Any]:
+    """What the citizen would read, measured over the artifacts this run wrote, plus the reason when it does
+    not hold up.
+
+    Measured from the files, with the same functions the public route uses, instead of from the outputs still
+    in memory here: the screen shows what those readers make of what is on disk, and a gate that measures
+    anything else is measuring a document nobody will ever open.
+    """
+    # Imported inside the function: the gate has to measure with the code that serves the citizen, and the
+    # worker still must not depend on the API layer at import time.
+    from app_gestao import _read_artifact, _read_json
+    from leia.api_citizen import (CLASS_LABELS, SYNTHESIS_FILES, build_inferences, sections_without_anchor,
+                                  topics_from_summary)
+
+    resumo = _read_artifact(hash_, "resumo_humanizado.md") or ""
+    documento = _read_artifact(hash_, "texto_extraido.txt") or ""
+    memoria = _read_json(hash_, "memoria_persistente.json")
+    sinteses_raw = [(cls, _read_json(hash_, nome)) for nome, cls in SYNTHESIS_FILES]
+
+    topicos = topics_from_summary(resumo, memoria, documento, sinteses_raw) or []
+    secoes_sem_lastro = sections_without_anchor(resumo, memoria, documento, sinteses_raw)
+    com_trecho = sum(1 for t in topicos if t.get("trecho"))
+    # Denominator: the sections that promised a quote. The one-line summary talks about the whole case and the
+    # protocol maps it to no class, so counting it would make a full explanation look incomplete.
+    com_fonte = com_trecho + len(secoes_sem_lastro)
+
+    inferencias = build_inferences(documento, memoria, None, sinteses_raw)
+    sinteses_sem_lastro = inferencias["sinteses_sem_lastro"]
+    publicadas = len(inferencias["sinteses"])
+
+    # A rate with nothing in the denominator is 1.0, not 0.0: nothing was promised, so nothing was broken.
+    # The case it could hide, an explanation where no section promises a quote at all, is the second rule
+    # below, which looks at how many sections carry one.
+    total_sinteses = publicadas + len(sinteses_sem_lastro)
+    cobertura_secao = round(com_trecho / com_fonte, 3) if com_fonte else 1.0
+    lastro_sintese = round(publicadas / total_sinteses, 3) if total_sinteses else 1.0
+
+    relatorio = {
+        "cobertura_secao": cobertura_secao,
+        "lastro_sintese": lastro_sintese,
+        "secoes_publicadas": len(topicos),
+        "secoes_com_trecho": com_trecho,
+        # Dropped, not broken: these are the sections and syntheses the steps before already removed, kept
+        # here so the lawyer reviewing the task can see what the document did not sustain.
+        "secoes_sem_lastro": secoes_sem_lastro,
+        "sinteses_publicadas": publicadas,
+        "sinteses_sem_lastro": [CLASS_LABELS.get(c, ("Contexto do processo", ""))[0] for c in sinteses_sem_lastro],
+        "resumo_vazio": not resumo.strip(),
+        "piso": QUALITY_FLOOR,  # the measured number next to the demanded one, for whoever reads the log later
+    }
+    relatorio["motivo"] = gate_reason(relatorio)
+    return relatorio
+
+
+def gate_reason(relatorio: dict[str, Any]) -> str | None:
+    """Why this explanation may not be read, or ``None`` when it may.
+
+    It judges what reaches the screen, never what the protocol asked for. The protocol asks every document
+    for pedidos and for the law it cites, because nothing detects the kind of document yet, and a private fee
+    contract has neither. Measuring the ask meant refusing whole tasks over sections the citizen would never
+    see, since the steps before this one already drop what the document cannot sustain. A gate that refuses
+    over what nobody publishes is measuring the protocol, not the explanation.
+
+    What is left is the case the gate exists for: something reaching her that nobody can point at inside her
+    own document, and an explanation that the dropping emptied out.
+    """
+    if relatorio.get("resumo_vazio"):
+        return "a explicação não foi produzida"
+    if not relatorio.get("secoes_publicadas"):
+        return "não sobrou nenhuma seção da explicação depois de tirar o que o documento não sustenta"
+    if not relatorio.get("secoes_com_trecho"):
+        return "nenhuma seção da explicação traz um trecho do documento"
+    return None
+
+
+def finish_pipeline(tarefa_id: int, hash_: str, elapsed: float) -> str:
+    """Step 6: the fidelity gate decides whether this explanation may be read, and the task ends in the status
+    the gate allows. Returns that status.
+
+    A refused run ends in ``falhou``, the same state a crashed one ends in, and not in a new state that asks
+    for a human. Who pays for each choice decided it. A task sent by a citizen has no reviewer (``is_gated``
+    releases it as soon as it is ``pronta``), so letting it through hands her, with the same face as the
+    checked parts, paragraphs nobody can point at inside her own document, and a task sent by a lawyer would
+    reach a review screen that can read but not edit, where the only repair on offer is running it again. A
+    third state, say ``revisao_humana``, would have no screen anywhere today: the panel would show a task that
+    is neither running nor settled, and the citizen's screen would poll a status it does not know forever,
+    which is the silent failure this gate exists to remove. ``falhou`` already has both screens and a retry
+    route, and the reason travels with it in ``porta_qualidade`` instead of staying in the log of whoever runs
+    the service.
+    """
+    relatorio = fidelity_report(hash_)
+    # Recorded on every run, pass or fail, in the task log the panel reads and in the workspace log the audit
+    # reads: a number nobody can find is a number nobody can check, and a gate heard only when it refuses
+    # cannot be told apart from a gate that never ran.
+    _event(tarefa_id, "porta_qualidade", relatorio)
+    record_event(hash_, "porta_qualidade", **relatorio)
+
+    if relatorio["motivo"]:
+        log.warning("🚧 porta de qualidade reprovou | tarefa=%s | %s", tarefa_id, relatorio["motivo"])
+        _update_status(tarefa_id, "falhou")
+        return "falhou"
+
+    _update_status(tarefa_id, "pronta")
+    _event(tarefa_id, "pipeline_done", {"elapsed": elapsed})
+    record_event(hash_, "pipeline_done", elapsed=elapsed)
+    return "pronta"
+
+
+# ══════════════════════════════════════════════════════════════════════════
 #  PIPELINE PRINCIPAL
 # ══════════════════════════════════════════════════════════════════════════
 async def run_pdf_pipeline(
@@ -327,7 +463,8 @@ async def run_pdf_pipeline(
 
     # ── 2. Extrai texto do PDF
     try:
-        texto_pdf = extract_text(pdf_path)
+        extracao = extract(pdf_path)
+        texto_pdf = extracao.text
     except Exception as e:
         log.error("💥 Extração falhou | %s", e)
         _update_status(tarefa_id, "falhou")
@@ -339,6 +476,17 @@ async def run_pdf_pipeline(
     _event(tarefa_id, "texto_extraido", {"chars": len(texto_pdf)})
     record_event(hash_, "texto_extraido", chars=len(texto_pdf))
     log.info("📄 texto extraído | %d chars", len(texto_pdf))
+
+    # A hostile PDF draws text nobody sees and hands it to the model as content. What the extraction dropped
+    # is written down on every run, zeros included: an event that only shows up when something was removed
+    # cannot tell a clean document apart from an extraction that never looked, and this count is what the
+    # audit compares between the clean file and the hostile one.
+    oculto = {"caracteres": extracao.hidden_text_chars, "trechos": extracao.hidden_text_runs,
+              "invisiveis": extracao.invisible_chars}
+    _event(tarefa_id, "texto_oculto_removido", oculto)
+    record_event(hash_, "texto_oculto_removido", **oculto)
+    if any(oculto.values()):
+        log.warning("🙈 texto oculto descartado | %s", oculto)
 
     # ── 3. Carrega protocolo
     try:
@@ -430,11 +578,12 @@ async def run_pdf_pipeline(
     if "T14_QUESTOES" in outputs_anteriores:
         _save(hash_, "questoes.json", _embaralhar_alternativas(outputs_anteriores["T14_QUESTOES"], hash_))   # LeIA
 
-    # ── 6. Finaliza
+    # ── 6. Finaliza: a porta de fidelidade decide se esta explicação pode ser lida
     tempo_total = round(time.time() - t_pipe, 2)
-    _update_status(tarefa_id, "pronta")
-    _event(tarefa_id, "pipeline_done", {"elapsed": tempo_total})
-    record_event(hash_, "pipeline_done", elapsed=tempo_total)
+    if finish_pipeline(tarefa_id, hash_, tempo_total) != "pronta":
+        # Leaves before the session distillation: the chat attachment would keep a document whose explanation
+        # nobody may read, and it would come back in another conversation looking like a checked one.
+        return
 
     # Memória de sessão — SÓ o T6_FUSAO_MEMORIA (processo estruturado),
     # nunca o PDF, nunca o texto extraído, nunca o resumo humanizado.

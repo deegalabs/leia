@@ -6,6 +6,9 @@ GET /api/t/{hash}/inferencias: what the workflow tagged over the original text; 
 it answers with ``parcial: true`` and the classes produced so far (files T1..T5), so the waiting screen can show
 the document being marked.
 is_gated(): lawyer review gate; while a lawyer's task is ``pronta`` the public routes hide the explanation.
+Fidelity gate (E11): a section of the summary and a synthesis only reach the screen when what they declare as
+source is a quote ``locate`` finds in the document; ``sections_without_anchor()`` and ``sinteses_sem_lastro``
+name what was held back, and an explanation with nothing left answers ``falhou`` instead of a blank page.
 POST /api/t/{hash}/duvida: a doubt for the lawyer who sent the document (409 when nobody did).
 POST /api/t/{hash}/vincular: links the signed-in citizen to the task (Bearer, papel cidadao).
 stamp_attempt(): OpenTimestamps proof of an approved attempt, stored in the task workspace; it writes down
@@ -18,7 +21,6 @@ from __future__ import annotations
 import json
 import re
 import unicodedata
-from difflib import SequenceMatcher
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
@@ -30,6 +32,7 @@ from sqlmodel import Session, func, select
 import core.attempts as tn
 import core.workspace as ws
 from app_gestao import _read_artifact, _read_json
+from core.anchors import locate, norm_map
 from core.auth import api_user, optional_api_user
 from leia import invites  # LeIA: the invite that governs the document link
 from leia.registry import sha256_hex
@@ -195,28 +198,34 @@ def _quote_of(memoria: Any, ref: str) -> Optional[str]:
     return None
 
 
-def topics_from_summary(resumo_md: str, memoria: Any, documento: str = "",
-                        sinteses_raw: Optional[list[tuple[str, Any]]] = None) -> Optional[list[dict[str, Any]]]:
-    """Sections of the plain-language summary, each with the literal quote of what that section explains.
+def _sections(resumo_md: str, memoria: Any, documento: str = "",
+              sinteses_raw: Optional[list[tuple[str, Any]]] = None) -> tuple[Optional[list[dict[str, Any]]], list[str]]:
+    """Sections that may be published, each with the literal quote of what it explains, and the titles of the
+    ones held back.
 
     The quote is what the citizen reads beside the explanation, presented as copied from the document, so two
-    different things have to be true and both used to be guessed. Which quote belongs to this section now comes
+    different things have to be true and both used to be guessed. Which quote belongs to this section comes
     from the protocol, which fixes the headings, plus the ``lastro`` the synthesis itself declares. Whether the
-    quote exists in the document is decided by ``locate``. A section with no declared source, or whose quote is
-    not found, shows no quote: word overlap once put a quote about the facts under "who is in this story", and a
-    checked excerpt about the wrong subject is its own kind of lie."""
+    quote exists in the document is decided by ``locate``: word overlap once put a quote about the facts under
+    "who is in this story", and a checked excerpt about the wrong subject is its own kind of lie.
+
+    A section that declares a source and reaches no checked item is held back instead of published without a
+    quote. The landing page promises a literal excerpt beside every explanation, and a section that arrives
+    bare looks exactly like the ones that were checked, so the citizen has no way of telling which is which.
+    The section the protocol maps to no class at all, the one-line summary, is about the whole case and never
+    promised a quote, so it stays."""
     parts = [p.strip() for p in re.split(r"\n(?=##? )", resumo_md or "") if p.strip()]
     if not parts:
-        return None
+        return None, []
     sources = section_sources()
-    text_norm, idx = _norm_map(documento or "")
-    topics = []
+    text_norm, idx = norm_map(documento or "")
+    topics, sem_lastro = [], []
     for i, part in enumerate(parts, 1):
         m = re.match(r"^##? (.+)\n?([\s\S]*)$", part)
         titulo, texto = (m.group(1).strip(), m.group(2).strip()) if m else (f"Ponto {i}", part)
         topic = {"id": i, "titulo": titulo, "explicacao_md": texto}
         classes = sources.get(_section_key(titulo)) or []
-        if classes and documento:
+        if classes:
             for ref in _refs_of(sinteses_raw or [], classes):
                 q = _quote_of(memoria, ref)
                 found = locate(documento, text_norm, idx, q) if q else None
@@ -224,8 +233,24 @@ def topics_from_summary(resumo_md: str, memoria: Any, documento: str = "",
                     topic["trecho"] = q
                     topic["conferencia"] = {"metodo": found["metodo"], "score": found["score"]}
                     break
+            if "trecho" not in topic:
+                sem_lastro.append(titulo)
+                continue
         topics.append(topic)
-    return topics
+    return topics, sem_lastro
+
+
+def topics_from_summary(resumo_md: str, memoria: Any, documento: str = "",
+                        sinteses_raw: Optional[list[tuple[str, Any]]] = None) -> Optional[list[dict[str, Any]]]:
+    """The sections of the plain-language summary that the document sustains (see ``_sections``)."""
+    return _sections(resumo_md, memoria, documento, sinteses_raw)[0]
+
+
+def sections_without_anchor(resumo_md: str, memoria: Any, documento: str = "",
+                            sinteses_raw: Optional[list[tuple[str, Any]]] = None) -> list[str]:
+    """Titles of the sections held back for having no checked item, for the lawyer review screen and the
+    quality gate: a discard nobody can see is a discard nobody can fix."""
+    return _sections(resumo_md, memoria, documento, sinteses_raw)[1]
 _ROMAN = re.compile(r"^(?:[ivx]+)_")
 
 
@@ -333,7 +358,14 @@ async def api_cliente_json(hash_: str, visitante: Optional[Usuario] = Depends(op
     memoria = _read_json(t.hash, "memoria_persistente.json")
     documento = _read_artifact(t.hash, "texto_extraido.txt") or ""
     sinteses_raw = [(cls, _read_json(t.hash, name)) for name, cls in SYNTHESIS_FILES]
-    return {**base, "resumo_md": resumo_md, "topicos": topics_from_summary(resumo_md, memoria, documento, sinteses_raw),
+    topicos = topics_from_summary(resumo_md, memoria, documento, sinteses_raw)
+    if topicos is not None and not topicos:
+        # Every section was held back for having no checked quote, so the markdown summary stops going out
+        # too: the app rebuilds the topics from it whenever the list arrives empty, and the person would read
+        # back, with no quote at all, exactly what the gate just stopped. An explicit state, not a blank page.
+        return {**base, "tarefa": {**base["tarefa"], "status": "falhou"}, "motivo": "explicacao_sem_lastro",
+                "resumo_md": None, "topicos": None, "questoes": [], "ultima_tentativa": None}
+    return {**base, "resumo_md": resumo_md, "topicos": topicos,
             "questoes": questoes, "sem_perguntas": not questoes, "ultima_tentativa": ultima}
 
 
@@ -523,93 +555,8 @@ CLASS_LABELS = {
 SYNTHESIS_FILES = [("T10_SINTESE_IDENTIFICACAO.json", "identificacao"), ("T7_SINTESE_FATOS.json", "fatos"),
                    ("T8_SINTESE_FUNDAMENTOS.json", "fundamentos"), ("T9_SINTESE_PEDIDOS.json", "pedidos"),
                    ("T11_SINTESE_CONTEXTO.json", "contexto")]
-
-
-def _norm_map(text: str) -> tuple[str, list[int]]:
-    """Whitespace-collapsed copy of the text plus a map from each collapsed char to its original offset."""
-    out: list[str] = []
-    idx: list[int] = []
-    prev_space = False
-    for i, ch in enumerate(text):
-        if ch.isspace():
-            if not prev_space:
-                out.append(" ")
-                idx.append(i)
-            prev_space = True
-        else:
-            out.append(ch)
-            idx.append(i)
-            prev_space = False
-    return "".join(out), idx
-
-
-MIN_QUOTE_CHARS = 12
-ANCHOR_MIN_SCORE = 0.82
-
-
-def find_span(text_norm: str, idx: list[int], quote: str) -> Optional[list[int]]:
-    q = " ".join((quote or "").split())
-    if len(q) < 3:
-        return None
-    pos = text_norm.find(q)
-    if pos < 0:
-        pos = text_norm.lower().find(q.lower())
-        if pos < 0:
-            return None
-    return [idx[pos], idx[pos + len(q) - 1] + 1]
-
-
-def _approximate(text_norm: str, q: str) -> tuple[float, Optional[tuple[int, int]]]:
-    """Best window of the text that resembles the quote, anchored on pieces of the quote itself.
-
-    Bounded on purpose: a handful of seeds, and only where a seed actually occurs. Comparing the quote against
-    every offset of a long document would cost more than the whole pipeline."""
-    if len(q) < 24:
-        return 0.0, None
-    best_score, best_span = 0.0, None
-    step = max(8, len(q) // 6)
-    for off in range(0, len(q) - 12, step):
-        seed = q[off:off + 12]
-        pos = text_norm.find(seed)
-        while pos >= 0:
-            ini = max(0, pos - off)
-            fim = min(len(text_norm), ini + len(q))
-            score = SequenceMatcher(None, text_norm[ini:fim], q, autojunk=False).ratio()
-            if score > best_score:
-                best_score, best_span = score, (ini, fim)
-            pos = text_norm.find(seed, pos + 1)
-    return best_score, best_span
-
-
-def locate(texto: str, text_norm: str, idx: list[int], quote: str) -> Optional[dict[str, Any]]:
-    """Where the quote really is in the document, found here and never taken from the model.
-
-    A language model does not count characters, so the position it writes is a guess dressed as a fact. It can
-    look perfectly valid and point at the wrong clause, or at a clause for a quote that was invented outright.
-    Believing it turns the "checked excerpt" seal, which is the promise this product is built on, into
-    decoration. So the three stages below are the only source of a position: exact, then with whitespace and
-    case collapsed, then approximate above a threshold.
-    """
-    q_raw = (quote or "").strip()
-    if len(q_raw) < MIN_QUOTE_CHARS:
-        return None
-
-    pos = (texto or "").find(q_raw)
-    if pos >= 0:
-        return {"pos": [pos, pos + len(q_raw)], "score": 1.0, "metodo": "exato"}
-
-    q = " ".join(q_raw.split())
-    span = find_span(text_norm, idx, q)
-    if span:
-        return {"pos": span, "score": 1.0, "metodo": "normalizado"}
-
-    score, window = _approximate(text_norm, q)
-    if window and score >= ANCHOR_MIN_SCORE:
-        a, b = window
-        b = min(b, len(idx))
-        if b > a:
-            return {"pos": [idx[a], idx[b - 1] + 1], "score": round(score, 3), "metodo": "aproximado"}
-    return None
+# A ``lastro`` ref may name another synthesis instead of a memory item, and it names it by task id.
+SYNTHESIS_ID_BY_CLASS = {cls: name[: -len(".json")] for name, cls in SYNTHESIS_FILES}
 
 
 def _item(cls: str, n: int, it: dict[str, Any], texto: str, text_norm: str, idx: list[int], cor: str,
@@ -629,21 +576,64 @@ def _item(cls: str, n: int, it: dict[str, Any], texto: str, text_norm: str, idx:
     return out
 
 
-def _syntheses(sinteses_raw: list[tuple[str, Any]], labels: dict[str, tuple[str, str]]) -> list[dict[str, Any]]:
-    sinteses = []
-    for cls, raw in sinteses_raw:
-        if not isinstance(raw, dict) or not raw:
+def _synthesis_body(raw: Any) -> Optional[dict[str, Any]]:
+    """The body of a synthesis file, which wraps its single field under a name the model chose."""
+    if not isinstance(raw, dict) or not raw:
+        return None
+    body = next(iter(raw.values())) if len(raw) == 1 and isinstance(next(iter(raw.values())), dict) else raw
+    return body if isinstance(body, dict) else None
+
+
+def _reaches_document(ref: str, bodies: dict[str, dict[str, Any]], memoria: Any, texto: str, text_norm: str,
+                      idx: list[int], seen: set[str]) -> bool:
+    """Whether this ``lastro`` ref ends in a quote that exists in the document.
+
+    A ref is either a memory item (``pedidos[0]``) or another synthesis (``T7_SINTESE_FATOS``), and a synthesis
+    is worth exactly what the items under it are worth, so the chain is followed to the end. ``seen`` stops the
+    day a model writes a synthesis that grounds itself."""
+    ref = (ref or "").strip()
+    if not ref or ref in seen:
+        return False
+    seen.add(ref)
+    quote = _quote_of(memoria, ref)
+    if quote:
+        return locate(texto, text_norm, idx, quote) is not None
+    body = bodies.get(ref)
+    if body is None:
+        return False
+    return any(_reaches_document(str(r), bodies, memoria, texto, text_norm, idx, seen) for r in (body.get("lastro") or []))
+
+
+def _syntheses(sinteses_raw: list[tuple[str, Any]], labels: dict[str, tuple[str, str]], memoria: Any, texto: str,
+               text_norm: str, idx: list[int]) -> tuple[list[dict[str, Any]], list[str]]:
+    """The syntheses that the document sustains, and the classes of the ones dropped on the way.
+
+    A synthesis is a paragraph the model wrote about the case, and the only thing tying it to the document is
+    the ``lastro`` it declares. Measured on 17/09/2026, the synthesis of fundamentos of the one public case had
+    1293 characters, named six legal provisions and declared ``lastro: []``: it read exactly like the ones that
+    are backed, and both the citizen and the lawyer got it. So a declared ref that reaches nothing in the
+    document is the same as no ref at all, and neither is published."""
+    bodies: dict[str, dict[str, Any]] = {}
+    for cls, raw in sinteses_raw or []:
+        body = _synthesis_body(raw)
+        if body is not None and cls in SYNTHESIS_ID_BY_CLASS:
+            bodies[SYNTHESIS_ID_BY_CLASS[cls]] = body
+    sinteses, sem_lastro = [], []
+    for cls, raw in sinteses_raw or []:
+        body = _synthesis_body(raw)
+        if body is None:
             continue
-        body = next(iter(raw.values())) if len(raw) == 1 and isinstance(next(iter(raw.values())), dict) else raw
-        if not isinstance(body, dict):
+        lastro = [str(x) for x in (body.get("lastro") or [])]
+        if not any(_reaches_document(ref, bodies, memoria, texto, text_norm, idx, set()) for ref in lastro):
+            sem_lastro.append(cls)
             continue
         sinteses.append({"classe": cls, "rotulo": labels.get(cls, ("Contexto do processo", "#E3F1F1"))[0],
-                         "texto": body.get("valor") or "", "lastro": [str(x) for x in (body.get("lastro") or [])]})
-    return sinteses
+                         "texto": body.get("valor") or "", "lastro": lastro})
+    return sinteses, sem_lastro
 
 
 def build_inferences(texto: str, memoria: Any, tagueado: Any, sinteses_raw: list[tuple[str, Any]]) -> dict[str, Any]:
-    text_norm, idx = _norm_map(texto or "")
+    text_norm, idx = norm_map(texto or "")
     colors: dict[str, str] = {}
     for cls, items in ((tagueado or {}).get("_ui") or {}).items() if isinstance(tagueado, dict) else []:
         for it in items or []:
@@ -664,7 +654,11 @@ def build_inferences(texto: str, memoria: Any, tagueado: Any, sinteses_raw: list
             conferidos += 1 if item["conferido"] else 0
             out.append(item)
         classes.append({"classe": cls, "rotulo": label, "cor": default_color, "itens": out})
-    return {"texto": texto or "", "classes": classes, "sinteses": _syntheses(sinteses_raw, CLASS_LABELS), "total": total, "conferidos": conferidos}
+    sinteses, sem_lastro = _syntheses(sinteses_raw, CLASS_LABELS, memoria, texto or "", text_norm, idx)
+    # The discard is declared, not silent: whoever reviews has to see that a synthesis existed and did not
+    # make it through, instead of finding an empty space where a paragraph used to be.
+    return {"texto": texto or "", "classes": classes, "sinteses": sinteses, "sinteses_sem_lastro": sem_lastro,
+            "total": total, "conferidos": conferidos}
 
 
 @router.get("/api/t/{hash_}/inferencias")

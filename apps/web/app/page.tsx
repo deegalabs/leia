@@ -3,6 +3,7 @@ import { BadgeCheck, ChevronDown, FileSearch, MessageCircleQuestion, ScrollText 
 import { LinkButton } from "@/components/ui";
 import { AuthNav } from "@/components/Session";
 import { VersionBadge } from "@/components/UpdatePrompt";
+import { faq } from "@/lib/landing";
 
 const steps = [
   { Icon: FileSearch, text: "O documento em PDF é lido e etiquetado. Cada informação guarda o trecho exato de onde veio." },
@@ -15,20 +16,6 @@ const trust = [
   "O que não está no documento, a assistente recusa e diz que não está.",
   "Cada etapa fica registrada e é reproduzível: mesmo documento, mesma explicação.",
   "O registro público guarda só um código, nunca os seus dados.",
-];
-/* Short answers in plain language. Same content as the objections and questions in the pitch guide. */
-const faq = [
-  { q: "A assistente dá conselho jurídico?", a: "Não. Ela explica o que está escrito no seu documento, sempre mostrando o trecho original ao lado. Ela não diz o que você deve fazer. Quem aconselha é o advogado, e é ele quem revisa e libera a explicação quando o link vem dele." },
-  { q: "Como sei que ela não inventa?", a: "Cada informação da explicação carrega o trecho exato do documento de onde veio, e você vê os dois lado a lado. Se você perguntar algo que não está no documento, ela responde que isso não está escrito ali." },
-  { q: "O comprovante é uma assinatura eletrônica?", a: "Não. Assinatura registra que alguém assinou ou clicou. O comprovante registra que você leu a explicação e respondeu às perguntas de conferência. Se o documento precisa de assinatura, ela continua sendo feita como sempre, e o comprovante vai junto." },
-  { q: "O que é o código do comprovante?", a: "As suas respostas viram um texto fixo, e desse texto sai uma impressão digital, que é o código. Ele recebe um carimbo de tempo público. Qualquer pessoa confere, na página de verificação, que o comprovante existia naquele dia e não foi alterado, sem precisar confiar na gente." },
-  { q: "Meus dados vão para algum lugar público?", a: "Não. No registro público vai só o código. Nome, documento e respostas ficam na plataforma." },
-  { q: "E se eu não entender de jeito nenhum?", a: "Você não fica reprovada. A assistente explica de outro jeito quantas vezes for preciso. Se ainda assim não ficar claro, você pode enviar a dúvida para o advogado responder no painel dele. O comprovante só é gerado depois que você mostrou que entendeu." },
-  { q: "Serve para qualquer documento?", a: "Serve para qualquer PDF com texto: contrato, procuração, petição, decisão, intimação. As perguntas de conferência mudam conforme o tipo de documento. Hoje o roteiro mais afinado é o de contratos de honorários." },
-  { q: "Preciso de um advogado para usar?", a: "Não. Você pode enviar o seu documento e tirar dúvidas por conta própria. Quando o link vem de um advogado, ele revisa a explicação antes de você receber e passa a receber as suas dúvidas." },
-  { q: "Precisa instalar alguma coisa?", a: "Não. Funciona no navegador do celular e do computador. Se quiser, dá para instalar como aplicativo pelo menu do navegador, e o app avisa quando tem versão nova." },
-  { q: "O comprovante vale como prova?", a: "Ele é íntegro e datado, e qualquer pessoa confere sem depender da gente. O peso de cada prova quem dá é o juiz. O que o LeIA entrega é um registro que hoje não existe: o de que a explicação foi lida e conferida." },
-  { q: "Quanto custa?", a: "Hoje é uma demonstração aberta e gratuita, feita no hackathon. O custo por documento é de centavos de processamento, e o carimbo de tempo público não custa nada. Os números estão na documentação." },
 ];
 
 export default function Landing() {
