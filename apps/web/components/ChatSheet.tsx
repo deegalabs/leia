@@ -55,7 +55,7 @@ export function ChatSheet({ hash, open, onClose, temAdvogado = false }: { hash: 
     <>
       <div className={`fixed inset-0 z-20 bg-navy/45 transition-opacity ${open ? "opacity-100" : "pointer-events-none opacity-0"}`} onClick={onClose} aria-hidden="true" />
       <div role="dialog" aria-modal="true" aria-label="Tirar dúvida com a assistente" inert={!open}
-        className={`fixed inset-x-0 bottom-0 z-30 flex max-h-[85vh] flex-col rounded-t-[18px] bg-surface shadow-[0_-8px_30px_rgba(8,24,32,.25)] transition-transform md:inset-x-auto md:right-6 md:w-[440px] ${open ? "translate-y-0" : "translate-y-[105%]"}`}>
+        className={`fixed inset-x-0 bottom-0 z-30 flex max-h-[85vh] flex-col rounded-t-[18px] bg-surface shadow-[0_-8px_30px_rgba(8,24,32,.25)] transition-transform wide:inset-x-auto wide:right-6 wide:w-[440px] ${open ? "translate-y-0" : "translate-y-[105%]"}`}>
         <header className="flex items-center justify-between border-b border-line px-4 py-3">
           <h2 className="text-[1.15rem]">Tenho uma dúvida</h2>
           <Button variant="secondary" className="!w-auto !min-h-[48px]" onClick={onClose}><X size={18} aria-hidden /> Fechar</Button>

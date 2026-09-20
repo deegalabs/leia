@@ -115,7 +115,7 @@ export function InferenceMarks({ inferences, showClasses = true, idPrefix = "mar
   );
   if (!showClasses) return text;
   return (
-    <div className="grid gap-4 md:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+    <div className="grid gap-4 wide:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
       {text}
       <div className="space-y-3"><ClassCards classes={inferences.classes} onView={(ref) => scrollToMark(idPrefix, ref)} /></div>
     </div>

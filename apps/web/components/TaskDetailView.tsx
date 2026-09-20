@@ -80,7 +80,7 @@ function Body({ id }: { id: string }) {
                 <h2 className="text-[1.15rem]">{m.panel.detail.retry}</h2>
                 <p className="text-[0.95rem] text-ink-2">{m.panel.detail.retryHelp}</p>
               </div>
-              <Button variant="primary" className="sm:!w-auto" disabled={refazendo}
+              <Button variant="primary" className="wide:!w-auto" disabled={refazendo}
                 onClick={refazer}>{m.panel.detail.retry}</Button>
             </div>
           </Card>
@@ -92,7 +92,7 @@ function Body({ id }: { id: string }) {
                 <h2 className="text-[1.15rem]">{m.panel.review.title}</h2>
                 <p className="text-[0.95rem] text-ink-2">{reviewPending ? m.panel.detail.clientLinkPending : m.panel.review.intro}</p>
               </div>
-              <LinkButton href={`/painel/${id}/revisao`} variant={reviewPending ? "primary" : "secondary"} className="sm:!w-auto"><ClipboardCheck size={20} aria-hidden /> {reviewPending ? m.panel.reviewAndRelease : m.panel.viewReview}</LinkButton>
+              <LinkButton href={`/painel/${id}/revisao`} variant={reviewPending ? "primary" : "secondary"} className="wide:!w-auto"><ClipboardCheck size={20} aria-hidden /> {reviewPending ? m.panel.reviewAndRelease : m.panel.viewReview}</LinkButton>
             </div>
           </Card>
         )}
@@ -110,7 +110,7 @@ function Body({ id }: { id: string }) {
           </Card>
         )}
         {isCitizen && (
-          <div className="grid gap-2 sm:grid-cols-2">
+          <div className="grid gap-2 wide:grid-cols-2">
             <LinkButton href={`/t/${data.tarefa.hash}`} variant={approved ? "secondary" : "primary"}>{m.ch.continue}</LinkButton>
             {approved && <LinkButton href={`/comprovante/${approved.comprovante_token ?? approved.hash_imutavel}`}>{m.ch.viewReceipt}</LinkButton>}
           </div>
@@ -195,7 +195,7 @@ function DoubtItem({ taskId, d, canReply, onReplied }: { taskId: string; d: Doub
           <textarea id={`resposta-${d.id}`} value={text} onChange={(e) => setText(e.target.value)} rows={3} placeholder={m.panel.detail.replyPlaceholder}
             className="w-full rounded-button border-2 border-line bg-surface px-3 py-2 text-[1.05rem] focus:border-teal-deep" />
           {err && <p role="alert" className="text-danger">{err}</p>}
-          <Button type="submit" className="sm:!w-auto" disabled={busy || !text.trim()}><Send size={18} aria-hidden /> {busy ? m.common.loading : m.panel.detail.reply}</Button>
+          <Button type="submit" className="wide:!w-auto" disabled={busy || !text.trim()}><Send size={18} aria-hidden /> {busy ? m.common.loading : m.panel.detail.reply}</Button>
         </form>
       )}
     </li>
@@ -232,7 +232,7 @@ function InviteControl({ id, invite, onChange }: { id: string; invite: Invite | 
       )}
       {!invite && <p className="mt-1 text-[0.9rem] text-ink-3">{t.inviteOpenHint}</p>}
       {!revoked && (
-        <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto]">
+        <div className="mt-2 grid gap-2 wide:grid-cols-[1fr_auto]">
           <label className="grid gap-1">
             <span className="text-[0.9rem] text-ink-2">{t.inviteEmailLabel}</span>
             <input type="email" inputMode="email" autoComplete="off" value={email} placeholder={t.inviteEmailPlaceholder}

@@ -40,7 +40,7 @@ export function UpdatePrompt() {
   const current = process.env.NEXT_PUBLIC_COMMIT_SHA || "dev";
   const version = `v${process.env.NEXT_PUBLIC_APP_VERSION ?? ""} · de ${current} para ${nextBuild ?? "nova build"}`;
   return (
-    <div role="status" aria-live="polite" className="fixed inset-x-3 bottom-3 z-50 flex items-center gap-3 rounded-[14px] bg-navy px-4 py-3 text-paper shadow-[0_8px_30px_rgba(8,24,32,.35)] md:inset-x-auto md:right-6 md:w-[420px]">
+    <div role="status" aria-live="polite" className="fixed inset-x-3 bottom-3 z-50 flex items-center gap-3 rounded-[14px] bg-navy px-4 py-3 text-paper shadow-[0_8px_30px_rgba(8,24,32,.35)] wide:inset-x-auto wide:right-6 wide:w-[420px]">
       <div className="min-w-0 flex-1">
         <p className="font-bold">Nova versão do LeIA disponível.</p>
         <p className="font-mono text-[0.8rem] text-paper/70">{version}</p>

@@ -24,9 +24,9 @@ export function DocsShell({ current, parts, toc }: { current: DocEntry; parts: D
           <span className="inline-flex items-center gap-2 text-[0.95rem] text-paper/85"><BookOpen size={18} aria-hidden /> Documentação</span>
         </div>
       </header>
-      <div className="mx-auto grid w-full max-w-[1100px] grid-cols-1 gap-6 px-4 py-5 lg:grid-cols-[240px_minmax(0,1fr)] lg:py-6">
-        <nav aria-label="Seções da documentação" className="min-w-0 lg:sticky lg:top-4 lg:-m-1.5 lg:max-h-[calc(100vh-2rem)] lg:self-start lg:overflow-y-auto lg:p-1.5">
-          <details className="group rounded-card border border-line bg-surface lg:hidden">
+      <div className="mx-auto grid w-full max-w-[1100px] grid-cols-1 gap-6 px-4 py-5 wide:grid-cols-[240px_minmax(0,1fr)] wide:py-6">
+        <nav aria-label="Seções da documentação" className="min-w-0 wide:sticky wide:top-4 wide:-m-1.5 wide:max-h-[calc(100vh-2rem)] wide:self-start wide:overflow-y-auto wide:p-1.5">
+          <details className="group rounded-card border border-line bg-surface wide:hidden">
             <summary className="flex min-h-[52px] cursor-pointer list-none items-center justify-between gap-3 px-4 py-2 [&::-webkit-details-marker]:hidden">
               <span className="min-w-0 flex-1">
                 <span className="block text-[0.8rem] font-bold uppercase tracking-wide text-ink-2">{current.group}</span>
@@ -36,7 +36,7 @@ export function DocsShell({ current, parts, toc }: { current: DocEntry; parts: D
             </summary>
             <div className="border-t border-line px-2 pb-2 pt-1"><DocsNav groups={groups} current={current.slug} /></div>
           </details>
-          <div className="hidden lg:block"><DocsNav groups={groups} current={current.slug} /></div>
+          <div className="hidden wide:block"><DocsNav groups={groups} current={current.slug} /></div>
         </nav>
         <article id="conteudo" tabIndex={-1} className="min-w-0 outline-none">
           <p className="mb-2 text-[0.9rem] text-ink-2">{current.group}</p>
@@ -47,7 +47,7 @@ export function DocsShell({ current, parts, toc }: { current: DocEntry; parts: D
                 <ChevronDown size={18} aria-hidden className="shrink-0 text-teal-deep transition-transform group-open:rotate-180" />
               </summary>
               <nav aria-label="Nesta página" className="border-t border-line px-4 pb-3 pt-2">
-                <ol className="grid gap-1 md:grid-cols-2">
+                <ol className="grid gap-1 wide:grid-cols-2">
                   {toc.map((t) => <li key={t.id}><a href={`#${t.id}`} className="inline-flex min-h-[40px] items-center text-teal-deep underline underline-offset-4">{t.text}</a></li>)}
                 </ol>
               </nav>
@@ -58,12 +58,12 @@ export function DocsShell({ current, parts, toc }: { current: DocEntry; parts: D
             Fonte: <a className="break-all text-teal-deep underline underline-offset-2" href={`${REPO_URL}/blob/main/${current.source}`} target="_blank" rel="noreferrer"><ExternalLink size={14} aria-hidden className="mr-1 inline" />{current.source}</a> (abre no GitHub)
           </p>
           <p className="mt-4"><a href="#conteudo" className="inline-flex min-h-[44px] items-center gap-1 font-bold text-teal-deep underline underline-offset-4"><ArrowUp size={16} aria-hidden /> Voltar ao topo</a></p>
-          <nav aria-label="Página anterior e próxima" className="mt-6 grid gap-3 sm:grid-cols-2">
+          <nav aria-label="Página anterior e próxima" className="mt-6 grid gap-3 wide:grid-cols-2">
             {prev ? (
               <Link href={`/docs/${prev.slug}`} className="inline-flex min-h-[52px] items-center gap-2 rounded-card border border-line bg-surface px-4 py-3 font-bold text-teal-deep">
                 <ChevronLeft size={18} aria-hidden className="shrink-0" /><span className="min-w-0"><span className="block text-[0.8rem] font-normal text-ink-2">Anterior</span>{prev.title}</span>
               </Link>
-            ) : <span className="hidden sm:block" />}
+            ) : <span className="hidden wide:block" />}
             {next && (
               <Link href={`/docs/${next.slug}`} className="inline-flex min-h-[52px] items-center justify-end gap-2 rounded-card border border-line bg-surface px-4 py-3 text-right font-bold text-teal-deep">
                 <span className="min-w-0"><span className="block text-[0.8rem] font-normal text-ink-2">Próxima</span>{next.title}</span><ChevronRight size={18} aria-hidden className="shrink-0" />
@@ -78,10 +78,10 @@ export function DocsShell({ current, parts, toc }: { current: DocEntry; parts: D
 
 function DocsNav({ groups, current }: { groups: string[]; current: string }) {
   return (
-    <ul className="mt-2 space-y-3 lg:mt-0">
+    <ul className="mt-2 space-y-3 wide:mt-0">
       {groups.map((g) => (
         <li key={g}>
-          <p className="mb-1 px-3 text-[0.85rem] font-bold uppercase tracking-wide text-ink-2 lg:px-0">{g}</p>
+          <p className="mb-1 px-3 text-[0.85rem] font-bold uppercase tracking-wide text-ink-2 wide:px-0">{g}</p>
           <ul>
             {DOCS.filter((d) => d.group === g).map((d) => (
               <li key={d.slug}>
