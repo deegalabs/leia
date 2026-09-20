@@ -2126,3 +2126,34 @@ def test_gate_still_fails_when_a_published_section_has_no_quote(tmp_path, monkey
 
     nada_sobrou = dict(nada_ancorado, secoes_publicadas=0, secoes_com_trecho=0)
     assert pipeline_pdf.gate_reason(nada_sobrou), "explicação sem nenhuma seção passou"
+
+
+# ── O trecho mostrado é fatia do documento, nunca a transcrição do modelo ─────
+
+def test_the_quote_shown_is_the_slice_of_the_document_at_that_position():
+    """Medido em 18/09/2026 num agravo real de 14 páginas: 42 de 60 âncoras não eram literais.
+
+    A extração do PDF quebra palavra ("compa nhia", "fls.\\n52/68"), o modelo normaliza ao transcrever, e o
+    `locate` acha assim mesmo pelo estágio normalizado. Só que o item saía com a posição do documento e o
+    texto do modelo, então `documento[pos]` não era `trecho`. Num caso o modelo trocou 52/68 por 52/66: a
+    pessoa procura no papel dela um trecho que não está lá, e o selo de conferido diz que está.
+
+    A posição continua vindo do `locate` e nunca do modelo. O que muda é que o trecho passa a vir junto
+    dela, do documento."""
+    from leia.api_citizen import _item
+    from core.anchors import norm_map
+
+    documento = "A CONTRATADA prestará serviços, conforme parecer da compa nhia ambiental de 17.11.2014."
+    text_norm, idx = norm_map(documento)
+    item = _item("fatos", 0, {"campo": "x", "valor": "y",
+                              "trecho_verbatim": "parecer da companhia ambiental de 17.11.2014"},
+                 documento, text_norm, idx, "#000")
+
+    assert item["conferido"], "o locate deixou de achar o trecho que ele achava antes"
+    a, b = item["pos"]
+    assert documento[a:b] == item["trecho"], (
+        f"o trecho publicado não é o que está no documento naquela posição:\n"
+        f"  publicado : {item['trecho']!r}\n"
+        f"  documento : {documento[a:b]!r}"
+    )
+    assert "compa nhia" in item["trecho"], "o trecho foi limpo, então deixou de ser o que a pessoa vê no papel"

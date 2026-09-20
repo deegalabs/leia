@@ -69,6 +69,15 @@ def _approximate(text_norm: str, q: str) -> tuple[float, Optional[tuple[int, int
     return best_score, best_span
 
 
+def _snap_to_word_edges(text_norm: str, a: int, b: int) -> tuple[int, int]:
+    """Empurra as bordas da janela para fora, até o espaço mais próximo, para nunca cortar uma palavra."""
+    while a > 0 and not text_norm[a - 1].isspace():
+        a -= 1
+    while b < len(text_norm) and not text_norm[b - 1].isspace():
+        b += 1
+    return a, min(b, len(text_norm))
+
+
 def locate(texto: str, text_norm: str, idx: list[int], quote: str) -> Optional[dict[str, Any]]:
     """Where the quote really is in the document, found here and never taken from the model.
 
@@ -96,5 +105,9 @@ def locate(texto: str, text_norm: str, idx: list[int], quote: str) -> Optional[d
         a, b = window
         b = min(b, len(idx))
         if b > a:
+            # A janela do estágio aproximado é achada por semelhança e cai onde cair, inclusive no meio de
+            # um número: cortar "17.11.2014" em "17.11.201" mostra à pessoa um trecho que o documento não
+            # tem. Como o trecho publicado é a fatia desta posição, a borda precisa cair entre palavras.
+            a, b = _snap_to_word_edges(text_norm, a, b)
             return {"pos": [idx[a], idx[b - 1] + 1], "score": round(score, 3), "metodo": "aproximado"}
     return None
