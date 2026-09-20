@@ -523,8 +523,12 @@ def get_attempt(hash_imutavel: str) -> Optional[dict[str, Any]]:
     revisada = (t.origem or "advogado") != "cidadao"
     dados = {"hash_imutavel": tent.hash_imutavel, "tarefa_hash": t.hash, "numero": tent.numero, "acertos": tent.acertos,
              "total": tent.total, "aprovado": tent.aprovado, "criada_em": created,
-             "revisado_por_advogado": revisada, "instrumento": "multiple-choice",
+             "revisado_por_advogado": revisada,
+             # Sem `instrumento` fixo aqui: quem sabe qual instrumento é o produto é `build_payload`, e
+             # cravar "multiple-choice" neste dicionário fazia o campo continuar dizendo a palavra antiga
+             # depois de a pergunta passar a nascer presa a uma cláusula.
              "piso": _tn.pass_mark(tent.total),
+             "consultas": json.loads(tent.consultas) if tent.consultas else {},
              "pdf_sha256": gravado.get("pdf_sha256", ""), "resumo_sha256": gravado.get("resumo_sha256", ""),
              "registro": gravado or None,
              "ots": proof}

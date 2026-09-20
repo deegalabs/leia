@@ -42,7 +42,7 @@ export function publicTask(f: Fixture) {
   };
 }
 
-export function evaluateQuiz(f: Fixture, respostas: Record<string, number>, numero = 1 /* LeIA: v3 counts attempts per task */) {
+export function evaluateQuiz(f: Fixture, respostas: Record<string, number>, numero = 1 /* LeIA: v3 counts attempts per task */, consultas: Record<string, number> = {}) {
   const questions = f.questoes.questoes as FixtureQuestion[];
   const erros: { id: number; area: string; enunciado: string; escolhida: number | null }[] = [];
   let acertos = 0;
@@ -51,7 +51,7 @@ export function evaluateQuiz(f: Fixture, respostas: Record<string, number>, nume
     if (chosen === q.correta) acertos += 1;
     else erros.push({ id: q.id, area: q.area, enunciado: q.enunciado, escolhida: chosen ?? null });
   }
-  const record: AttemptRecord = { tarefa_hash: f.tarefa.hash, numero, respostas, acertos, total: questions.length, aprovado: acertos >= passMark(questions.length), criada_em: nowIso(), salt: newSalt() };
+  const record: AttemptRecord = { tarefa_hash: f.tarefa.hash, numero, respostas, acertos, total: questions.length, aprovado: acertos >= passMark(questions.length), criada_em: nowIso(), salt: newSalt(), consultas };
   return { aprovado: record.aprovado, acertos, total: record.total, numero, hash_imutavel: attemptHash(record), comprovante_token: encodeToken(record), erros };
 }
 

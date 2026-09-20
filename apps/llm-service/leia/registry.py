@@ -33,9 +33,11 @@ def render(templates: Any, request: Request, name: str, context: dict[str, Any])
         context["request"] = request
         return templates.TemplateResponse(name, context)
 
-# v3 acrescenta três campos e não tira nenhum: quem revisou, por qual instrumento mediu e qual era o piso.
-# Comprovante gravado antes disto continua abrindo, porque o registro congelado guarda o próprio canônico.
-PAYLOAD_SCHEMA = "leia.payload.v3"
+# v3 acrescentou quem revisou, por qual instrumento mediu e qual era o piso. A v4 acrescenta `consulted` e
+# faz `instrument` dizer de onde a pergunta nasceu, porque desde E12 ela nasce presa a uma cláusula.
+# Nenhuma das duas tira campo, e comprovante gravado antes continua abrindo, porque o registro congelado
+# guarda o próprio canônico em vez de remontá-lo.
+PAYLOAD_SCHEMA = "leia.payload.v4"
 
 
 def canonical_json(obj: dict[str, Any]) -> str:
@@ -69,11 +71,21 @@ def build_payload(attempt: dict[str, Any]) -> dict[str, Any]:
         "documentSha256": attempt.get("pdf_sha256") or "",
         "summarySha256": attempt.get("resumo_sha256") or "",
         "understood": bool(attempt.get("aprovado")),
-        # "understood" sozinho é afirmação forte e o terceiro não sabe por qual régua. Estes dois dizem a
-        # régua, para ele julgar o peso em vez de aceitar ou recusar no escuro.
-        "instrument": str(attempt.get("instrumento") or "multiple-choice"),
+        # "understood" sozinho é afirmação forte e o terceiro não sabe por qual régua. Estes dizem a régua,
+        # para ele julgar o peso em vez de aceitar ou recusar no escuro.
+        #
+        # Na v4 o instrumento deixa de dizer só "múltipla escolha" e diz de onde a pergunta nasceu: desde
+        # E12 cada uma aponta uma seção da explicação e um trecho literal do documento, e a pergunta que
+        # ninguém acha no documento não é publicada. Medir múltipla escolha sobre uma narrativa e medir
+        # múltipla escolha sobre cláusula são coisas diferentes, e quem recebe o comprovante precisa saber
+        # qual das duas aconteceu.
+        "instrument": str(attempt.get("instrumento") or "multiple-choice-anchored-in-clause"),
         "passMark": int(attempt.get("piso") or 0),
         "answered": int(attempt.get("total") or 0),
+        # Quantas vezes ela pediu para rever o trecho antes de responder. Não reprova ninguém e não é
+        # vigilância: é a diferença entre responder de memória e responder consultando, e sem ela o
+        # comprovante afirma um grau de autonomia que não mediu.
+        "consulted": sum(int(v) for v in (attempt.get("consultas") or {}).values()),
         # Metade da tese do produto é a supervisão humana, e o artefato que circula não dizia se ela existiu.
         "reviewedByLawyer": bool(attempt.get("revisado_por_advogado")),
         "createdAt": created_iso,

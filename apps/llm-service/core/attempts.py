@@ -2,7 +2,7 @@
 from __future__ import annotations
 import hashlib, json, math, os
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
@@ -20,24 +20,38 @@ def _next_round(tarefa_id: int) -> int:
     return (ult.numero + 1) if ult else 1
 
 
-PREIMAGE_SCHEMA = "leia.attempt.v2"
+PREIMAGE_SCHEMA = "leia.attempt.v3"
+PREIMAGE_SCHEMA_SEM_CONSULTA = "leia.attempt.v2"
+"""O esquema anterior continua existindo porque as tentativas gravadas sob ele continuam existindo."""
 
 
-def attempt_hash(tarefa_hash: str, numero: int, respostas_json: str, criada_em: datetime) -> str:
+def attempt_hash(tarefa_hash: str, numero: int, respostas_json: str, criada_em: datetime,
+                 consultas: Optional[dict] = None) -> str:
     """Hash da tentativa, recalculável por terceiro a partir do que fica gravado.
 
     A v1 misturava IP, navegador e um instante que não era persistido, então ninguém, nem a própria
     equipe, conseguia recalcular o valor publicado, e o preimage carregava dado pessoal. A v2 usa
     apenas o que está no registro, e o documento entra como referência derivada, nunca como o link.
+
+    A v3 acrescenta quantas vezes a pessoa pediu para rever o trecho antes de responder cada pergunta. Isso
+    muda o peso do comprovante e por isso precisa estar sob o hash: número que circula ao lado da prova sem
+    estar dentro dela é número que qualquer um troca depois.
+
+    ``consultas=None`` é o que está gravado desde antes desta coluna existir, e recalcula em v2 caractere
+    por caractere. O hash é o identificador público do comprovante: mudá-lo transformaria comprovante já
+    emitido em link quebrado.
     """
     quando = criada_em.replace(microsecond=0).isoformat()
-    preimage = json.dumps({
-        "schema": PREIMAGE_SCHEMA,
+    corpo: dict[str, Any] = {
+        "schema": PREIMAGE_SCHEMA if consultas is not None else PREIMAGE_SCHEMA_SEM_CONSULTA,
         "documentRef": hashlib.sha256(tarefa_hash.encode("utf-8")).hexdigest(),
         "attemptRound": numero,
         "answers": json.loads(respostas_json),
         "createdAt": quando,
-    }, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    }
+    if consultas is not None:
+        corpo["consulted"] = {str(k): int(v) for k, v in consultas.items()}
+    preimage = json.dumps(corpo, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     return hashlib.sha256(preimage.encode("utf-8")).hexdigest()
 
 
@@ -81,6 +95,7 @@ def record(
     questoes: list[dict],
     ip: Optional[str] = None,        # aceito e descartado: ver attempt_hash
     user_agent: Optional[str] = None,
+    consultas: Optional[dict[int | str, int]] = None,
 ) -> Tentativa:
     """
     Valida as respostas contra o gabarito das questões, grava a tentativa
@@ -98,6 +113,10 @@ def record(
     aprovado = acertos >= pass_mark(total)
 
     respostas_json = json.dumps(respostas, ensure_ascii=False, sort_keys=True)
+    # Sempre um dicionário, mesmo vazio: ``None`` significa "gravada antes desta coluna existir" e é o que
+    # faz o hash recalcular em v2. Tentativa nova sem consulta nenhuma é ``{}``, que é informação.
+    consultas_norm = {str(k): int(v) for k, v in (consultas or {}).items() if int(v) > 0}
+    consultas_json = json.dumps(consultas_norm, ensure_ascii=False, sort_keys=True)
     criada_em = datetime.utcnow().replace(microsecond=0)
     cap = _cap()
 
@@ -114,7 +133,7 @@ def record(
         if not any(x.aprovado for x in feitas) and numero > cap:
             raise AttemptsExhausted()
 
-        h = attempt_hash(tarefa.hash, numero, respostas_json, criada_em)
+        h = attempt_hash(tarefa.hash, numero, respostas_json, criada_em, consultas=consultas_norm)
 
         # IP e navegador não são gravados: não entram na prova, não são necessários ao produto,
         # e estavam impressos no comprovante que a cidadã mostra a terceiros.
@@ -126,6 +145,7 @@ def record(
             total=total,
             aprovado=aprovado,
             hash_imutavel=h,
+            consultas=consultas_json,
             criada_em=criada_em,
         )
         try:

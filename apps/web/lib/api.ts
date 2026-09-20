@@ -48,8 +48,8 @@ export type VerifyResult = {
      can weigh the receipt instead of accepting it blind. */
   payload: { schema: string; documentRef: string; attemptRound: number; attemptSha256: string;
              documentSha256: string; summarySha256: string; understood: boolean;
-             instrument: string; passMark: number; answered: number; reviewedByLawyer: boolean;
-             createdAt: string };
+             instrument: string; passMark: number; answered: number; consulted: number;
+             reviewedByLawyer: boolean; createdAt: string };
   canonical: string;
   payloadHash: string;
   otsPresent: boolean;
@@ -76,9 +76,13 @@ export async function getTask(hash: string): Promise<Task> {
   return r.json();
 }
 
-export async function submitQuiz(hash: string, respostas: Record<string, number>): Promise<QuizResult> {
+/* `consultas` conta quantas vezes a pessoa abriu "não lembro, mostra de novo" em cada pergunta. Viaja junto
+   com as respostas porque entra no hash da tentativa e no comprovante: número que circula ao lado da prova
+   sem estar dentro dela é número que qualquer um troca depois. */
+export async function submitQuiz(hash: string, respostas: Record<string, number>,
+                                 consultas: Record<string, number> = {}): Promise<QuizResult> {
   const r = await check(await fetch(`/api/t/${hash}/quiz`, {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ respostas }),
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ respostas, consultas }),
   }));
   return r.json();
 }

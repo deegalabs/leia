@@ -497,8 +497,12 @@ async def api_quiz(
         raise HTTPException(409, "Questões não disponíveis")
 
     respostas = payload.get("respostas") or {}
+    # Quantas vezes a pessoa abriu "não lembro, mostra de novo" em cada pergunta. Vem do aparelho dela, e é
+    # dado sobre a conferência, não sobre ela: não reprova, não limita, e entra no registro porque muda o
+    # peso do que o comprovante afirma.
+    consultas = payload.get("consultas") or {}
     try:
-        tent = tn.record(t, respostas, questoes)
+        tent = tn.record(t, respostas, questoes, consultas=consultas)
     except tn.AttemptsExhausted:
         # Não é reprovação: a explicação continua aberta. O que não acontece mais é gerar
         # registro de compreensão por tentativa e erro.

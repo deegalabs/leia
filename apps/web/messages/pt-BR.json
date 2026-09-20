@@ -113,7 +113,11 @@
     "notSignature": "Ao confirmar, você diz que entendeu o que está acima. Isso não é a assinatura do contrato.",
     "confirm": "Confirmo que entendi",
     "review": "Quero rever uma parte",
-    "markedFor": "marcado para {lawyer} explicar"
+    "markedFor": "marcado para {lawyer} explicar",
+    "remind": "Não lembro, mostra de novo",
+    "remindClose": "Fechar o trecho",
+    "remindFrom": "Esta pergunta veio de: {secao}",
+    "remindNoQuote": "Esta pergunta não trouxe trecho do documento."
   },
   "c6": {
     "title": "Seu comprovante",
@@ -125,7 +129,12 @@
     "reviewedTitle": "Quem conferiu esta explicação",
     "reviewedYes": "Um advogado revisou a explicação antes de ela chegar até você.",
     "reviewedNo": "Esta explicação não passou por um advogado. Você mesma enviou o documento, e a assistente é automática.",
-    "measured": "A conferência foi por perguntas de múltipla escolha: você acertou o mínimo de {piso} de {total}."
+    "measured": "A conferência foi por perguntas de múltipla escolha, e cada pergunta mostrava o trecho do documento de onde ela veio: você acertou o mínimo de {piso} de {total}.",
+    "answered": "Você respondeu a conferência deste documento",
+    "attempted": "Registro da sua tentativa",
+    "consultedOnce": "Você abriu o trecho no documento 1 vez antes de responder.",
+    "consulted": "Você abriu o trecho no documento {n} vezes antes de responder.",
+    "consultedNone": "Você respondeu sem precisar reabrir o trecho no documento."
   },
   "a0": {
     "title": "Entrar",

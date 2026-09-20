@@ -657,10 +657,15 @@ def test_attempt_hash_carries_no_personal_data(lawyer):
 
 
 def test_attempt_hash_is_reproducible_from_what_is_stored(lawyer):
+    """Tudo que entra no hash está na linha gravada, e nada além dela. A consulta entrou no preimage em
+    20/09 e por isso entrou também na coluna: número que circula ao lado da prova sem estar dentro dela é
+    número que qualquer um troca depois."""
     import core.attempts as tn
     t = _tarefa_de_teste("hash-tentativa-2")
-    tent = tn.record(t, {"1": 0, "2": 1, "3": 2}, QUESTOES, "203.0.113.7", "Mozilla/5.0")
-    recalculado = tn.attempt_hash(t.hash, tent.numero, tent.respostas, tent.criada_em)
+    tent = tn.record(t, {"1": 0, "2": 1, "3": 2}, QUESTOES, "203.0.113.7", "Mozilla/5.0", consultas={"2": 1})
+    gravadas = json.loads(tent.consultas)
+    assert gravadas == {"2": 1}, "a consulta não ficou gravada, então ninguém tem como recalcular"
+    recalculado = tn.attempt_hash(t.hash, tent.numero, tent.respostas, tent.criada_em, consultas=gravadas)
     assert recalculado == tent.hash_imutavel, "ninguém consegue recalcular o hash a partir do que está gravado"
 
 
@@ -668,7 +673,7 @@ def test_attempt_hash_does_not_depend_on_the_client(lawyer):
     import core.attempts as tn
     t = _tarefa_de_teste("hash-tentativa-3")
     a = tn.record(t, {"1": 0, "2": 1, "3": 2}, QUESTOES, "203.0.113.7", "Chrome")
-    b = tn.attempt_hash(t.hash, a.numero, a.respostas, a.criada_em)
+    b = tn.attempt_hash(t.hash, a.numero, a.respostas, a.criada_em, consultas=json.loads(a.consultas))
     assert a.hash_imutavel == b
     assert "PARA.AI" not in tn.PREIMAGE_SCHEMA, "a marca do produto de origem ainda está no hash"
 
@@ -1456,7 +1461,9 @@ def test_the_receipt_says_what_it_measured(monkeypatch):
     tent = tn.record(t, {"1": 0, "2": 1, "3": 2}, QUESTOES)
     freeze_record(t.hash, tent.numero, tent.hash_imutavel)
     p = build_payload(get_attempt(tent.hash_imutavel))
-    assert p["instrument"] == "multiple-choice", "o comprovante não diz por qual instrumento mediu"
+    # Desde E12 a palavra mudou junto com o que ela descreve: a pergunta nasce presa a uma cláusula, e medir
+    # múltipla escolha sobre narrativa não é a mesma coisa que medir sobre cláusula.
+    assert p["instrument"] == "multiple-choice-anchored-in-clause", "o comprovante não diz por qual instrumento mediu"
     assert p["passMark"] == tn.pass_mark(p["answered"]), "o comprovante não diz qual era o piso"
     assert p["answered"] == len(QUESTOES)
 
@@ -2469,3 +2476,40 @@ def test_the_public_question_carries_the_section_and_the_quote_but_never_the_key
     assert saiu["conferencia"] == {"metodo": "exato", "score": 1.0}
     for gabarito in ("correta", "justificativa"):
         assert gabarito not in saiu, f"o gabarito viajou junto: {gabarito}"
+
+
+# ── A consulta entra no registro, e o comprovante diz o que mediu (E12-T09/T10) ──
+
+def test_the_attempt_hash_stays_recomputable_for_what_was_already_recorded():
+    """Nenhuma tentativa já gravada pode mudar de hash: o hash é o identificador público do comprovante, e
+    mudá-lo transforma comprovante emitido em link quebrado. Quem não tem consulta continua em v2."""
+    from datetime import datetime as _dt
+
+    from core.attempts import attempt_hash
+
+    quando = _dt(2026, 9, 20, 12, 0, 0)
+    antigo = attempt_hash("abc123", 1, '{"1": 0}', quando)
+    assert attempt_hash("abc123", 1, '{"1": 0}', quando, consultas=None) == antigo, \
+        "tentativa sem consulta mudou de hash"
+    assert attempt_hash("abc123", 1, '{"1": 0}', quando, consultas={}) != antigo, \
+        "a consulta entrou no registro e não mudou o hash, então ela não está sendo provada"
+    assert attempt_hash("abc123", 1, '{"1": 0}', quando, consultas={"1": 2}) != \
+        attempt_hash("abc123", 1, '{"1": 0}', quando, consultas={"1": 3}), \
+        "duas consultas diferentes produziram o mesmo hash"
+
+
+def test_the_receipt_says_it_measured_multiple_choice_anchored_in_a_clause():
+    """`understood: true` sozinho é afirmação forte demais para o que uma múltipla escolha mede. O terceiro
+    que recebe o comprovante precisa da régua: qual instrumento, qual piso, e quantas vezes a pessoa pediu
+    para rever o trecho antes de responder."""
+    from datetime import datetime as _dt, timezone as _tz
+
+    from leia.registry import PAYLOAD_SCHEMA, build_payload
+
+    payload = build_payload({"tarefa_hash": "abc", "numero": 1, "hash_imutavel": "h", "aprovado": True,
+                             "total": 6, "piso": 5, "criada_em": _dt(2026, 9, 20, tzinfo=_tz.utc),
+                             "consultas": {"1": 2, "3": 1}})
+    assert payload["schema"] == PAYLOAD_SCHEMA and PAYLOAD_SCHEMA.endswith("v4")
+    assert "clause" in payload["instrument"], payload["instrument"]
+    assert payload["consulted"] == 3, "o comprovante não diz quantas vezes a pessoa precisou rever"
+    assert build_payload({"tarefa_hash": "a", "numero": 1, "criada_em": "x"})["consulted"] == 0
