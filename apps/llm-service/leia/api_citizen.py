@@ -566,7 +566,14 @@ def _item(cls: str, n: int, it: dict[str, Any], texto: str, text_norm: str, idx:
     model's opinion about the item and is labelled as such."""
     quote = it.get("trecho_verbatim") or ""
     found = locate(texto, text_norm, idx, quote)
-    out = {"ref": f"{cls}[{n}]", "campo": it.get("campo"), "valor": it.get("valor"), "trecho": quote,
+    # O trecho publicado é a fatia do documento naquela posição, nunca a transcrição do modelo. Medido num
+    # agravo real de 14 páginas: a extração do PDF quebra palavra ("compa nhia", "fls.\n52/68"), o modelo
+    # normaliza ao transcrever, o locate acha assim mesmo pelo estágio normalizado ou aproximado, e o item
+    # saía com a posição do documento e o texto do modelo. Num caso ele trocou 52/68 por 52/66: a pessoa
+    # procura no papel um trecho que não está lá, com o selo de conferido ao lado. Publicar a fatia torna
+    # ``documento[pos] == trecho`` verdade por construção, que é a promessa do produto escrita em código.
+    trecho = texto[found["pos"][0]:found["pos"][1]] if found else quote
+    out = {"ref": f"{cls}[{n}]", "campo": it.get("campo"), "valor": it.get("valor"), "trecho": trecho,
            "pos": found["pos"] if found else None, "conferido": bool(found), "cor": cor}
     if found:
         out["conferencia"] = {"metodo": found["metodo"], "score": found["score"]}
