@@ -1,0 +1,57 @@
+{
+ "documento": "===== PÁGINA 1 =====\nCONTRATO DE LOCAÇÃO\nLOCADOR: pessoa física, aqui identificada apenas como LOCADOR.\nCLÁUSULA 1. O LOCATÁRIO pagará aluguel mensal de R$ 900,00, com vencimento todo dia 5.\n",
+ "topicos": [
+  {
+   "id": 1,
+   "titulo": "O que está sendo pedido",
+   "explicacao_md": "O aluguel é de novecentos reais por mês.",
+   "trecho": "aluguel mensal de R$ 900,00",
+   "conferencia": {
+    "metodo": "exato",
+    "score": 1.0
+   }
+  }
+ ],
+ "questoes": [
+  {
+   "id": 1,
+   "enunciado": "Quanto é o aluguel?",
+   "alternativas": [
+    "R$ 900,00",
+    "R$ 90,00"
+   ],
+   "area": "datas_valores",
+   "secao": "O que está sendo pedido",
+   "trecho": "aluguel mensal de R$ 900,00"
+  },
+  {
+   "id": 2,
+   "enunciado": "Como a pessoa se sentiu?",
+   "alternativas": [
+    "Aliviada",
+    "Triste"
+   ],
+   "area": "fatos",
+   "secao": "",
+   "trecho": ""
+  },
+  {
+   "id": 3,
+   "enunciado": "Qual o prazo?",
+   "alternativas": [
+    "Trinta dias",
+    "Sessenta dias"
+   ],
+   "area": "datas_valores",
+   "secao": "O que está sendo pedido",
+   "trecho": "o prazo de trinta dias contados da assinatura"
+  }
+ ],
+ "inferencias": {
+  "classes": [],
+  "sinteses": []
+ },
+ "nome": "plantado-pergunta-sem-lastro",
+ "origem": "caso plantado a mão: a pergunta 2 não diz de que seção veio nem mostra trecho, e a 3 mostra um trecho que não está no documento",
+ "capturado_em": "2026-09-20"
+}

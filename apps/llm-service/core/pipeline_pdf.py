@@ -31,6 +31,7 @@ from typing import Any, Optional
 from sqlmodel import Session
 
 from core import document_type as dt
+from core.anchors import locate, norm_map
 from core.db import engine, Tarefa, LogEvento
 from core.pdf_extract import extract
 from core.workspace import folder, record_event
@@ -305,6 +306,47 @@ def _registrar_tipo(tarefa_id: int, hash_: str, classificacao: dict[str, Any]) -
     record_event(hash_, "tipo_documento", especie=classificacao["tipo"], rotulo=classificacao["rotulo"],
                  conferido=classificacao["conferido"],
                  revisado_por_advogado=classificacao["revisado_por_advogado"])
+
+
+QUESTIONS_FLOOR = int(os.getenv("QUIZ_MIN_QUESTIONS", "4"))
+"""Abaixo disto não há conferência, e não há conferência fraca.
+
+Duas perguntas de quatro alternativas passam por chute em 6,25% das vezes, e as três tentativas que o produto
+concede levam isso a 17,6%. Um comprovante apoiado nisso afirma mais do que mediu. O produto já sabe terminar
+sem conferência e sem comprovante (`sem_perguntas`), então é isso que ele faz."""
+
+
+def _ancorar_questoes(doc: Any, texto: str, tarefa_id: int, hash_: str) -> Any:
+    """Cada pergunta passa a carregar a fatia do documento que sustenta a resposta, ou não é publicada.
+
+    O trecho vem do documento na posição que o ``locate`` achou, nunca da transcrição do modelo: mesma regra
+    de todo trecho que este produto mostra. É o que permite à pessoa voltar ao ponto no papel dela, e é o que
+    a bateria mede quando reprova pergunta sem lastro.
+    """
+    questoes = doc.get("questoes") if isinstance(doc, dict) else None
+    if not isinstance(questoes, list):
+        return doc
+
+    text_norm, idx = norm_map(texto or "")
+    mantidas: list[dict[str, Any]] = []
+    for q in questoes:
+        if not isinstance(q, dict):
+            continue
+        found = locate(texto or "", text_norm, idx, str(q.get("trecho_verbatim") or ""))
+        if not found:
+            continue
+        a, b = found["pos"]
+        mantidas.append({**{k: v for k, v in q.items() if k != "trecho_verbatim"},
+                         "trecho": texto[a:b], "pos": [a, b],
+                         "conferencia": {"metodo": found["metodo"], "score": found["score"]}})
+
+    abaixo = len(mantidas) < QUESTIONS_FLOOR
+    dados = {"geradas": len(questoes), "mantidas": 0 if abaixo else len(mantidas), "abaixo_do_piso": abaixo}
+    _event(tarefa_id, "questoes_ancoradas", dados)
+    record_event(hash_, "questoes_ancoradas", **dados)
+    if abaixo:
+        log.warning("🚧 conferência sem piso | tarefa=%s | %d de %d ancoradas", tarefa_id, len(mantidas), len(questoes))
+    return {**doc, "questoes": [] if abaixo else mantidas}
 
 
 def _embaralhar_alternativas(doc: Any, hash_: str) -> Any:
@@ -644,7 +686,10 @@ async def run_pdf_pipeline(
         _save(hash_, "resumo_humanizado.md", val)
 
     if "T14_QUESTOES" in outputs_anteriores:
-        _save(hash_, "questoes.json", _embaralhar_alternativas(outputs_anteriores["T14_QUESTOES"], hash_))   # LeIA
+        # Ancorar antes de embaralhar: o descarte é sobre o que o documento sustenta, e embaralhar o que já
+        # vai ser jogado fora é trabalho que ninguém lê.
+        ancoradas = _ancorar_questoes(outputs_anteriores["T14_QUESTOES"], texto_pdf, tarefa_id, hash_)
+        _save(hash_, "questoes.json", _embaralhar_alternativas(ancoradas, hash_))   # LeIA
 
     # ── 6. Finaliza: a porta de fidelidade decide se esta explicação pode ser lida
     tempo_total = round(time.time() - t_pipe, 2)

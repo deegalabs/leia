@@ -117,8 +117,15 @@ router = APIRouter()
 
 
 def _public_questions(doc: Any) -> list[dict[str, Any]]:
+    """A pergunta como a pessoa a recebe: com o ponto do documento de onde ela nasceu, sem o gabarito.
+
+    ``secao`` e ``trecho`` são o que permitem voltar ao ponto no papel dela em vez de tentar lembrar, e são o
+    que o "não lembro, mostra de novo" abre. ``correta`` e ``justificativa`` continuam do lado de cá: quem
+    responde não pode receber a resposta junto com a pergunta."""
     items = doc.get("questoes", []) if isinstance(doc, dict) else []
-    return [{"id": q.get("id"), "enunciado": q.get("enunciado"), "alternativas": q.get("alternativas", []), "area": q.get("area")}
+    return [{"id": q.get("id"), "enunciado": q.get("enunciado"), "alternativas": q.get("alternativas", []),
+             "area": q.get("area"), "secao": q.get("secao"), "trecho": q.get("trecho"),
+             "conferencia": q.get("conferencia")}
             for q in items if isinstance(q, dict)]
 
 

@@ -30,74 +30,7 @@
    }
   }
  ],
- "questoes": [
-  {
-   "id": 1,
-   "enunciado": "Quem contratou a advogada para a ação?",
-   "alternativas": [
-    "JUIZ",
-    "EX‑EMPREGADOR",
-    "CONTRATADA",
-    "CONTRATANTE"
-   ],
-   "area": "identificacao"
-  },
-  {
-   "id": 2,
-   "enunciado": "Quem vai prestar o serviço jurídico?",
-   "alternativas": [
-    "CONTRATADA",
-    "CUSTAS",
-    "CONTRATANTE",
-    "FORO"
-   ],
-   "area": "identificacao"
-  },
-  {
-   "id": 3,
-   "enunciado": "Qual o valor total dos honorários iniciais?",
-   "alternativas": [
-    "R$ 2.000,00",
-    "R$ 1.000,00",
-    "R$ 500,00",
-    "R$ 1.500,00"
-   ],
-   "area": "fatos"
-  },
-  {
-   "id": 4,
-   "enunciado": "Em quanto tempo vence a primeira parcela dos honorários?",
-   "alternativas": [
-    "5 dias",
-    "10 dias",
-    "30 dias",
-    "15 dias"
-   ],
-   "area": "fatos"
-  },
-  {
-   "id": 5,
-   "enunciado": "Por que o CONTRATANTE ficou incomodado?",
-   "alternativas": [
-    "Não entende o foro",
-    "Quer clareza sobre pagamentos",
-    "Perdeu o prazo",
-    "Não gostou do advogado"
-   ],
-   "area": "fundamentos"
-  },
-  {
-   "id": 6,
-   "enunciado": "Em que cidade o contrato foi firmado?",
-   "alternativas": [
-    "Rio de Janeiro",
-    "Curitiba",
-    "Belo Horizonte",
-    "São Paulo"
-   ],
-   "area": "contexto"
-  }
- ],
+ "questoes": [],
  "inferencias": {
   "classes": [
    {
@@ -441,5 +374,7 @@
     ]
    }
   ]
- }
+ },
+ "questoes_removidas_em": "2026-09-20",
+ "por_que_sem_questoes": "As 6 perguntas desta captura são de antes de a pergunta nascer presa a uma cláusula (E12-T02 e T03): elas não declaram `secao` nem `trecho`, e preencher isso à mão seria inventar o dado que a regra nova existe para exigir. Recapturar com `scripts/capture_eval_case.py` traz as perguntas ancoradas de volta. Enquanto isso, a prova de que a bateria reprova pergunta sem lastro mora em `casos/planted/question-without-anchor.json`."
 }

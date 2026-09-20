@@ -15,7 +15,12 @@ export type DocumentTypeOption = { tipo: string; rotulo: string };
 /* LeIA: one of the 15 workflow steps as the public route reports it (docs/API-V3-CONTRACT.md, "Preparação visível") */
 export type StageState = "pendente" | "em_andamento" | "concluida" | "erro";
 export type Stage = { id: string; nome: string; estado: StageState; tempo?: number | null };
-export type Question = { id: number; enunciado: string; alternativas: string[]; area?: string };
+/* LeIA: a pergunta nasce presa a um ponto do documento (E12). `secao` é o título exato da seção da
+   explicação de onde ela veio e `trecho` é a fatia literal do documento que sustenta a resposta: são
+   os dois que o "não lembro, mostra de novo" abre. O gabarito nunca viaja junto. */
+export type Question = { id: number; enunciado: string; alternativas: string[]; area?: string;
+                         secao?: string | null; trecho?: string | null;
+                         conferencia?: import("./inferences").Anchor | null };
 export type Attempt = { aprovado: boolean; hash_imutavel: string; acertos: number; total: number; numero?: number };
 export type Task = {
   tarefa: { hash: string; titulo: string; status: string };

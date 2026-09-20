@@ -213,8 +213,18 @@ def avaliar(caso: dict) -> Resultado:
         if vazados:
             r.violacoes.append(f"pergunta {q.get('id')}: o gabarito viaja junto ({', '.join(vazados)})")
         secao = str(q.get("secao") or "").strip()
-        if secao and _texto_comparavel(secao) not in secoes:
+        if not secao:
+            r.violacoes.append(f"pergunta {q.get('id')}: não diz de qual seção da explicação ela veio")
+        elif _texto_comparavel(secao) not in secoes:
             r.violacoes.append(f"pergunta {q.get('id')}: a seção declarada não foi publicada ({secao})")
+        # A pergunta é o que vira comprovante, e o comprovante afirma que a pessoa entendeu o **documento**.
+        # Pergunta sem trecho mede a lembrança de uma conversa; pergunta com trecho que ninguém acha no
+        # documento mede uma frase que o modelo escreveu. As duas fazem o comprovante afirmar demais.
+        trecho = str(q.get("trecho") or "").strip()
+        if not trecho:
+            r.violacoes.append(f"pergunta {q.get('id')}: não mostra trecho nenhum do documento")
+        elif not _achavel(documento, trecho):
+            r.violacoes.append(f"pergunta {q.get('id')}: o trecho mostrado não está no documento")
 
     # The synthesis is the longest text the citizen reads, and until now the battery looked at none of them:
     # that is how the recorded case publishes 1293 characters of grounds, citing six statutes, with no anchor.

@@ -6,7 +6,7 @@ import { tokenFromRequest } from "./server/session";
 import { findSpan, type Anchor, type InferenceClass, type Inferences } from "./inferences"; /* LeIA: review flow shares the inferences with the public route */
 import type { Stage } from "./api";
 
-type FixtureQuestion = { id: number; area: string; dificuldade: string; enunciado: string; alternativas: string[]; correta: number; justificativa: string };
+type FixtureQuestion = { id: number; area: string; dificuldade: string; enunciado: string; alternativas: string[]; correta: number; justificativa: string; secao?: string; trecho?: string; conferencia?: Anchor };
 /* LeIA: topics come from the local pipeline (clausula) */
 type FixtureTopic = { id: number; titulo: string; explicacao: string; trecho: string; clausula?: string; classe?: string; score?: number };
 type Fixture = Omit<typeof fixture, "topicos" | "documento_texto"> & { topicos: FixtureTopic[]; documento_texto: { clausula?: string; texto: string }[]; sem_perguntas?: boolean };
@@ -36,7 +36,7 @@ function checkedTopics(f: Fixture) {
 export function publicTask(f: Fixture) {
   return {
     tarefa: f.tarefa, resumo_md: f.resumo_md, topicos: checkedTopics(f),
-    questoes: (f.questoes.questoes as FixtureQuestion[]).map((q) => ({ id: q.id, enunciado: q.enunciado, alternativas: q.alternativas, area: q.area })),
+    questoes: (f.questoes.questoes as FixtureQuestion[]).map((q) => ({ id: q.id, enunciado: q.enunciado, alternativas: q.alternativas, area: q.area, secao: q.secao ?? null, trecho: q.trecho ?? null, conferencia: q.conferencia ?? null })),
     ultima_tentativa: null,
     sem_perguntas: Boolean(f.sem_perguntas),
   };

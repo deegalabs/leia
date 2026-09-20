@@ -1998,9 +1998,24 @@ RUN_OUTPUTS = {
     "T10_SINTESE_IDENTIFICACAO": {"sintese_identificacao": {"valor": "Duas pessoas assinaram.", "lastro": ["identificacao[0]"]}},
     "T11_SINTESE_CONTEXTO": {"sintese_contexto": {"valor": "O contrato está em vigor.", "lastro": ["fatos[0]"]}},
     "T13_HUMANIZACAO": {"resumo_humanizado": GATE_SUMMARY, "termos": []},
-    "T14_QUESTOES": {"questoes": [{"id": 1, "area": "pedidos", "enunciado": "Quando você paga?",
-                                   "alternativas": ["Sempre", "Só se ganhar"], "correta": 1,
-                                   "justificativa": "Está na cláusula 2.", "dificuldade": "facil"}]},
+    # Quatro perguntas, que é o piso: abaixo dele o motor publica zero e a jornada termina sem comprovante,
+    # e uma rodada completa que não exercita a conferência não prova que ela existe.
+    "T14_QUESTOES": {"questoes": [
+        {"id": 1, "area": "pedidos", "enunciado": "Quando você paga?", "alternativas": ["Sempre", "Só se ganhar"],
+         "correta": 1, "justificativa": "Está na cláusula 2.", "dificuldade": "facil",
+         "secao": "🤝 O que está sendo pedido", "ref": "pedidos[0]", "trecho_verbatim": "só se ganhar a ação"},
+        {"id": 2, "area": "datas_valores", "enunciado": "Quanto são os honorários?",
+         "alternativas": ["Vinte por cento", "Metade"], "correta": 0, "justificativa": "Cláusula 2.",
+         "dificuldade": "facil", "secao": "🤝 O que está sendo pedido", "ref": "datas_valores[0]",
+         "trecho_verbatim": "vinte por cento ao final"},
+        {"id": 3, "area": "identificacao", "enunciado": "Quem paga?", "alternativas": ["O CONTRATANTE", "O juiz"],
+         "correta": 0, "justificativa": "Cláusula 2.", "dificuldade": "facil",
+         "secao": "👥 Quem está nesta história", "ref": "identificacao[0]",
+         "trecho_verbatim": "O CONTRATANTE pagará honorários"},
+        {"id": 4, "area": "fatos", "enunciado": "Onde isso está escrito?",
+         "alternativas": ["Na cláusula 2", "Em lugar nenhum"], "correta": 0, "justificativa": "Cláusula 2.",
+         "dificuldade": "facil", "secao": "👥 Quem está nesta história", "ref": "fatos[0]",
+         "trecho_verbatim": "CLÁUSULA 2. O CONTRATANTE"}]},
 }
 
 
@@ -2335,3 +2350,122 @@ def test_a_class_the_type_does_not_have_is_not_missing_from_the_explanation():
 
     ausentes = dt.missing_classes("contrato", presentes=["identificacao", "datas_valores"])
     assert "pedidos" not in ausentes and "fatos" in ausentes, ausentes
+
+
+# ── A pergunta nasce presa a uma cláusula, com trecho literal ─────────────────
+#
+# O T14 gerava pergunta sobre "a HISTÓRIA" e sobre a "SIMBOLOGIA" dela, e o T13 parou de contar história em
+# 19/09. Sobrou uma conferência que mede uma narrativa que o motor não produz mais, e um comprovante que diz
+# "você entendeu o documento" a partir dela.
+
+QUESTION_SECTION = "👥 Quem está nesta história"
+
+
+def _questoes_de(hash_: str) -> list[dict]:
+    import json as _json
+    from core.workspace import folder
+    return _json.loads((folder(hash_) / "questoes.json").read_text(encoding="utf-8")).get("questoes") or []
+
+
+def test_a_question_must_declare_the_section_and_the_clause_it_came_from():
+    """Sem isso a pergunta não tem como ser conferida contra o documento, e a bateria não tem o que medir."""
+    task = protocol_task("T14_QUESTOES")
+    completa = {"questoes": [{"enunciado": "Quanto você paga?", "alternativas": ["20%", "nada"], "correta": 0,
+                              "secao": QUESTION_SECTION, "ref": "pedidos[0]",
+                              "trecho_verbatim": "O CONTRATANTE pagará honorários de vinte por cento"}]}
+    assert _rodar(task, json.dumps(completa, ensure_ascii=False))["ok"] is True
+
+    for falta in ("secao", "ref", "trecho_verbatim"):
+        crua = json.loads(json.dumps(completa))
+        del crua["questoes"][0][falta]
+        res = _rodar(task, json.dumps(crua, ensure_ascii=False))
+        assert res["ok"] is False, f"pergunta sem {falta} passou pelo contrato da etapa"
+        assert falta in str(res.get("erro", "")), res.get("erro")
+
+
+def test_the_quote_beside_a_question_is_the_slice_of_the_document_at_that_position(citizen, monkeypatch):
+    """Mesma regra da #88, agora na pergunta: o trecho publicado é a fatia do documento, nunca a transcrição
+    do modelo. E a pergunta cujo trecho ninguém acha no documento não chega à cidadã."""
+    import asyncio
+
+    from core import pipeline_pdf
+    from core.pdf_extract import Extraction
+
+    t = create_task(citizen["token"], "Perguntas ancoradas")
+    saidas = {**RUN_OUTPUTS, "T14_QUESTOES": {"questoes": [
+        {"id": i, "area": "pedidos", "dificuldade": "facil", "enunciado": f"Pergunta {i}?",
+         "alternativas": ["Sim", "Não"], "correta": 0, "justificativa": "Está na cláusula 2.",
+         "secao": QUESTION_SECTION, "ref": "pedidos[0]", "trecho_verbatim": trecho}
+        for i, trecho in enumerate([
+            "O CONTRATANTE pagará honorarios de vinte por cento",   # sem acento: o locate acha assim mesmo
+            "pagará honorários de vinte por cento ao final",
+            "só se ganhar a ação",
+            "ao final, só se ganhar a ação",
+            "CLÁUSULA 2. O CONTRATANTE pagará",
+            "esta frase não está no documento de jeito nenhum",     # esta tem que cair
+        ], start=1)]}}
+    monkeypatch.setattr(pipeline_pdf, "extract", lambda caminho: Extraction(FAKE_TEXT, 0, 0, 0))
+    loop = asyncio.new_event_loop()
+    try:
+        loop.run_until_complete(pipeline_pdf.run_pdf_pipeline(t["id"], _scripted_groq(saidas)))
+    finally:
+        loop.close()
+
+    assert status_of(t["hash"]) == "pronta", ws.read_events(t["hash"])[-3:]
+    guardadas = _questoes_de(t["hash"])
+    assert len(guardadas) == 5, f"a pergunta sem lastro no documento não foi descartada: {len(guardadas)}"
+    for q in guardadas:
+        a, b = q["pos"]
+        assert FAKE_TEXT[a:b] == q["trecho"], (
+            f"o trecho da pergunta não é o que está no documento naquela posição:\n"
+            f"  publicado : {q['trecho']!r}\n  documento : {FAKE_TEXT[a:b]!r}")
+    ev = last_event(t["hash"], "questoes_ancoradas")
+    assert (ev["geradas"], ev["mantidas"]) == (6, 5), ev
+
+
+def test_too_few_anchored_questions_means_no_conference_instead_of_a_weak_one(citizen, monkeypatch):
+    """Duas perguntas de quatro alternativas passam por chute em 6,25% das vezes, e três tentativas levam isso
+    a 17,6%. Um comprovante apoiado nisso afirma mais do que mediu. Abaixo do piso o produto já sabe terminar
+    sem conferência e sem comprovante (`sem_perguntas`), e é o que ele faz."""
+    import asyncio
+
+    from core import pipeline_pdf
+    from core.pdf_extract import Extraction
+
+    t = create_task(citizen["token"], "Perguntas de menos")
+    saidas = {**RUN_OUTPUTS, "T14_QUESTOES": {"questoes": [
+        {"id": 1, "area": "pedidos", "dificuldade": "facil", "enunciado": "Vale?", "alternativas": ["Sim", "Não"],
+         "correta": 0, "justificativa": "x", "secao": QUESTION_SECTION, "ref": "pedidos[0]",
+         "trecho_verbatim": "só se ganhar a ação"},
+        {"id": 2, "area": "pedidos", "dificuldade": "facil", "enunciado": "Invenção?", "alternativas": ["Sim", "Não"],
+         "correta": 0, "justificativa": "x", "secao": QUESTION_SECTION, "ref": "pedidos[0]",
+         "trecho_verbatim": "isto não existe no documento"}]}}
+    monkeypatch.setattr(pipeline_pdf, "extract", lambda caminho: Extraction(FAKE_TEXT, 0, 0, 0))
+    loop = asyncio.new_event_loop()
+    try:
+        loop.run_until_complete(pipeline_pdf.run_pdf_pipeline(t["id"], _scripted_groq(saidas)))
+    finally:
+        loop.close()
+
+    assert status_of(t["hash"]) == "pronta", "a explicação foi derrubada por causa da conferência"
+    assert _questoes_de(t["hash"]) == [], "sobrou conferência fraca em vez de nenhuma"
+    publicado = client.get(f"/api/t/{t['hash']}").json()
+    assert publicado["resumo_md"], "a explicação sumiu junto com as perguntas"
+    assert publicado["sem_perguntas"] is True and publicado["questoes"] == []
+    assert last_event(t["hash"], "questoes_ancoradas")["abaixo_do_piso"] is True
+
+
+def test_the_public_question_carries_the_section_and_the_quote_but_never_the_key():
+    """`secao` e `trecho` são o que fazem a pessoa poder voltar ao ponto do documento. `correta` e
+    `justificativa` continuam do lado de cá."""
+    from leia.api_citizen import _public_questions
+
+    doc = {"questoes": [{"id": 1, "enunciado": "Quanto?", "alternativas": ["20%", "nada"], "area": "pedidos",
+                         "correta": 0, "justificativa": "Está na cláusula 2.", "secao": QUESTION_SECTION,
+                         "ref": "pedidos[0]", "trecho": "vinte por cento", "pos": [10, 25],
+                         "conferencia": {"metodo": "exato", "score": 1.0}}]}
+    saiu = _public_questions(doc)[0]
+    assert saiu["secao"] == QUESTION_SECTION and saiu["trecho"] == "vinte por cento"
+    assert saiu["conferencia"] == {"metodo": "exato", "score": 1.0}
+    for gabarito in ("correta", "justificativa"):
+        assert gabarito not in saiu, f"o gabarito viajou junto: {gabarito}"
