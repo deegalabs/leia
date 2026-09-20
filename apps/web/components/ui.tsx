@@ -190,7 +190,9 @@ export function Field({ id, label, hint, children }: { id: string; label: string
     </div>
   );
 }
-export const inputClass = "min-h-[48px] w-full rounded-button border-2 border-line bg-surface px-3 text-[1.05rem] focus:border-teal-deep";
+/* `border-line-strong` e não `border-line`: a 1.4.11 pede 3:1 para o que identifica um controle, e o
+   divisor dá 1,34:1. O campo precisa ter borda que a pessoa enxergue sem adivinhar onde ele começa. */
+export const inputClass = "min-h-[48px] w-full rounded-button border-2 border-line-strong bg-surface px-3 text-[1.05rem] focus:border-teal-deep";
 
 export function Page({ children, wide = false }: { children: ReactNode; wide?: boolean }) {
   return <main className={`mx-auto w-full flex-1 px-4 pb-6 ${wide ? "max-w-[760px]" : "max-w-[560px] md:max-w-[680px]"}`}>{children}</main>;
