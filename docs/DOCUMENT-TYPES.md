@@ -7,6 +7,56 @@ o que ele precisa extrair e onde ele costuma falhar.
 Serve para duas coisas. Antes de atender um tipo novo, é a lista do que precisa funcionar. Depois de uma falha em
 uso, é onde a falha vira conhecimento em vez de virar conserto pontual.
 
+## O motor passou a reconhecer a espécie antes de extrair
+
+Desde 20/09/2026 a primeira etapa do pipeline (`T0_TIPO_DOCUMENTO`) responde de que espécie é o documento, e é essa
+resposta que escolhe o vocabulário das extrações seguintes. Antes disso o protocolo fazia as mesmas catorze
+perguntas a qualquer documento, com um vocabulário fechado de peça processual embutido na missão de T1. O efeito
+disso estava medido nos dois casos gravados:
+
+| classe | agravo (privado) | contrato de honorários (público) |
+|---|---|---|
+| `identificacao` | `ministerio_publico`, `reu`, `advogado_autor` | `autor` = **"CONTRATANTE"**, `advogado_autor` = **"CONTRATADA"** |
+| `fundamentos` | 18 itens | 0 |
+| `pedidos` | 8 itens | 0 |
+
+Contrato não tem autor, tem contratante. Como o enum não continha a palavra certa, o item ia para a caixa errada, e
+`campo` é o que o aplicativo imprime em negrito sobre o texto marcado: a pessoa lia "autor: CONTRATANTE" num
+documento sem autor. A revisão do `v0` já tinha apontado isso em 12/09/2026 ("precisa adaptar as classes de peça
+processual para contrato").
+
+As espécies que o motor distingue, declaradas em `apps/llm-service/protocolo_pdf.json` sob `tipos_de_documento`, e
+como elas se ligam aos tipos descritos abaixo:
+
+| Espécie | Rótulo na tela | Cobre os tipos abaixo | Classes que se espera que sustente |
+|---|---|---|---|
+| `peca_processual` | Documento de um processo | petição inicial, peça recursal | identificação, fatos, fundamentos, pedidos |
+| `decisao_judicial` | Decisão da Justiça | decisão, sentença e acórdão | identificação, fatos, fundamentos |
+| `contrato` | Contrato | contrato de honorários, acordo | identificação, datas e valores, fatos |
+| `comunicacao_oficial` | Aviso oficial | intimação, notificação, citação, ofício | identificação, datas e valores, fatos |
+| `indefinido` | Tipo não identificado | procuração e tudo o mais | nenhuma |
+
+Três coisas seguram isso de pé, e as três são decisão de projeto, não detalhe:
+
+**A espécie é uma afirmação sobre o documento, então carrega um trecho dele.** Mesma regra de todas as outras: a
+posição vem do `locate` e o trecho publicado é a fatia do documento naquela posição. Serve para o advogado conferir
+a classificação num relance.
+
+**A etapa não pode derrubar a rodada.** Ela é `opcional` no protocolo. Espécie inventada ou saída fora do contrato
+viram `indefinido`, que é exatamente o vocabulário de antes. O pior caso desta mudança é ela não fazer efeito, nunca
+ela quebrar o que já funcionava.
+
+**A pessoa manda mais que a máquina.** `POST /api/tarefas/{id}/tipo-documento` grava a resposta do advogado ao lado
+do documento; ela sobrevive ao `reprocessar` e a rodada seguinte pula a classificação em vez de refazer o palpite
+por cima da correção. Classificação errada que alguém vê e conserta é barata; a silenciosa é a falha que este
+produto existe para não ter. Por isso a tela de revisão mostra a espécie **antes** das marcações, e diz quando a
+correção ainda não foi aplicada.
+
+O que **não** muda com a espécie, e é a lacuna conhecida: os títulos das seções da explicação (`ancoras_por_secao`
+em T13) continuam fixos, então um contrato ainda é explicado sob "O que está sendo pedido". Enquanto for assim, T5
+não recebe vocabulário próprio de contrato: encher a seção de obrigações sob um título que fala em pedido seria
+trocar um rótulo errado por outro.
+
 ## Como os documentos de verdade são tratados
 
 **Documento real não entra neste repositório.** Ele é público, e a regra do projeto é que nenhum dado pessoal real
@@ -80,7 +130,7 @@ Depois de processar o documento pelo pipeline inteiro, mais quatro medidas:
 
 | O que medi | Resultado | Consequência |
 |---|---|---|
-| Etapas concluídas | 14 de 14 | a peça recursal atravessa o motor |
+| Etapas concluídas | 14 de 14 | a peça recursal atravessa o motor (medido antes de existir a T0) |
 | Itens extraídos | 29, sendo 18 de fundamentos e **0 de fatos** | numa peça recursal os fatos vivem dentro da decisão citada |
 | Itens conferidos no documento | 29 de 29 | a âncora aguenta redação recursal |
 | Tópicos com trecho | 4 de 6 | "Onde a história está agora" passou a ter trecho, porque aqui existe fundamentação |

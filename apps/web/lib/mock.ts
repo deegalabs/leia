@@ -89,18 +89,30 @@ export type MockTask = {
   id: number; hash: string; titulo: string; status: "criada" | "processando" | "pronta" | "enviada" | "assinada" | "falhou"; /* LeIA: enviada = released by the lawyer */
   criada_em: string; atualizada_em: string; origem: "advogado" | "cidadao"; dono_id: number; cidadao_id: number | null;
   ready_at: number; eventos: MockEvent[]; tentativas: MockAttempt[]; duvidas: MockDoubt[];
-  /* LeIA: visible preparation. How many of the 14 steps started and finished */
+  /* LeIA: visible preparation. How many of the 15 steps started and finished */
   etapas_iniciadas: number; etapas_feitas: number;
+  /* LeIA: a espécie com que o motor leu o documento, e a correção do advogado quando existe */
+  tipo_documento?: MockDocumentType | null;
   /* LeIA: o convite que governa o link; ausente significa link aberto, como sempre foi */
   convite?: MockInvite | null;
 };
 
+export type MockDocumentType = { tipo: string; rotulo: string; trecho: string; pos: [number, number] | null; conferido: boolean; revisado_por_advogado: boolean; aplicado?: boolean };
+/* LeIA: as espécies que o protocolo declara (apps/llm-service/protocolo_pdf.json, "tipos_de_documento") */
+export const DOC_TYPES: { tipo: string; rotulo: string }[] = [
+  { tipo: "peca_processual", rotulo: "Documento de um processo" },
+  { tipo: "decisao_judicial", rotulo: "Decisão da Justiça" },
+  { tipo: "contrato", rotulo: "Contrato" },
+  { tipo: "comunicacao_oficial", rotulo: "Aviso oficial" },
+  { tipo: "indefinido", rotulo: "Tipo não identificado" },
+];
+
 export type MockInvite = { id: number; email: string | null; expira_em: string | null; revogado_em: string | null; criado_em: string };
 
-/* LeIA: the 14 workflow steps in pt-BR (docs/API-V3-CONTRACT.md, "Preparação visível e tarefas do fluxo externo") and the
+/* LeIA: the 15 workflow steps in pt-BR (docs/API-V3-CONTRACT.md, "Preparação visível e tarefas do fluxo externo") and the
    seconds each one reports once finished (illustrative; the simulated pipeline is faster than the real one) */
-export const STEP_NAMES = ["Identificar as partes", "Datas e valores", "Fatos", "Fundamentos, leis e decisões", "Pedidos", "Juntar a memória", "Resumir os fatos", "Resumir os fundamentos", "Resumir os pedidos", "Quem é quem", "Contexto do processo", "Marcar o texto", "Explicar em linguagem simples", "Preparar as perguntas"];
-const STEP_SECONDS = [3, 4, 5, 6, 4, 2, 5, 5, 4, 3, 4, 6, 9, 7];
+export const STEP_NAMES = ["Reconhecer o tipo do documento", "Identificar as partes", "Datas e valores", "Fatos", "Fundamentos, leis e decisões", "Pedidos", "Juntar a memória", "Resumir os fatos", "Resumir os fundamentos", "Resumir os pedidos", "Quem é quem", "Contexto do processo", "Marcar o texto", "Explicar em linguagem simples", "Preparar as perguntas"];
+const STEP_SECONDS = [2, 3, 4, 5, 6, 4, 2, 5, 5, 4, 3, 4, 6, 9, 7];
 const STEP_TOTAL = STEP_NAMES.length;
 type Store = { users: Map<number, MockUser>; tasks: Map<string, MockTask>; seq: { user: number; task: number; doubt: number } };
 
@@ -147,7 +159,7 @@ function advanceSteps(t: MockTask, done: number, started: number) {
   }
   if (t.etapas_iniciadas < Math.min(started, STEP_TOTAL)) { const i = t.etapas_iniciadas; t.eventos.push({ tipo: "task_start", ts, id: `T${i + 1}`, idx: i, total: STEP_TOTAL }); t.etapas_iniciadas = i + 1; }
 }
-/* the 14 steps as the public route reports them */
+/* the 15 steps as the public route reports them */
 export function stagesOf(t: MockTask): Stage[] {
   return STEP_NAMES.map((nome, i) => {
     const estado: Stage["estado"] = i < t.etapas_feitas ? "concluida" : i < t.etapas_iniciadas ? (t.status === "falhou" ? "erro" : "em_andamento") : "pendente";
@@ -156,7 +168,7 @@ export function stagesOf(t: MockTask): Stage[] {
 }
 
 /* status settles with time: created -> processing after 1s -> ready after PIPELINE_MS.
-   LeIA: while processing, the 14 steps advance one every STEP_MS so the wait screen can show them. */
+   LeIA: while processing, the 15 steps advance one every STEP_MS so the wait screen can show them. */
 function settle(t: MockTask): MockTask {
   const now = Date.now();
   const processingAt = t.ready_at - PIPELINE_MS + PROCESSING_DELAY_MS;
@@ -391,11 +403,25 @@ export function review(u: MockUser, id: number) {
   if (!hasContent(t)) throw fail(409, t.status === "falhou" ? "a explicação não pôde ser preparada" : "ainda não está pronta");
   return {
     tarefa: { id: t.id, hash: t.hash, titulo: t.titulo, status: t.status, origem: t.origem },
+    tipo_documento: docTypeOf(t), tipos_documento: DOC_TYPES,
     inferencias: buildInferences(t), resumo_md: contentOf(t).resumo_md,
     questoes: (contentOf(t).questoes.questoes as FixtureQuestion[]).map((q) => ({ id: q.id, area: q.area, dificuldade: q.dificuldade, enunciado: q.enunciado, alternativas: q.alternativas, correta: q.correta, justificativa: q.justificativa })),
     link_cliente: clientLink(t),
   };
 }
+/* LeIA: a resposta do advogado sobre a espécie. Ela vale para a próxima rodada, então `aplicado` fica falso
+   até o documento ser refeito, e a tela diz isso em vez de fingir que a explicação já mudou. */
+export function setDocumentType(u: MockUser, id: number, tipo: string) {
+  const t = storeTaskById(id);
+  if (!t) throw fail(404, "não encontrado");
+  if (!canManage(u, t)) throw fail(403, "sem acesso");
+  const escolhido = DOC_TYPES.find((d) => d.tipo === tipo);
+  if (!escolhido) throw fail(422, "Essa espécie de documento não existe.");
+  t.tipo_documento = { ...escolhido, trecho: "", pos: null, conferido: false, revisado_por_advogado: true, aplicado: false };
+  t.eventos.push({ tipo: "tipo_documento", ts: nowIso() });
+  return { ok: true, tipo_documento: t.tipo_documento };
+}
+
 export function approve(u: MockUser, id: number) {
   const t = storeTaskById(id);
   if (!t) throw fail(404, "não encontrado");
@@ -407,7 +433,15 @@ export function approve(u: MockUser, id: number) {
 
 /* citizen side (public by hash) */
 export function publicTaskMeta(t: MockTask) {
-  return { advogado: lawyerOf(t), tem_advogado: t.origem === "advogado", cidadao_vinculado: t.cidadao_id !== null, duvidas_enviadas: t.duvidas.length, ultima_tentativa: lastAttempt(t) };
+  return { advogado: lawyerOf(t), tem_advogado: t.origem === "advogado", cidadao_vinculado: t.cidadao_id !== null, duvidas_enviadas: t.duvidas.length, ultima_tentativa: lastAttempt(t), tipo_documento: docTypeOf(t) };
+}
+/* O exemplo semeado é um contrato de honorários, então a espécie da demonstração é essa; tarefa que ainda
+   não passou pela primeira etapa não tem espécie nenhuma, e ausente é o que a tela precisa saber. */
+function docTypeOf(t: MockTask): MockDocumentType | null {
+  if (t.tipo_documento) return t.tipo_documento;
+  if (t.etapas_feitas < 1) return null;
+  return { tipo: "contrato", rotulo: "Contrato", trecho: "CONTRATO DE PRESTAÇÃO DE SERVIÇOS ADVOCATÍCIOS",
+           pos: null, conferido: true, revisado_por_advogado: false, aplicado: true };
 }
 /* while the pipeline runs the public payload carries no content, like the service */
 export function publicTaskFor(hash: string) {

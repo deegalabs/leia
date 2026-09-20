@@ -9,6 +9,7 @@ import { fmt, m } from "@/lib/i18n";
 import { hasReview, needsReview, statusInfo } from "@/lib/status";
 import { AppHeader, BottomActionBar, Button, Card, CopyButton, LinkButton, Page, StatusChip } from "./ui";
 import { AuthNav, RequireAuth } from "./Session";
+import { DocumentTypeCard } from "./DocumentTypeCard";
 import { Paragraphs, cleanTitle } from "./Inline";
 import { ClassCards, MarkCounts, MarkedText, scrollToMark } from "./InferenceMarks";
 
@@ -106,6 +107,11 @@ function Body({ id }: { id: string }) {
       </div>
       <p className="mb-4 text-[0.95rem] text-ink-2">{m.panel.review.intro}</p>
       {error && <p role="alert" className="mb-3 text-danger">{error}</p>}
+
+      {/* Antes das abas de propósito: a espécie escolheu o vocabulário com que tudo abaixo foi nomeado, e
+          conferir os nomes sem saber com que espécie o motor trabalhou é conferir no escuro. */}
+      <DocumentTypeCard id={id} tipo={data.tipo_documento} opcoes={data.tipos_documento ?? []}
+        onSaved={(tp) => setData({ ...data, tipo_documento: tp })} />
 
       <div role="group" aria-label={m.panel.review.tabsLabel} className="mb-4 flex flex-wrap gap-2">
         {TABS.map((t) => (

@@ -362,7 +362,23 @@
       "releasedNoDate": "Liberado para a cliente.",
       "citizenOwned": "Documento enviado pela própria cidadã: a explicação já está aberta para ela, sem revisão.",
       "approveFailed": "Não foi possível liberar agora. Tente de novo em instantes.",
-      "alreadyReleased": "Este documento já foi liberado."
+      "alreadyReleased": "Este documento já foi liberado.",
+      "docType": {
+        "title": "Tipo do documento",
+        "intro": "É o tipo que escolhe as palavras usadas para nomear as partes. Se estiver errado, corrija aqui.",
+        "readAs": "A assistente leu este documento como:",
+        "basedOn": "Ela se apoiou neste trecho:",
+        "noQuote": "Ela não achou no documento um trecho que sustente essa leitura.",
+        "reviewedByYou": "Você corrigiu para este tipo.",
+        "notAppliedYet": "A explicação na tela ainda foi feita com o tipo anterior. Refaça a explicação para valer a correção.",
+        "change": "Corrigir o tipo",
+        "chooseLabel": "Escolha o tipo deste documento",
+        "cancel": "Cancelar",
+        "save": "Salvar o tipo",
+        "saving": "Salvando.",
+        "saved": "Tipo salvo.",
+        "failed": "Não foi possível salvar o tipo. Tente de novo."
+      }
     }
   },
   "upload": {
@@ -429,6 +445,7 @@
     "whoIsSpeaking": "Sou uma assistente automática. Explico o que está escrito neste documento. Não sou advogada e não dou conselho jurídico. A nossa conversa não fica guardada aqui: ela some quando você fecha esta página. Fica guardado só o que você escolher enviar para o advogado, e quantas vezes você respondeu as perguntas.",
     "retryKeeping": "Ler de novo e responder só o que faltou",
     "keptAnswers": "O que você já acertou fica guardado. Você responde só as perguntas que faltaram.",
-    "claimFailedTitle": "Não deu para guardar este documento no seu nome"
+    "claimFailedTitle": "Não deu para guardar este documento no seu nome",
+    "readAs": "Lido como:"
   }
 }

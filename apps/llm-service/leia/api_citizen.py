@@ -1,7 +1,8 @@
 """Public JSON for the citizen app and the registry adapter. Included from main.py.
 
 GET /api/t/{hash}: the same data the service renders in /t/{hash}, as JSON and without the answer key, plus
-``etapas`` (the 14 workflow steps with state and time) and up to 60 pipeline events.
+``etapas`` (the 15 workflow steps with state and time), ``tipo_documento`` (the species the engine read the
+document as, which is what chose the vocabulary of every step below it) and up to 60 pipeline events.
 GET /api/t/{hash}/inferencias: what the workflow tagged over the original text; during ``criada``/``processando``
 it answers with ``parcial: true`` and the classes produced so far (files T1..T5), so the waiting screen can show
 the document being marked.
@@ -30,6 +31,7 @@ from pydantic import BaseModel, Field
 from sqlmodel import Session, func, select
 
 import core.attempts as tn
+import core.document_type as dt
 import core.workspace as ws
 from app_gestao import _read_artifact, _read_json
 from core.anchors import locate, norm_map
@@ -44,12 +46,15 @@ READY_STATUSES = ("pronta", "enviada", "assinada")
 GATE_MESSAGE = "Em revisão pelo advogado"
 PUBLIC_EVENT_TYPES = {"criada", "pdf_salvo", "pipeline_start", "texto_extraido", "task_start", "task_done", "task_error",
                       "erro_extracao", "pipeline_done", "tentativa", "carimbo_publico", "carimbo_falhou",
-                      "duvida_enviada", "reprocess", "aprovada",
+                      "duvida_enviada", "reprocess", "aprovada", "tipo_documento",
 }
+# ``tipo_documento_corrigido`` fica fora desta lista de propósito: ele carrega o id de quem corrigiu, e quem
+# revisou o documento de alguém não é assunto de rota pública.
 PUBLIC_EVENT_LIMIT = 60
 
-# The 14 workflow tasks of protocolo_pdf.json (ids as written there) with the pt-BR names of docs/API-V3-CONTRACT.md.
+# The 15 workflow tasks of protocolo_pdf.json (ids as written there) with the pt-BR names of docs/API-V3-CONTRACT.md.
 STEP_NAMES: dict[str, str] = {
+    "T0_TIPO_DOCUMENTO": "Reconhecer o tipo do documento",
     "T1_IDENTIFICADOR_PARTES": "Identificar as partes",
     "T2_IDENTIFICADOR_DATAS_VALORES": "Datas e valores",
     "T3_IDENTIFICADOR_FATOS": "Fatos",
@@ -80,7 +85,7 @@ def public_events(events: list[dict[str, Any]], limit: int = PUBLIC_EVENT_LIMIT)
 
 
 def build_steps(events: list[dict[str, Any]], workspace_dir: Optional[Path] = None) -> list[dict[str, Any]]:
-    """The 14 workflow steps with ``estado`` and ``tempo`` derived from log.jsonl (task_start / task_done /
+    """The 15 workflow steps with ``estado`` and ``tempo`` derived from log.jsonl (task_start / task_done /
     task_error, latest event wins) and, when the log says nothing about a step, from the presence of its
     ``T*.json`` file."""
     steps = {sid: {"id": sid, "nome": name, "estado": "pendente", "tempo": None} for sid, name in STEP_NAMES.items()}
@@ -336,6 +341,10 @@ async def api_cliente_json(hash_: str, visitante: Optional[Usuario] = Depends(op
     events = ws.read_events(t.hash)
     base = {"tarefa": {"hash": t.hash, "titulo": t.titulo, "status": t.status}, "eventos": public_events(events, PUBLIC_EVENT_LIMIT),
             "etapas": build_steps(events, ws.folder(t.hash)),
+            # Sai em ``base``, e não junto da explicação, porque vale também enquanto a tarefa é preparada e
+            # quando ela falha: é a primeira coisa que o motor descobre sobre o documento, e saber que ele
+            # foi lido como contrato ou como decisão é o que torna conferível tudo o que vem depois.
+            "tipo_documento": dt.public(t.hash),
             "advogado": {"nome": lawyer.nome} if lawyer else None, "tem_advogado": lawyer is not None,
             "cidadao_vinculado": t.cidadao_id is not None, "duvidas_enviadas": int(doubts or 0),
             "convite": invites.public_json(session, t)}

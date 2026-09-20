@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field
 from sqlmodel import Session, func, select
 
 import core.attempts as tn
+import core.document_type as dt
 import core.workspace as ws
 from app_gestao import _read_artifact, _read_json, _permite_ver, create_pdf_task
 from core.auth import api_user
@@ -179,8 +180,11 @@ def retry_task(tarefa_id: int, bg: BackgroundTasks, u: Usuario = Depends(api_use
     pasta = ws.folder(t.hash)
     if not (pasta / "original.pdf").exists():
         raise HTTPException(409, "O documento original não está mais guardado, então não dá para refazer.")
+    # ``tipo_documento.json`` é resultado da rodada e sai com ela. ``tipo_documento_revisado.json``, a
+    # resposta do advogado, não está nesta lista nem casa com ``T*.json``: ela é entrada da próxima rodada,
+    # e apagá-la aqui faria o motor refazer o palpite por cima de quem já tinha corrigido.
     for nome in ("texto_extraido.txt", "memoria_persistente.json", "texto_tagueado.json",
-                 "resumo_humanizado.md", "questoes.json", "pdf_assinado.pdf"):
+                 "resumo_humanizado.md", "questoes.json", "pdf_assinado.pdf", dt.ARQUIVO_PUBLICO):
         alvo = pasta / nome
         if alvo.exists():
             alvo.unlink()
@@ -194,6 +198,31 @@ def retry_task(tarefa_id: int, bg: BackgroundTasks, u: Usuario = Depends(api_use
     from leia.pipeline import run_pipeline
     bg.add_task(run_pipeline, t.id, groq_client, "")
     return {"ok": True, "status": t.status}
+
+
+class TipoDocumentoIn(BaseModel):
+    tipo: str = Field(min_length=1, max_length=40)
+
+
+@router.post("/api/tarefas/{tarefa_id}/tipo-documento")
+def correct_document_type(tarefa_id: int, body: TipoDocumentoIn, u: Usuario = Depends(api_user),
+                          session: Session = Depends(get_session)):
+    """Corrige a espécie do documento, que é o que escolhe o vocabulário de todas as extrações.
+
+    A classificação é feita por um modelo e pode errar. Errar não é o problema; errar calado é. Por isso ela
+    aparece na revisão com o trecho que a sustenta, e por isso esta rota existe: a resposta do advogado passa
+    a ser a resposta, fica gravada ao lado do documento, sobrevive ao ``reprocessar`` e manda na próxima
+    rodada, que pula a etapa de classificação em vez de refazer o palpite por cima da correção.
+
+    A rodada em andamento não muda: ela já leu o documento com o vocabulário anterior. Quem corrige e quer o
+    efeito agora pede ``reprocessar``, e a explicação volta com a espécie certa."""
+    t = _owned(session, u, tarefa_id)
+    try:
+        gravado = dt.save_correction(t.hash, body.tipo, por=u.id)
+    except ValueError:
+        raise HTTPException(422, "Essa espécie de documento não existe.")
+    ws.record_event(t.hash, "tipo_documento_corrigido", especie=gravado["tipo"], por=u.id)
+    return {"ok": True, "tipo_documento": {**dt.from_review(gravado), "aplicado": False}}
 
 
 @router.delete("/api/tarefas/{tarefa_id}/cidadao")
@@ -263,6 +292,9 @@ def review_task(tarefa_id: int, request: Request, u: Usuario = Depends(api_user)
     if t.status in ("criada", "processando"):
         raise HTTPException(409, "A explicação ainda está sendo preparada")
     return {"tarefa": {"id": t.id, "hash": t.hash, "titulo": t.titulo, "status": t.status, "origem": t.origem or "advogado"},
+            # A espécie vem antes das inferências de propósito: é ela que escolheu o vocabulário com que
+            # tudo abaixo foi nomeado, e conferir os nomes sem saber disso é conferir no escuro.
+            "tipo_documento": dt.public(t.hash), "tipos_documento": dt.catalog(),
             "inferencias": {"tarefa": {"hash": t.hash, "titulo": t.titulo}, **inferences_of(t)},
             "resumo_md": _read_artifact(t.hash, "resumo_humanizado.md") or "",
             "questoes": review_questions(_read_json(t.hash, "questoes.json") or {}),
