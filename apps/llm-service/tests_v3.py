@@ -967,14 +967,6 @@ def test_each_topic_takes_its_quote_from_the_section_it_belongs_to():
     assert pedido.get("trecho") == "As custas processuais correm por conta do CONTRATANTE"
 
 
-def test_a_section_whose_source_quote_is_not_in_the_document_shows_none():
-    from leia.api_citizen import topics_from_summary
-
-    topicos = topics_from_summary(RESUMO_ESTRUTURADO, MEMORIA_ESTRUTURADA, DOC_TEXT, SINTESES_ESTRUTURADAS)
-    aconteceu = [t for t in topicos if "O que aconteceu" in t["titulo"]][0]
-    assert "trecho" not in aconteceu, "mostrou um trecho que não está no documento"
-
-
 def test_a_section_with_no_declared_source_shows_no_quote():
     """Resumo em uma linha fala do caso inteiro, não de uma cláusula. Sem fonte declarada, nada é mostrado,
     em vez de pendurar ali o trecho que por acaso tiver mais palavras em comum."""
@@ -982,6 +974,94 @@ def test_a_section_with_no_declared_source_shows_no_quote():
 
     topicos = topics_from_summary(RESUMO_ESTRUTURADO, MEMORIA_ESTRUTURADA, DOC_TEXT, SINTESES_ESTRUTURADAS)
     assert "trecho" not in topicos[0] and topicos[0]["titulo"] == "Resumo em uma linha"
+
+
+# ── Porta de fidelidade: só é publicado o que o documento sustenta ────────────
+
+SINTESE_SEM_LASTRO = ("O caso se apoia no artigo 22 da Lei 8.906/94, no artigo 389 do Código Civil e na Súmula 201 "
+                      "do Superior Tribunal de Justiça, além da jurisprudência sobre honorários contratuais. ") * 6
+
+
+def test_publish_drops_a_synthesis_with_empty_lastro():
+    """Medida em evals/casos/contrato-honorarios.json: a síntese de fundamentos tem 1293 caracteres, cita seis
+    dispositivos legais e chega com "lastro": []. Nada ali pode ser apontado dentro do documento da pessoa, e
+    quem lê não tem como saber disso, porque a síntese aparece com a mesma cara das que têm lastro."""
+    from leia.api_citizen import build_inferences
+
+    memoria = {"memoria_persistente": {"pedidos": [
+        {"campo": "custas", "valor": "contratante", "trecho_verbatim": "As custas processuais correm por conta do CONTRATANTE"}]}}
+    sinteses = [("pedidos", {"sintese_pedidos": {"valor": "As custas ficam com quem contratou.", "lastro": ["pedidos[0]"]}}),
+                ("fundamentos", {"sintese_fundamentos": {"valor": SINTESE_SEM_LASTRO, "lastro": []}})]
+    r = build_inferences(DOC_TEXT, memoria, None, sinteses)
+    assert [s["classe"] for s in r["sinteses"]] == ["pedidos"], "síntese sem lastro nenhum chegou à tela"
+    assert r["sinteses_sem_lastro"] == ["fundamentos"], "o descarte precisa ficar visível para quem revisa"
+
+
+def test_publish_drops_a_synthesis_whose_lastro_is_not_in_the_document():
+    """Lastro preenchido não é lastro conferido: o item apontado precisa existir dentro do documento."""
+    from leia.api_citizen import build_inferences
+
+    memoria = {"memoria_persistente": {"fatos": [
+        {"campo": "multa", "valor": "x", "trecho_verbatim": "cláusula de multa que não existe neste contrato"}]}}
+    sinteses = [("fatos", {"sintese_fatos": {"valor": "O contrato prevê multa por atraso.", "lastro": ["fatos[0]"]}})]
+    assert build_inferences(DOC_TEXT, memoria, None, sinteses)["sinteses"] == []
+
+
+def test_publish_follows_a_lastro_that_points_at_another_synthesis():
+    """T11_SINTESE_CONTEXTO declara lastro nas outras sínteses, não em item de memória. Seguir a corrente até o
+    item é o que separa descartar uma síntese sustentada de publicar uma que não se sustenta."""
+    from leia.api_citizen import build_inferences
+
+    memoria = {"memoria_persistente": {"fatos": [
+        {"campo": "pagamento", "valor": "20%",
+         "trecho_verbatim": "O CONTRATANTE pagará honorários de vinte por cento sobre o proveito econômico"}]}}
+    apoiada = [("fatos", {"s": {"valor": "Combinaram vinte por cento.", "lastro": ["fatos[0]"]}}),
+               ("contexto", {"s": {"valor": "O combinado vale desde a assinatura.", "lastro": ["T7_SINTESE_FATOS"]}})]
+    assert [s["classe"] for s in build_inferences(DOC_TEXT, memoria, None, apoiada)["sinteses"]] == ["fatos", "contexto"]
+
+    solta = [("fundamentos", {"s": {"valor": SINTESE_SEM_LASTRO, "lastro": []}}),
+             ("contexto", {"s": {"valor": "O combinado vale desde a assinatura.", "lastro": ["T8_SINTESE_FUNDAMENTOS"]}})]
+    assert build_inferences(DOC_TEXT, memoria, None, solta)["sinteses"] == [], \
+        "a corrente terminou em lastro vazio e a síntese foi publicada assim mesmo"
+
+
+def test_publish_drops_a_section_with_nothing_checked_in_the_document():
+    """A seção "O que aconteceu" explica a classe fatos, e o único fato tem trecho que não está no documento.
+    Publicá-la é afirmar à cidadã, com a mesma cara das seções conferidas, algo que ninguém consegue apontar
+    dentro do documento dela. A seção sem fonte declarada no protocolo continua, porque ela fala do caso
+    inteiro e nunca prometeu trecho."""
+    from leia.api_citizen import topics_from_summary
+
+    titulos = [t["titulo"] for t in topics_from_summary(RESUMO_ESTRUTURADO, MEMORIA_ESTRUTURADA, DOC_TEXT, SINTESES_ESTRUTURADAS)]
+    assert "📖 O que aconteceu" not in titulos, "seção sem nada conferido chegou à cidadã"
+    assert titulos == ["Resumo em uma linha", "👥 Quem está nesta história", "🤝 O que está sendo pedido"]
+
+
+def test_publish_names_the_sections_it_dropped():
+    """O descarte não pode ser silencioso: é ele que o advogado revisa e a porta de qualidade mede."""
+    from leia.api_citizen import sections_without_anchor
+
+    assert sections_without_anchor(RESUMO_ESTRUTURADO, MEMORIA_ESTRUTURADA, DOC_TEXT, SINTESES_ESTRUTURADAS) == ["📖 O que aconteceu"]
+
+
+def test_publish_an_explanation_with_nothing_left_says_so_instead_of_showing_a_blank_page(lawyer):
+    """Descartar seção não pode virar tela em branco. Quando nada sobra, o serviço para de mandar a explicação
+    inteira: sem isso o aplicativo remonta os tópicos a partir do resumo em markdown e a cidadã lê de volta,
+    sem trecho nenhum, exatamente as seções que a porta tinha descartado."""
+    t = create_task(lawyer["token"], "Nada conferido")
+    h = t["hash"]
+    pasta = ws.folder(h)
+    (pasta / "resumo_humanizado.md").write_text("## 👥 Quem está nesta história\n\nDuas pessoas assinaram.", encoding="utf-8")
+    (pasta / "texto_extraido.txt").write_text(FAKE_TEXT, encoding="utf-8")
+    (pasta / "memoria_persistente.json").write_text(json.dumps({"memoria_persistente": {"identificacao": [
+        {"campo": "partes", "valor": "duas", "trecho_verbatim": "trecho que não está no documento"}]}}), encoding="utf-8")
+    (pasta / "T10_SINTESE_IDENTIFICACAO.json").write_text(
+        json.dumps({"sintese_identificacao": {"valor": "Duas pessoas.", "lastro": ["identificacao[0]"]}}), encoding="utf-8")
+    set_status(h, "enviada")
+
+    data = client.get(f"/api/t/{h}").json()
+    assert data["tarefa"]["status"] == "falhou", "a tela ficaria em branco sem dizer por quê"
+    assert data["topicos"] is None and data["resumo_md"] is None and data["questoes"] == []
 
 
 # ── Uma etapa que devolve lixo não pode seguir como sucesso ───────────────────
@@ -1560,3 +1640,489 @@ def test_stamp_the_public_json_publishes_the_state_of_the_stamp(monkeypatch):
     assert confirmado["otsState"] == "confirmado" and confirmado["otsBlockHeight"] == 850124
     assert client.get(f"/verify/{tent.hash_imutavel}/proof.ots").status_code == 200, \
         "o comprovante diz que tem carimbo e a prova não baixa"
+
+
+# ── The protocol is the contract: the engine may only say what the document says ──
+
+SYNTHESIS_TASKS = ("T7_SINTESE_FATOS", "T8_SINTESE_FUNDAMENTOS", "T9_SINTESE_PEDIDOS",
+                   "T10_SINTESE_IDENTIFICACAO", "T11_SINTESE_CONTEXTO")
+TERM_FIELDS = ["termo", "explicacao", "trecho", "lastro"]
+
+
+def running_protocol() -> dict:
+    """The protocol the pipeline actually loads, read the same way the pipeline reads it."""
+    from core.pipeline_pdf import PROTOCOLO_PDF
+
+    return json.loads(Path(PROTOCOLO_PDF).read_text(encoding="utf-8"))
+
+
+def protocol_task(task_id: str) -> dict:
+    task = {t["id"]: t for t in running_protocol()["tasks"]}.get(task_id)
+    assert task, f"a etapa {task_id} sumiu do protocolo"
+    return task
+
+
+def published_catalog() -> tuple[Path, dict]:
+    """The newest version in prompts/workflow: the prompt catalog the D3 audit is told to read.
+
+    Newest by version number, not by name, so the historical v0 stays where it is instead of being rewritten.
+    """
+    import re as _re
+
+    pasta = Path(__file__).resolve().parents[2] / "prompts" / "workflow"
+    arquivos = [(int(m.group(1)), p) for p in pasta.glob("v*.json") if (m := _re.match(r"v(\d+)-", p.name))]
+    assert arquivos, f"nenhum catálogo publicado em {pasta}"
+    caminho = max(arquivos)[1]
+    return caminho, json.loads(caminho.read_text(encoding="utf-8"))
+
+
+def test_protocol_the_published_catalog_is_the_protocol_that_runs():
+    """Prompt publicado que ninguém confere vira ficção: 6 dos 16 ids publicados não existiam no protocolo
+    que roda, e 8 das 10 missões em comum eram outras. Quem audita a dimensão D3 lê a pasta publicada."""
+    caminho, publicado = published_catalog()
+    rodando = running_protocol()
+
+    ids_publicados = [t["id"] for t in publicado.get("tasks", [])]
+    ids_rodando = [t["id"] for t in rodando["tasks"]]
+    assert ids_publicados == ids_rodando, (
+        f"{caminho.name} publica etapas que não são as que rodam: "
+        f"só publicadas {[i for i in ids_publicados if i not in ids_rodando]}, "
+        f"só rodando {[i for i in ids_rodando if i not in ids_publicados]}")
+
+    publicadas = {t["id"]: t for t in publicado["tasks"]}
+    divergentes = [tid for tid, t in {t["id"]: t for t in rodando["tasks"]}.items()
+                   if (publicadas[tid].get("missao") or "") != (t.get("missao") or "")]
+    assert not divergentes, f"{caminho.name} publica outra missão para {divergentes}"
+    assert publicado == rodando, (
+        f"{caminho.name} e protocolo_pdf.json já não são o mesmo workflow: "
+        "cp apps/llm-service/protocolo_pdf.json prompts/workflow/" + caminho.name)
+
+
+def test_protocol_every_synthesis_ties_its_text_to_a_ground():
+    """O contrato só pedia que a chave `lastro` existisse, e lista vazia passava: foi assim que uma síntese
+    de fundamentos de 1293 caracteres, citando seis dispositivos, chegou à tela com `lastro: []`.
+
+    A regra é o par, e não o campo isolado: exigir lastro mesmo na síntese vazia matava a tarefa inteira por
+    uma seção que o documento legitimamente não tem, porque um contrato de honorários não tem pedidos e o T9
+    trabalha só sobre eles."""
+    for tid in SYNTHESIS_TASKS:
+        campos = (protocol_task(tid).get("schema") or {}).get("campos") or {}
+        assert campos, f"{tid} não declara contrato nenhum"
+        for nome, regra in campos.items():
+            assert regra.get("exige_par") == ["valor", "lastro"], \
+                f"{tid} aceita {nome} com texto e lastro vazio: {regra}"
+
+
+def test_protocol_the_summary_explains_the_document_instead_of_retelling_it_as_a_story():
+    """A ordem de virar história simbólica é o que produziu "instância da Cidadania" no lugar de tribunal."""
+    missao = protocol_task("T13_HUMANIZACAO")["missao"].lower()
+    for ordem in ("contador de histórias", "história simbólica", "criança de 10 anos", "simbologia",
+                  "personagens", "era uma vez", "analogia"):
+        assert ordem not in missao, f"a missão do T13 ainda manda contar história: {ordem!r}"
+
+
+def test_protocol_the_summary_keeps_the_numbers_that_change_the_persons_life():
+    """Valor, data e prazo eram proibidos na explicação. São exatamente o que a pessoa precisa saber."""
+    missao = protocol_task("T13_HUMANIZACAO")["missao"]
+    linhas = [linha.lower() for linha in missao.splitlines() if "preserve" in linha.lower()]
+    assert any(all(p in linha for p in ("valor", "data", "prazo")) for linha in linhas), \
+        f"a missão do T13 não manda preservar valor, data e prazo: {linhas}"
+    assert "proibido" not in missao.lower(), "a missão do T13 ainda proíbe o que o documento diz"
+
+
+def test_protocol_the_summary_spells_a_number_out_beside_it_instead_of_replacing_it():
+    """A missão manda copiar o número como ele está e escrever TAMBÉM por extenso. Os exemplos precisam fazer
+    isso, senão ensinam o contrário da regra que ilustram.
+
+    Importa porque o trecho literal do documento aparece ao lado da explicação. Quando a explicação escreve a
+    data de um jeito e o documento de outro, sobra para a pessoa conferir de cabeça que são a mesma data, que
+    é exatamente o trabalho que este produto existe para tirar dela."""
+    import re
+
+    missao = protocol_task("T13_HUMANIZACAO")["missao"]
+    trocas = re.findall(r'"([^"]+)" vira "([^"]+)"', missao)
+    assert trocas, "os exemplos da regra de preservar número sumiram da missão do T13"
+    apagados = [(antes, depois) for antes, depois in trocas if antes not in depois]
+    assert apagados == [], f"o exemplo apaga o número do documento em vez de explicá-lo ao lado: {apagados}"
+
+
+def test_protocol_the_summary_returns_each_legal_term_with_its_definition_and_quote():
+    """Termo jurídico deixa de ser proibido e passa a ser marcado: é o insumo do termo tocável da tela."""
+    task = protocol_task("T13_HUMANIZACAO")
+    assert task.get("tipo_saida") == "json", "o T13 ainda devolve só texto, sem lista de termos"
+
+    campos = (task.get("schema") or {}).get("campos") or {}
+    assert "resumo_humanizado" in campos, f"o T13 não declara o markdown da explicação: {list(campos)}"
+    termos = campos.get("termos") or {}
+    assert termos.get("tipo") == "lista", f"o T13 não declara a lista de termos: {termos}"
+    assert list(termos.get("itens") or []) == TERM_FIELDS, \
+        f"a lista de termos do T13 não traz {TERM_FIELDS}: {termos.get('itens')}"
+    for chave in TERM_FIELDS:
+        assert f'"{chave}"' in task["missao"], f"a missão do T13 não mostra o campo {chave} ao modelo"
+
+
+def test_protocol_the_summary_keeps_the_headings_the_citizen_screen_anchors_to():
+    """`section_sources()` liga cada seção da explicação às classes de memória pelo título. Título que muda
+    sem o mapa mudar junto apaga o trecho literal ao lado da seção, e ninguém fica sabendo."""
+    import re as _re
+
+    from leia.api_citizen import _section_key
+
+    task = protocol_task("T13_HUMANIZACAO")
+    titulos = {_section_key(t) for t in _re.findall(r"^#{1,2} (.+)$", task["missao"], _re.M)}
+    ancoras = {_section_key(k) for k in (task.get("ancoras_por_secao") or {})}
+    assert titulos == ancoras, f"títulos da missão e mapa de âncoras não batem: {titulos ^ ancoras}"
+
+
+def test_protocol_the_declared_summary_contract_refuses_a_term_without_its_quote():
+    """O contrato do T13 vale rodando, não só escrito: a etapa cai quando um termo chega sem o trecho que o
+    prova, em vez de mandar para a tela um termo que ninguém pode conferir no documento."""
+    task = protocol_task("T13_HUMANIZACAO")
+    markdown = "# Resumo em uma linha\n\nUm contrato de honorários."
+    termo = {"termo": "honorários de sucumbência", "explicacao": "o que quem perde paga ao advogado de quem ganha",
+             "trecho": "honorários de sucumbência de vinte por cento", "lastro": "fundamentos[0]"}
+
+    bom = _rodar(task, json.dumps({"resumo_humanizado": markdown, "termos": [termo]}, ensure_ascii=False))
+    assert bom["ok"] is True, bom.get("erro")
+    assert bom["parsed"]["resumo_humanizado"] == markdown, "o markdown da explicação não sobreviveu ao contrato"
+
+    sem_trecho = {k: v for k, v in termo.items() if k != "trecho"}
+    ruim = _rodar(task, json.dumps({"resumo_humanizado": markdown, "termos": [sem_trecho]}, ensure_ascii=False))
+    assert ruim["ok"] is False and "trecho" in str(ruim.get("erro", "")), ruim
+
+
+# ── Porta de fidelidade: nada chega a "pronta" sem o documento sustentar ──────
+
+GATE_MEMORY = {"memoria_persistente": {
+    "identificacao": [{"campo": "partes", "valor": "duas", "trecho_verbatim": "O CONTRATANTE pagará honorários de vinte por cento"}],
+    "pedidos": [{"campo": "condicao", "valor": "só se ganhar", "trecho_verbatim": "ao final, só se ganhar a ação"}],
+}}
+GATE_SUMMARY = ("# Resumo em uma linha\n\nVocê paga só se ganhar.\n\n"
+                "## 👥 Quem está nesta história\n\nQuem contratou e quem foi contratada.\n\n"
+                "## 🤝 O que está sendo pedido\n\nQue o combinado seja respeitado.\n")
+GATE_SYNTHESES = {
+    "T10_SINTESE_IDENTIFICACAO.json": {"sintese_identificacao": {"valor": "Duas pessoas assinaram.", "lastro": ["identificacao[0]"]}},
+    "T9_SINTESE_PEDIDOS.json": {"sintese_pedidos": {"valor": "Paga só se ganhar.", "lastro": ["pedidos[0]"]}},
+}
+
+
+def stage_gate_artifacts(h: str, resumo: str = GATE_SUMMARY, memoria=None, sinteses=None) -> None:
+    """Artefatos de uma rodada que terminou, do jeito que a porta de qualidade vai encontrá-los no disco."""
+    pasta = ws.folder(h)
+    (pasta / "texto_extraido.txt").write_text(FAKE_TEXT, encoding="utf-8")
+    (pasta / "resumo_humanizado.md").write_text(resumo, encoding="utf-8")
+    (pasta / "memoria_persistente.json").write_text(
+        json.dumps(memoria if memoria is not None else GATE_MEMORY, ensure_ascii=False), encoding="utf-8")
+    for nome, corpo in (GATE_SYNTHESES if sinteses is None else sinteses).items():
+        (pasta / nome).write_text(json.dumps(corpo, ensure_ascii=False), encoding="utf-8")
+
+
+def status_of(h: str) -> str:
+    with Session(engine) as s:
+        return s.exec(select(Tarefa).where(Tarefa.hash == h)).one().status
+
+
+def last_event(h: str, tipo: str) -> dict:
+    eventos = [e for e in ws.read_events(h) if e.get("tipo") == tipo]
+    assert eventos, f"nenhum evento {tipo} no workspace de {h}"
+    return eventos[-1]
+
+
+def test_gate_a_synthesis_without_lastro_never_reaches_the_citizen(lawyer):
+    """Medida em 17/09/2026 no único caso público: a síntese de fundamentos tem 1293 caracteres, cita seis
+    dispositivos legais e chega com lastro que não aponta para nada do documento.
+
+    Ela não chega à tela, e é isso que importa. Derrubar a tarefa inteira por causa dela seria punir a cidadã
+    por uma seção que o documento dela legitimamente não tem: um contrato de honorários particular não cita
+    lei nenhuma, e o protocolo pede fundamentos de todo PDF porque ninguém detecta o tipo do documento."""
+    from core.pipeline_pdf import finish_pipeline
+
+    t = create_task(lawyer["token"], "Síntese sem lastro")
+    stage_gate_artifacts(t["hash"], sinteses={**GATE_SYNTHESES, "T8_SINTESE_FUNDAMENTOS.json": {
+        "sintese_fundamentos": {"valor": SINTESE_SEM_LASTRO, "lastro": ["fundamentos[0]"]}}})
+
+    assert finish_pipeline(t["id"], t["hash"], 1.0) == "pronta"
+    evento = last_event(t["hash"], "porta_qualidade")
+    assert evento["motivo"] is None, evento
+    # Descartada, e o descarte fica escrito: é ele que o advogado revisa.
+    assert any("undamentos" in s for s in evento["sinteses_sem_lastro"]), evento
+    publicado = json.dumps(client.get(f"/api/t/{t['hash']}/inferencias").json(), ensure_ascii=False)
+    assert SINTESE_SEM_LASTRO[:40] not in publicado, "a síntese sem lastro chegou à cidadã"
+
+
+def test_gate_a_section_with_nothing_checked_never_reaches_the_citizen(lawyer):
+    """A seção "O que aconteceu" explica os fatos, e nada na memória sustenta um fato. A landing promete
+    trecho literal em toda explicação, então a seção sai da tela. O resto continua: a explicação perde um
+    pedaço e o descarte fica registrado para o advogado, em vez de a pessoa ficar sem nada."""
+    from core.pipeline_pdf import finish_pipeline
+
+    t = create_task(lawyer["token"], "Seção sem trecho")
+    stage_gate_artifacts(t["hash"], resumo=GATE_SUMMARY + "\n## 📖 O que aconteceu\n\nAs partes discutiram o pagamento.\n")
+
+    assert finish_pipeline(t["id"], t["hash"], 1.0) == "pronta"
+    evento = last_event(t["hash"], "porta_qualidade")
+    assert evento["motivo"] is None, evento
+    assert evento["secoes_sem_lastro"] == ["📖 O que aconteceu"], evento
+    # A tarefa do advogado espera revisão, então a rota pública ainda não publica tópicos: a conferência é
+    # feita pelo mesmo leitor que a tela usa quando ela for liberada.
+    from app_gestao import _read_artifact, _read_json
+    from leia.api_citizen import SYNTHESIS_FILES, topics_from_summary
+
+    titulos = [x["titulo"] for x in topics_from_summary(
+        _read_artifact(t["hash"], "resumo_humanizado.md") or "",
+        _read_json(t["hash"], "memoria_persistente.json"),
+        _read_artifact(t["hash"], "texto_extraido.txt") or "",
+        [(cls, _read_json(t["hash"], nome)) for nome, cls in SYNTHESIS_FILES])]
+    assert "📖 O que aconteceu" not in titulos, "seção sem nada conferido chegou à cidadã"
+
+
+def test_gate_an_explanation_the_document_sustains_reaches_pronta(lawyer):
+    """A porta não pode ser uma parede: explicação inteira conferida passa, e o número medido fica gravado
+    também quando passa, senão ninguém consegue distinguir uma rodada aprovada de uma porta que não rodou."""
+    from core.pipeline_pdf import finish_pipeline
+
+    t = create_task(lawyer["token"], "Com lastro")
+    stage_gate_artifacts(t["hash"])
+
+    assert finish_pipeline(t["id"], t["hash"], 2.5) == "pronta"
+    assert status_of(t["hash"]) == "pronta"
+    evento = last_event(t["hash"], "porta_qualidade")
+    assert evento["motivo"] is None and evento["cobertura_secao"] == 1.0 and evento["lastro_sintese"] == 1.0
+    assert last_event(t["hash"], "pipeline_done")["elapsed"] == 2.5
+
+
+def test_gate_the_task_that_fails_says_what_it_measured_where_the_panel_reads(lawyer):
+    """Tarefa que falha calada é pior do que tarefa que pede ajuda: o motivo legível e os números medidos
+    ficam no log da tarefa no banco, que é de onde o painel lê, e não só no arquivo do workspace."""
+    from core.pipeline_pdf import finish_pipeline
+
+    t = create_task(lawyer["token"], "Motivo legível")
+    stage_gate_artifacts(t["hash"], memoria={"memoria_persistente": {"identificacao": [
+        {"campo": "partes", "valor": "duas", "trecho_verbatim": "cláusula que não está neste contrato"}]}})
+
+    assert finish_pipeline(t["id"], t["hash"], 1.0) == "falhou"
+    with Session(engine) as s:
+        registros = s.exec(select(LogEvento).where(LogEvento.tarefa_id == t["id"],
+                                                   LogEvento.tipo == "porta_qualidade")).all()
+    assert registros, "a porta reprovou e o painel não tem como saber por quê"
+    payload = json.loads(registros[-1].payload)
+    assert payload["motivo"] and "trecho" in payload["motivo"].lower(), payload
+    assert payload["cobertura_secao"] == 0.0
+
+
+def test_gate_the_hidden_text_count_is_recorded_right_after_the_text(lawyer):
+    """O PDF hostil desenha texto que ninguém vê e o entrega ao modelo. O que foi descartado é contado, e a
+    contagem é gravada sempre, inclusive zerada: evento que só aparece quando sobra algo não deixa distinguir
+    documento limpo de extração que não olhou."""
+    t = create_task(lawyer["token"], "PDF limpo")
+
+    tipos = [e.get("tipo") for e in ws.read_events(t["hash"])]
+    assert "texto_oculto_removido" in tipos, "ninguém registrou o que o PDF escondia"
+    assert tipos[tipos.index("texto_extraido") + 1] == "texto_oculto_removido"
+    ev = last_event(t["hash"], "texto_oculto_removido")
+    assert (ev["caracteres"], ev["trechos"], ev["invisiveis"]) == (0, 0, 0), ev
+
+
+def test_gate_the_hidden_text_that_was_dropped_is_counted_in_the_event(lawyer, monkeypatch):
+    """A conta que a extração devolve precisa chegar inteira ao evento: é ela que prova, na auditoria, que o
+    documento com texto escondido produziu a mesma explicação sem repetir uma palavra do que estava escondido."""
+    import asyncio
+
+    from core import pipeline_pdf
+    from core.pdf_extract import Extraction
+
+    t = create_task(lawyer["token"], "PDF hostil")
+    monkeypatch.setattr(pipeline_pdf, "extract", lambda caminho: Extraction("texto visível do contrato", 120, 3, 7))
+    # Loop próprio, fechado aqui: asyncio.run deixa a thread sem loop corrente e derruba quem, no resto da
+    # bateria, chama asyncio.get_event_loop() depois deste teste.
+    loop = asyncio.new_event_loop()
+    try:
+        loop.run_until_complete(pipeline_pdf.run_pdf_pipeline(t["id"], _FailingGroq()))
+    finally:
+        loop.close()
+
+    ev = last_event(t["hash"], "texto_oculto_removido")
+    assert (ev["caracteres"], ev["trechos"], ev["invisiveis"]) == (120, 3, 7), ev
+
+
+def test_gate_a_synthesis_that_declares_an_empty_lastro_fails_the_step_contract():
+    """O protocolo já declara `nao_vazios: ["lastro"]` nas cinco sínteses, e `obrigatorios` continua querendo
+    dizer só "a chave existe". Sem a regra nova valendo no motor, a etapa entrega `lastro: []` e segue."""
+    task = protocol_task("T8_SINTESE_FUNDAMENTOS")
+    bom = _rodar(task, json.dumps({"sintese_fundamentos": {"valor": "O caso trata de honorários.",
+                                                           "lastro": ["fundamentos[0]"]}}, ensure_ascii=False))
+    assert bom["ok"] is True, bom.get("erro")
+
+    vazio = _rodar(task, json.dumps({"sintese_fundamentos": {"valor": SINTESE_SEM_LASTRO, "lastro": []}}, ensure_ascii=False))
+    assert vazio["ok"] is False, "síntese com lastro vazio passou pelo contrato da etapa"
+    assert "lastro" in str(vazio.get("erro", "")), vazio.get("erro")
+
+
+class _ScriptedCompletions:
+    """Modelo de mentira que responde por etapa: a missão de cada uma chega no papel de sistema."""
+
+    def __init__(self, por_nome: dict):
+        self.por_nome = por_nome
+
+    async def create(self, **kwargs):
+        sistema = kwargs["messages"][0]["content"]
+        texto = next((v for k, v in self.por_nome.items() if k in sistema), "{}")
+        return await _FakeStream(texto).create(**kwargs)
+
+
+def _scripted_groq(por_id: dict):
+    tasks = {t["id"]: t for t in running_protocol()["tasks"]}
+    por_nome = {tasks[tid].get("nome") or tid: json.dumps(corpo, ensure_ascii=False) for tid, corpo in por_id.items()}
+    class _Groq:
+        class chat:  # noqa: N801
+            completions = _ScriptedCompletions(por_nome)
+    return _Groq()
+
+
+RUN_MEMORY = {"memoria_persistente": {
+    "identificacao": [{"campo": "partes", "valor": "duas", "trecho_verbatim": "O CONTRATANTE pagará honorários de vinte por cento"}],
+    "datas_valores": [{"campo": "honorarios", "valor": "20%", "trecho_verbatim": "vinte por cento ao final"}],
+    "fatos": [{"campo": "combinado", "valor": "pagamento", "trecho_verbatim": "pagará honorários de vinte por cento"}],
+    "fundamentos": [{"campo": "condicao", "valor": "êxito", "trecho_verbatim": "só se ganhar a ação"}],
+    "pedidos": [{"campo": "pedido", "valor": "cumprir", "trecho_verbatim": "ao final, só se ganhar a ação"}],
+}}
+RUN_OUTPUTS = {
+    "T6_FUSAO_MEMORIA": RUN_MEMORY,
+    "T7_SINTESE_FATOS": {"sintese_fatos": {"valor": "As partes combinaram o pagamento.", "lastro": ["fatos[0]"]}},
+    "T8_SINTESE_FUNDAMENTOS": {"sintese_fundamentos": {"valor": "O pagamento depende do êxito.", "lastro": ["fundamentos[0]"]}},
+    "T9_SINTESE_PEDIDOS": {"sintese_pedidos": {"valor": "Pede que o combinado valha.", "lastro": ["pedidos[0]"]}},
+    "T10_SINTESE_IDENTIFICACAO": {"sintese_identificacao": {"valor": "Duas pessoas assinaram.", "lastro": ["identificacao[0]"]}},
+    "T11_SINTESE_CONTEXTO": {"sintese_contexto": {"valor": "O contrato está em vigor.", "lastro": ["fatos[0]"]}},
+    "T13_HUMANIZACAO": {"resumo_humanizado": GATE_SUMMARY, "termos": []},
+    "T14_QUESTOES": {"questoes": [{"id": 1, "area": "pedidos", "enunciado": "Quando você paga?",
+                                   "alternativas": ["Sempre", "Só se ganhar"], "correta": 1,
+                                   "justificativa": "Está na cláusula 2.", "dificuldade": "facil"}]},
+}
+
+
+def test_gate_a_full_run_the_document_sustains_ends_in_pronta_for_the_citizen(citizen, monkeypatch):
+    """A rodada inteira, do texto extraído à explicação publicada, sem nenhuma etapa de mentira além do
+    modelo. É o que prova que a porta deixa passar o caso bom e que o passo 6 continua inteiro depois dela,
+    inclusive para a tarefa da cidadã, que não tem advogado nenhum entre a porta e a tela."""
+    import asyncio
+
+    from core import pipeline_pdf
+    from core.pdf_extract import Extraction
+
+    t = create_task(citizen["token"], "Rodada completa")
+    monkeypatch.setattr(pipeline_pdf, "extract", lambda caminho: Extraction(FAKE_TEXT, 0, 0, 0))
+    loop = asyncio.new_event_loop()
+    try:
+        loop.run_until_complete(pipeline_pdf.run_pdf_pipeline(t["id"], _scripted_groq(RUN_OUTPUTS)))
+    finally:
+        loop.close()
+
+    assert status_of(t["hash"]) == "pronta", ws.read_events(t["hash"])[-3:]
+    assert last_event(t["hash"], "porta_qualidade")["motivo"] is None
+    assert last_event(t["hash"], "pipeline_done")["elapsed"] >= 0
+
+    data = client.get(f"/api/t/{t['hash']}").json()
+    assert data["tarefa"]["status"] == "pronta"
+    assert [topico["titulo"] for topico in data["topicos"]] == \
+        ["Resumo em uma linha", "👥 Quem está nesta história", "🤝 O que está sendo pedido"]
+    assert all(topico.get("trecho") in FAKE_TEXT for topico in data["topicos"] if topico["id"] > 1)
+
+
+def test_gate_a_full_run_drops_the_synthesis_without_ground_and_publishes_the_rest(citizen, monkeypatch):
+    """Mesma rodada, com a síntese de fundamentos escrevendo o que ninguém acha no documento. Sem a porta a
+    tarefa ia para "pronta", e "pronta" é a tela da cidadã."""
+    import asyncio
+
+    from core import pipeline_pdf
+    from core.pdf_extract import Extraction
+
+    t = create_task(citizen["token"], "Rodada sem lastro")
+    saidas = {**RUN_OUTPUTS, "T8_SINTESE_FUNDAMENTOS": {
+        "sintese_fundamentos": {"valor": SINTESE_SEM_LASTRO, "lastro": ["fundamentos[3]"]}}}
+    monkeypatch.setattr(pipeline_pdf, "extract", lambda caminho: Extraction(FAKE_TEXT, 0, 0, 0))
+    loop = asyncio.new_event_loop()
+    try:
+        loop.run_until_complete(pipeline_pdf.run_pdf_pipeline(t["id"], _scripted_groq(saidas)))
+    finally:
+        loop.close()
+
+    # A síntese sem lastro é descartada e o resto da explicação continua: derrubar a rodada inteira por ela
+    # seria punir a cidadã por uma seção que o documento dela não sustenta.
+    assert status_of(t["hash"]) == "pronta"
+    publicado = client.get(f"/api/t/{t['hash']}").json()
+    assert publicado["resumo_md"], "a explicação inteira sumiu por causa de uma síntese"
+    assert SINTESE_SEM_LASTRO[:40] not in json.dumps(publicado, ensure_ascii=False)
+
+
+# ── O orçamento de tokens precisa sobrar para a resposta ──────────────────────
+
+def test_the_step_sends_the_reasoning_effort_the_protocol_declares():
+    """O protocolo declara reasoning_effort por tarefa e o pipeline nunca enviava esse parâmetro, então o
+    modelo de raciocínio decidia sozinho quanto pensar. Declaração que não é enviada é decoração."""
+    import inspect
+    from core import pipeline_pdf
+
+    fonte = inspect.getsource(pipeline_pdf._run_task)
+    assert "reasoning_effort" in fonte, "a etapa não envia o esforço de raciocínio que o protocolo declara"
+
+
+def test_the_token_budget_leaves_room_for_the_answer():
+    """gpt-oss-120b gasta tokens pensando antes de responder. Medido em 17/09/2026 com o contrato de
+    exemplo: com teto de 8000 o modelo terminava em finish_reason "length" e conteúdo vazio em 5 de 6
+    chamadas, e a tarefa inteira morria. Com 16000 não falhou nenhuma vez."""
+    from core import pipeline_pdf
+
+    assert pipeline_pdf.PIPELINE_MAX_TOKENS >= 16000, (
+        f"teto de {pipeline_pdf.PIPELINE_MAX_TOKENS} tokens: o raciocínio consome tudo e não sobra resposta"
+    )
+
+
+def test_an_empty_synthesis_is_allowed_but_a_written_one_without_ground_is_not():
+    """A regra que interessa é o par, não o campo isolado. Um contrato de honorários não tem pedidos, e o
+    T9 manda trabalhar apenas sobre memoria_persistente.pedidos: exigir lastro sempre mataria a tarefa
+    inteira por uma seção que o documento legitimamente não tem. O defeito real era texto sem lastro."""
+    from core.pipeline_pdf import _schema_problem
+
+    schema = {"campos": {"sintese_pedidos": {"tipo": "objeto",
+                                             "obrigatorios": ["valor", "lastro"],
+                                             "exige_par": ["valor", "lastro"]}}}
+
+    vazia = {"sintese_pedidos": {"valor": "", "lastro": []}}
+    assert _schema_problem(schema, vazia) is None, "a seção que o documento não tem foi tratada como erro"
+
+    escrita = {"sintese_pedidos": {"valor": "A parte pede a condenação ao pagamento.", "lastro": []}}
+    assert _schema_problem(schema, escrita), "texto sem lastro passou, que é o defeito que a porta existe para pegar"
+
+
+def test_gate_does_not_fail_over_a_section_the_document_does_not_have(tmp_path, monkeypatch):
+    """Um contrato de honorários particular não tem pedidos nem cita lei, e o protocolo pede as duas seções
+    de todo PDF porque não existe detecção de tipo. Medido em 17/09/2026 com o contrato de exemplo: a porta
+    reprovava por "O que está sendo pedido" e "Fundamentos", seções que a cidadã nunca veria porque o passo
+    anterior já as descarta. Porta que reprova pelo que ninguém publica mede o protocolo, não a explicação."""
+    from core import pipeline_pdf
+
+    relatorio = {"cobertura_secao": 0.5, "lastro_sintese": 0.6,
+                 "secoes_publicadas": 3, "secoes_com_trecho": 3,
+                 "secoes_sem_lastro": ["🤝 O que está sendo pedido"],
+                 "sinteses_publicadas": 3, "sinteses_sem_lastro": ["fundamentos"],
+                 "resumo_vazio": False}
+    assert pipeline_pdf.gate_reason(relatorio) is None, (
+        "a porta barrou uma explicação em que tudo o que vai à tela está ancorado"
+    )
+
+
+def test_gate_still_fails_when_a_published_section_has_no_quote(tmp_path, monkeypatch):
+    """O que a porta existe para pegar: chegar à tela alguma coisa que ninguém consegue apontar no documento."""
+    from core import pipeline_pdf
+
+    nada_ancorado = {"cobertura_secao": 0.0, "lastro_sintese": 1.0,
+                     "secoes_publicadas": 4, "secoes_com_trecho": 0,
+                     "secoes_sem_lastro": [], "sinteses_publicadas": 2,
+                     "sinteses_sem_lastro": [], "resumo_vazio": False}
+    assert pipeline_pdf.gate_reason(nada_ancorado), "explicação sem nenhum trecho do documento passou"
+
+    sem_resumo = dict(nada_ancorado, resumo_vazio=True, secoes_com_trecho=3, cobertura_secao=1.0)
+    assert pipeline_pdf.gate_reason(sem_resumo), "explicação que não foi produzida passou"
+
+    nada_sobrou = dict(nada_ancorado, secoes_publicadas=0, secoes_com_trecho=0)
+    assert pipeline_pdf.gate_reason(nada_sobrou), "explicação sem nenhuma seção passou"
