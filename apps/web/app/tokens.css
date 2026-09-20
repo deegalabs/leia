@@ -13,8 +13,14 @@
   /* neutrals with the navy hue */
   --color-ink: #081820;
   --color-ink-2: #3F4B58;
-  --color-ink-3: #6B7480;
-  --color-line: #E3DED6;
+  --color-ink-3: #67707C;   /* 4,73:1 sobre paper-2. Era #6B7480, que dava 4,46:1 e reprovava na AA sobre
+                               o fundo da jornada, justamente o mais usado do produto (E13-T03). */
+  --color-line: #E3DED6;        /* divisor, 1,34:1: decoração, nunca o que identifica um controle */
+  --color-line-strong: #7F8791; /* 3,64:1 sobre surface, 3,43:1 sobre paper-2 e 3,14:1 sobre teal-soft.
+                                   É a borda de campo, de seleção e de qualquer coisa que a pessoa opere:
+                                   a 1.4.11 pede 3:1 para o que delimita controle, e o divisor não chega
+                                   nem perto. Separar os dois preserva a leveza do cartão sem deixar a
+                                   pessoa adivinhar onde começa o campo (E13-T03). */
   --color-surface: #FFFFFF;
 
   /* semantic (never for judging the citizen's answers) */

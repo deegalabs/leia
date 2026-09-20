@@ -197,7 +197,7 @@ function Body({ id }: { id: string }) {
               <label htmlFor="review-summary" className="mb-1 block font-bold">{m.panel.review.edit.summaryLabel}</label>
               <p className="mb-2 text-[0.95rem] text-ink-2">{m.panel.review.edit.summaryHint}</p>
               <textarea id="review-summary" value={draft ?? data.resumo_md} onChange={(e) => setDraft(e.target.value)}
-                rows={20} spellCheck className="w-full rounded-[12px] border-2 border-line bg-surface p-3 font-mono text-[0.95rem] text-ink" />
+                rows={20} spellCheck className="w-full rounded-[12px] border-2 border-line-strong bg-surface p-3 font-mono text-[0.95rem] text-ink" />
             </Card>
           ) : topics.map((t, i) => (
             <Card key={t.id}>

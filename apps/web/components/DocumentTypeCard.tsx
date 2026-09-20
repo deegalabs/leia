@@ -64,7 +64,7 @@ export function DocumentTypeCard({ id, tipo, opcoes, onSaved }:
         <div className="grid gap-2">
           <label htmlFor="doc-type" className="font-bold">{t.chooseLabel}</label>
           <select id="doc-type" value={escolha} onChange={(e) => setEscolha(e.target.value)}
-            className="min-h-[48px] rounded-button border-2 border-line bg-surface px-3 text-[1rem] text-ink">
+            className="min-h-[48px] rounded-button border-2 border-line-strong bg-surface px-3 text-[1rem] text-ink">
             <option value="" disabled>{t.chooseLabel}</option>
             {opcoes.map((o) => <option key={o.tipo} value={o.tipo}>{o.rotulo}</option>)}
           </select>
