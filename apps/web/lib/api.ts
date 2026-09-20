@@ -248,6 +248,15 @@ export async function setDocumentType(id: string | number, tipo: string): Promis
   return r.json();
 }
 
+/* O que o advogado deixou é o que a cliente vai ler, e é para onde o comprovante vai apontar. A resposta
+   traz a medida da porta de qualidade sobre o que acabou de ser gravado, porque renomear um título de seção
+   desliga a âncora dela sem barulho nenhum e isso precisa aparecer antes de liberar. */
+export async function saveReview(id: string | number, input: { resumo_md?: string; questoes?: number[] }):
+  Promise<{ ok: boolean; porta_qualidade: { motivo: string | null } }> {
+  const r = await check(await fetch(`/api/tarefas/${id}/revisao`, { method: "POST", headers: jsonHeaders(), body: JSON.stringify(input) }));
+  return r.json();
+}
+
 export async function approveTask(id: string | number): Promise<{ ok: boolean; status: TaskStatus }> {
   const r = await check(await fetch(`/api/tarefas/${id}/aprovar`, { method: "POST", headers: jsonHeaders(), body: "{}" }));
   return r.json();

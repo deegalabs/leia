@@ -205,7 +205,7 @@ export function Journey({ hash }: { hash: string }) {
               )}
             </Card>
             <BottomActionBar>
-              <Button onClick={() => (last ? (noQuestions ? setStep({ kind: "done" }) : setStep({ kind: "question", k: firstUnanswered(questions, answers) })) : setStep({ kind: "topic", n: step.n + 1 }))}>
+              <Button onClick={() => (last ? (noQuestions ? setStep({ kind: "done" }) : setStep({ kind: "review" })) : setStep({ kind: "topic", n: step.n + 1 }))}>
                 {last ? (noQuestions ? m.journey.understoodLast : "Entendi, vamos conferir") : "Entendi, próximo"}
               </Button>
               <LinkButton href={`/t/${hash}/documento`} variant="ghost">Ver o documento com as marcações</LinkButton>
@@ -218,6 +218,34 @@ export function Journey({ hash }: { hash: string }) {
         );
       })()}
 
+      {/* LeIA (E12-T07): quem lê com esforço chega na primeira pergunta sem lembrar do primeiro ponto. A
+          alternativa a esta tela é voltar ponto por ponto, o que é caro em celular básico, ou responder no
+          chute, que é o que o comprovante não pode registrar. */}
+      {step.kind === "review" && (
+        <>
+          <Card tone="soft">
+            <h1 className="mb-1 text-[1.35rem]">{m.c4.reviewTitle}</h1>
+            <p className="text-[0.95rem] text-ink-2">{m.c4.reviewIntro}</p>
+          </Card>
+          <div className="mt-3 grid gap-2.5">
+            {topics.map((t, n) => (
+              <Card key={t.id}>
+                <h2 className="mb-1 text-[1.1rem]">{t.titulo}</h2>
+                {t.trecho && <q className="text-[0.95rem] text-ink-2">{t.trecho}</q>}
+                <Button variant="ghost" className="!w-auto" onClick={() => setStep({ kind: "topic", n })}>
+                  {m.c4.reviewBack}
+                </Button>
+              </Card>
+            ))}
+          </div>
+          <BottomActionBar>
+            <Button onClick={() => setStep({ kind: "question", k: firstUnanswered(questions, answers) })}>
+              {m.c4.reviewGo}
+            </Button>
+            <Button variant="secondary" onClick={() => setStep({ kind: "topic", n: topics.length - 1 })}>Voltar</Button>
+          </BottomActionBar>
+        </>
+      )}
       {step.kind === "question" && (() => {
         const q = questions[step.k]; const last = step.k === questions.length - 1; const chosen = answers[String(q.id)];
         const aberto = mostrando === String(q.id);
@@ -261,7 +289,7 @@ export function Journey({ hash }: { hash: string }) {
               <Button disabled={chosen === undefined || sending} onClick={() => (last ? send() : setStep({ kind: "question", k: step.k + 1 }))}>
                 {sending ? "Conferindo suas respostas" : last ? "Enviar minhas respostas" : "Próxima pergunta"}
               </Button>
-              <Button variant="secondary" onClick={() => (step.k === 0 ? setStep({ kind: "topic", n: topics.length - 1 }) : setStep({ kind: "question", k: step.k - 1 }))}>
+              <Button variant="secondary" onClick={() => (step.k === 0 ? setStep({ kind: "review" }) : setStep({ kind: "question", k: step.k - 1 }))}>
                 {step.k === 0 ? "Rever a explicação" : "Voltar"}
               </Button>
             </BottomActionBar>

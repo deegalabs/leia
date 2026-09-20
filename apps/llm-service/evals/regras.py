@@ -34,6 +34,9 @@ PISOS = {
     "precisao_ancora": 1.0,
     "itens_conferidos": 1.0,
     "sinteses_com_lastro": 1.0,
+    # Pendente desde E11-T12 esperando alguma pergunta declarar `secao`. Desde E12 todas declaram, e a
+    # pergunta que não declara nem chega a ser publicada, então o piso pode ser o que o produto promete.
+    "perguntas_com_secao": 1.0,
 }
 # O gabarito e a explicação da resposta nunca podem viajar com a pergunta.
 CAMPOS_DE_GABARITO = ("correta", "justificativa", "resposta_correta")

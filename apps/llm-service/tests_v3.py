@@ -2513,3 +2513,96 @@ def test_the_receipt_says_it_measured_multiple_choice_anchored_in_a_clause():
     assert "clause" in payload["instrument"], payload["instrument"]
     assert payload["consulted"] == 3, "o comprovante não diz quantas vezes a pessoa precisou rever"
     assert build_payload({"tarefa_hash": "a", "numero": 1, "criada_em": "x"})["consulted"] == 0
+
+
+# ── O advogado edita a explicação e escolhe o que vai ser perguntado (E12-T05) ──
+
+def _rodada_pronta(token: str, titulo: str, monkeypatch) -> dict:
+    """Uma rodada completa de verdade, para a revisão ter o que revisar."""
+    import asyncio
+
+    from core import pipeline_pdf
+    from core.pdf_extract import Extraction
+
+    t = create_task(token, titulo)
+    monkeypatch.setattr(pipeline_pdf, "extract", lambda caminho: Extraction(FAKE_TEXT, 0, 0, 0))
+    loop = asyncio.new_event_loop()
+    try:
+        loop.run_until_complete(pipeline_pdf.run_pdf_pipeline(t["id"], _scripted_groq(RUN_OUTPUTS)))
+    finally:
+        loop.close()
+    assert status_of(t["hash"]) == "pronta", ws.read_events(t["hash"])[-3:]
+    return t
+
+
+def test_the_lawyer_keeps_a_subset_of_the_questions_and_the_citizen_gets_exactly_that(lawyer, monkeypatch):
+    """Metade da tese do produto é a supervisão humana, e até aqui ela só podia aprovar ou não aprovar. Quem
+    responde por aquele documento precisa poder tirar a pergunta que não serve, sem refazer a rodada."""
+    t = _rodada_pronta(lawyer["token"], "Revisão salva", monkeypatch)
+    antes = _questoes_de(t["hash"])
+    assert len(antes) == 4
+
+    mantidas = [q["id"] for q in antes[:3]] + [antes[3]["id"]]
+    r = client.post(f"/api/tarefas/{t['id']}/revisao",
+                    json={"resumo_md": "# Resumo em uma linha\n\nTexto que o advogado escreveu.",
+                          "questoes": mantidas[:4]},
+                    headers=bearer(lawyer["token"]))
+    assert r.status_code == 200, r.text
+
+    from app_gestao import _read_artifact
+    assert "Texto que o advogado escreveu." in (_read_artifact(t["hash"], "resumo_humanizado.md") or "")
+    assert [q["id"] for q in _questoes_de(t["hash"])] == mantidas[:4]
+    assert last_event(t["hash"], "revisao_salva")["questoes"] == 4
+
+
+def test_the_lawyer_cannot_leave_a_conference_below_the_floor(lawyer, monkeypatch):
+    """O mesmo piso que vale para o motor vale para a pessoa: conferência fraca faz o comprovante afirmar
+    mais do que mediu, e de onde veio o corte não muda isso. Zero continua valendo, porque zero é a decisão
+    explícita de não conferir, e o produto já sabe terminar assim."""
+    t = _rodada_pronta(lawyer["token"], "Revisão curta", monkeypatch)
+    ids = [q["id"] for q in _questoes_de(t["hash"])]
+
+    curta = client.post(f"/api/tarefas/{t['id']}/revisao", json={"questoes": ids[:2]},
+                        headers=bearer(lawyer["token"]))
+    assert curta.status_code == 422, curta.text
+    assert len(_questoes_de(t["hash"])) == 4, "a recusa não impediu a gravação"
+
+    nenhuma = client.post(f"/api/tarefas/{t['id']}/revisao", json={"questoes": []}, headers=bearer(lawyer["token"]))
+    assert nenhuma.status_code == 200, nenhuma.text
+    assert _questoes_de(t["hash"]) == []
+    # Documento de advogado só chega à cidadã depois de liberado, então a tela dela se olha depois disso.
+    assert client.post(f"/api/tarefas/{t['id']}/aprovar", headers=bearer(lawyer["token"])).status_code == 200
+    publicado = client.get(f"/api/t/{t['hash']}").json()
+    assert publicado["sem_perguntas"] is True and publicado["questoes"] == []
+    assert publicado["resumo_md"], "a explicação sumiu junto com as perguntas"
+
+
+def test_the_review_cannot_be_rewritten_after_the_link_was_released(lawyer, monkeypatch):
+    """Depois de liberado, a cidadã pode já ter lido, respondido e recebido comprovante. Reescrever a
+    explicação por baixo disso faria o comprovante apontar para um texto que não é o que ela leu."""
+    t = _rodada_pronta(lawyer["token"], "Revisão tardia", monkeypatch)
+    assert client.post(f"/api/tarefas/{t['id']}/aprovar", headers=bearer(lawyer["token"])).status_code == 200
+
+    tarde = client.post(f"/api/tarefas/{t['id']}/revisao", json={"resumo_md": "outra coisa"},
+                        headers=bearer(lawyer["token"]))
+    assert tarde.status_code == 409, tarde.text
+
+
+def test_only_who_sent_the_document_can_save_the_review(lawyer, citizen, monkeypatch):
+    t = _rodada_pronta(lawyer["token"], "Revisão alheia", monkeypatch)
+    alheio = client.post(f"/api/tarefas/{t['id']}/revisao", json={"resumo_md": "x"},
+                         headers=bearer(citizen["token"]))
+    assert alheio.status_code in (403, 404), alheio.text
+
+
+def test_saving_the_review_says_which_sections_lost_their_ground(lawyer, monkeypatch):
+    """Editar o texto pode tirar o chão de uma seção sem que ninguém perceba: o vínculo entre seção e classe
+    é pelo título, então renomear um título desliga a âncora. A resposta devolve a medida, para a tela
+    avisar em vez de o advogado liberar às cegas."""
+    t = _rodada_pronta(lawyer["token"], "Revisão medida", monkeypatch)
+    r = client.post(f"/api/tarefas/{t['id']}/revisao",
+                    json={"resumo_md": "# Título que ninguém mapeou\n\nTexto solto."},
+                    headers=bearer(lawyer["token"]))
+    assert r.status_code == 200, r.text
+    medida = r.json()["porta_qualidade"]
+    assert medida["motivo"], "a explicação ficou sem seção com trecho e a resposta não disse nada"

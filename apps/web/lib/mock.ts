@@ -93,6 +93,9 @@ export type MockTask = {
   etapas_iniciadas: number; etapas_feitas: number;
   /* LeIA: a espécie com que o motor leu o documento, e a correção do advogado quando existe */
   tipo_documento?: MockDocumentType | null;
+  /* LeIA: o que o advogado deixou na revisão (E12-T05) */
+  resumo_editado?: string;
+  questoes_mantidas?: number[];
   /* LeIA: o convite que governa o link; ausente significa link aberto, como sempre foi */
   convite?: MockInvite | null;
 };
@@ -420,6 +423,25 @@ export function setDocumentType(u: MockUser, id: number, tipo: string) {
   t.tipo_documento = { ...escolhido, trecho: "", pos: null, conferido: false, revisado_por_advogado: true, aplicado: false };
   t.eventos.push({ tipo: "tipo_documento", ts: nowIso() });
   return { ok: true, tipo_documento: t.tipo_documento };
+}
+
+/* LeIA (E12-T05): a demonstração guarda a edição na tarefa, do mesmo jeito que o serviço guarda no
+   workspace. O piso é o mesmo: ou nenhuma pergunta, ou pelo menos QUESTION_FLOOR. */
+const QUESTION_FLOOR = 4;
+export function saveReview(u: MockUser, id: number, body: { resumo_md?: string; questoes?: number[] }) {
+  const t = storeTaskById(id);
+  if (!t) throw fail(404, "não encontrado");
+  if (!canManage(u, t)) throw fail(403, "sem acesso");
+  if (t.status === "enviada" || t.status === "assinada")
+    throw fail(409, "Este documento já foi liberado. Para mudar a explicação, refaça o documento.");
+  if (body.questoes) {
+    if (body.questoes.length > 0 && body.questoes.length < QUESTION_FLOOR)
+      throw fail(422, `Com menos de ${QUESTION_FLOOR} perguntas o comprovante afirma mais do que mediu.`);
+    t.questoes_mantidas = body.questoes;
+  }
+  if (typeof body.resumo_md === "string") t.resumo_editado = body.resumo_md;
+  t.eventos.push({ tipo: "revisao_salva", ts: nowIso() });
+  return { ok: true, porta_qualidade: { motivo: null } };
 }
 
 export function approve(u: MockUser, id: number) {

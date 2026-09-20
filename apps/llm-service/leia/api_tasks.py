@@ -301,6 +301,64 @@ def review_task(tarefa_id: int, request: Request, u: Usuario = Depends(api_user)
             "link_cliente": client_link(request, t)}
 
 
+class RevisaoIn(BaseModel):
+    resumo_md: Optional[str] = Field(default=None, max_length=200_000)
+    questoes: Optional[list[int]] = None
+
+
+@router.post("/api/tarefas/{tarefa_id}/revisao")
+def save_review(tarefa_id: int, body: RevisaoIn, u: Usuario = Depends(api_user),
+                session: Session = Depends(get_session)):
+    """Grava a explicação como o advogado a deixou e as perguntas que ele manteve.
+
+    Metade da tese do produto é a supervisão humana, e até aqui ela só podia aprovar ou não aprovar: tirar
+    uma pergunta que não serve exigia refazer a rodada inteira. O que ele grava aqui é o que a cidadã vai
+    ler, e é o que o comprovante vai apontar.
+
+    Depois de liberado não se reescreve: a cidadã pode já ter lido, respondido e recebido comprovante, e o
+    ``summarySha256`` congelado aponta para o texto que ela leu. Trocar o texto por baixo disso faria a
+    prova apontar para outra coisa.
+
+    A resposta traz a medida da porta de qualidade sobre o que acabou de ser gravado. O vínculo entre seção
+    e classe da memória é pelo título, então renomear um título desliga a âncora daquela seção sem barulho
+    nenhum, e quem editou precisa ver isso antes de liberar, não depois.
+    """
+    t = _load_visible(session, u, tarefa_id)
+    if not can_manage(u, t):
+        raise HTTPException(403, "Só quem enviou o documento pode revisar")
+    if t.status in ("criada", "processando"):
+        raise HTTPException(409, "A explicação ainda está sendo preparada")
+    if t.status in ("enviada", "assinada"):
+        raise HTTPException(409, "Este documento já foi liberado. Para mudar a explicação, refaça o documento.")
+
+    from core.pipeline_pdf import QUESTIONS_FLOOR, fidelity_report
+
+    mudou: dict[str, Any] = {}
+    if body.resumo_md is not None:
+        ws.write_artifact(t.hash, "resumo_humanizado.md", body.resumo_md)
+        mudou["resumo"] = len(body.resumo_md)
+
+    if body.questoes is not None:
+        doc = _read_json(t.hash, "questoes.json") or {}
+        todas = doc.get("questoes") or []
+        manter = {int(x) for x in body.questoes}
+        ficam = [q for q in todas if int(q.get("id", -1)) in manter]
+        # O mesmo piso que vale para o motor vale para a pessoa: de onde veio o corte não muda o que uma
+        # conferência de duas perguntas faz o comprovante afirmar. Zero continua valendo, porque zero é a
+        # decisão explícita de não conferir, e o produto já sabe terminar assim.
+        if ficam and len(ficam) < QUESTIONS_FLOOR:
+            raise HTTPException(422, f"Com menos de {QUESTIONS_FLOOR} perguntas o comprovante afirma mais do "
+                                     f"que mediu. Mantenha pelo menos {QUESTIONS_FLOOR}, ou nenhuma.")
+        ws.write_artifact(t.hash, "questoes.json", json.dumps({**doc, "questoes": ficam}, ensure_ascii=False, indent=2))
+        mudou["questoes"] = len(ficam)
+
+    session.add(LogEvento(tarefa_id=t.id, tipo="revisao_salva",
+                          payload=json.dumps({"usuario_id": u.id, **mudou}, ensure_ascii=False)))
+    session.commit()
+    ws.record_event(t.hash, "revisao_salva", por=u.id, **mudou)
+    return {"ok": True, **mudou, "porta_qualidade": fidelity_report(t.hash)}
+
+
 @router.post("/api/tarefas/{tarefa_id}/aprovar")
 def approve_task(tarefa_id: int, u: Usuario = Depends(api_user), session: Session = Depends(get_session)):
     t = _load_visible(session, u, tarefa_id)

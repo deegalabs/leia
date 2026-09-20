@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { firstUnanswered, keptAfterRetry, restore } from "./journey-state";
+import { firstUnanswered, fitsStep, keptAfterRetry, restore } from "./journey-state";
 
 const b = { topics: 6, questions: 3 };
 
@@ -43,5 +43,19 @@ describe("errar uma pergunta", () => {
 
   it("volta ao começo quando não falta nenhuma", () => {
     expect(firstUnanswered([{ id: 1 }], { "1": 0 })).toBe(0);
+  });
+});
+
+/* LeIA (E12-T07): a revisão antes de conferir é uma etapa sem número, como a boas-vindas e o resultado:
+   ela não aponta para um ponto nem para uma pergunta, então cabe em qualquer documento. */
+describe("a revisão antes de conferir", () => {
+  it("cabe em qualquer documento, inclusive num que ficou sem pontos", () => {
+    expect(fitsStep({ kind: "review" }, { topics: 6, questions: 6 })).toBe(true);
+    expect(fitsStep({ kind: "review" }, { topics: 0, questions: 0 })).toBe(true);
+  });
+
+  it("volta a ser restaurada ao reabrir o link", () => {
+    const saved = JSON.stringify({ answers: {}, result: null, step: { kind: "review" } });
+    expect(restore(saved, { topics: 3, questions: 3 }).step).toEqual({ kind: "review" });
   });
 });

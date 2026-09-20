@@ -148,6 +148,7 @@ o workflow extraiu e concluiu antes de a cliente receber o link.
 |---|---|---|
 | `GET /api/tarefas/{id}/revisao` | Bearer (dono ou admin) | `{ tarefa: { id, hash, titulo, status, origem }, tipo_documento, tipos_documento, inferencias: <mesmo corpo de GET /api/t/{hash}/inferencias>, resumo_md, questoes: [ { id, area, dificuldade, enunciado, alternativas, correta, justificativa } ], link_cliente }`; 409 enquanto `criada`/`processando`; 404/403 como nas demais |
 | `POST /api/tarefas/{id}/aprovar` | Bearer (dono ou admin) | `{ ok: true, status: "enviada" }`; só de `pronta` para `enviada`; grava evento `aprovada` no workspace e `LogEvento`; 409 em outro estado |
+| `POST /api/tarefas/{id}/revisao` | Bearer (dono ou admin) | corpo `{ resumo_md?, questoes?: number[] }`; grava a explicação como o advogado a deixou e as perguntas que ele manteve; devolve `{ ok, resumo?, questoes?, porta_qualidade }` com a medida sobre o que acabou de ser gravado, porque renomear um título de seção desliga a âncora dela sem barulho nenhum; 422 com mais de zero e menos de `QUIZ_MIN_QUESTIONS` perguntas marcadas; 409 em `criada`/`processando` e depois de `enviada`/`assinada`, porque aí a cidadã pode já ter lido e recebido comprovante |
 | `POST /api/tarefas/{id}/tipo-documento` | Bearer (só o dono) | corpo `{ tipo }` entre as espécies declaradas; devolve `{ ok: true, tipo_documento }`; 422 para espécie que não existe; 404 para quem não enviou o documento. Grava `tipo_documento_revisado.json` ao lado do documento, que **sobrevive ao `reprocessar`** e faz a próxima rodada pular a classificação. Não muda a rodada atual: `aplicado: false` até o documento ser refeito |
 
 Estados: `pronta` = pronta para revisão do advogado; `enviada` = liberada para a cliente; `assinada` = entendimento
@@ -176,6 +177,14 @@ explicação nem perguntas ("resumo indisponível", `app_gestao.py:608-610`).
 |---|---|
 | `GET /api/t/{hash}` | novo campo `etapas: [ { id, nome, estado: "pendente" \| "em_andamento" \| "concluida" \| "erro", tempo } ]` com as 15 etapas do workflow em pt-BR, derivadas de `log.jsonl` (`task_start`/`task_done`/`task_error`) e da presença dos arquivos `T*.json`; `eventos` passa a trazer todos os eventos do pipeline (até 60), sem ip/ua. **Fallback do fluxo externo**: sem `resumo_humanizado.md` mas com `resumo_estruturado.json`, `resumo_md` = `processo.resposta_final.texto` e `topicos` = itens de `processo.classe_*` (titulo = `campo` humanizado, explicacao = `valor` ou `sintese_relacao`, trecho = `trecho_verbatim`, `score` de `_ui`); `questoes: []` |
 | `GET /api/t/{hash}/inferencias` | responde também durante `criada`/`processando` com `parcial: true`, `texto` (se `texto_extraido.txt` existir) e as classes já produzidas (arquivos `T1..T5_*.json`, cada um `{ "<classe>": [itens] }`), para a espera mostrar o documento sendo marcado. Itens ganham `score` quando `_ui` traz `score_trecho_verbatim` (fluxo externo); quando `_ui` traz posição válida (não `0:0`), ela é usada antes da busca por texto |
+
+Cada pergunta de `GET /api/t/{hash}` traz `secao` (o título exato da seção da explicação de onde ela nasceu),
+`trecho` (a fatia literal do documento que sustenta a resposta) e `conferencia { metodo, score }`. Nunca traz
+`correta` nem `justificativa`. A pergunta cujo trecho o `locate` não acha no documento não é publicada, e
+abaixo de `QUIZ_MIN_QUESTIONS` (4) o serviço publica **zero** perguntas em vez de uma conferência fraca: a
+jornada termina em `sem_perguntas`, sem comprovante. `POST /api/t/{hash}/quiz` aceita `consultas`, o mapa
+`{ id_da_pergunta: vezes }` de quantas vezes ela reabriu o trecho, que entra no preimage do hash da tentativa
+(`leia.attempt.v3`) e no comprovante (`leia.payload.v4`, campo `consulted`).
 
 `GET /api/t/{hash}` traz também `tipo_documento: { tipo, rotulo, trecho, pos, conferido, revisado_por_advogado, aplicado }`
 ou `null` antes da primeira rodada. É a espécie com que o motor leu o documento, e é ela que escolhe o vocabulário das

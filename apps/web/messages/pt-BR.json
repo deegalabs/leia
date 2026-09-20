@@ -106,7 +106,11 @@
     "whatDiffers": "O que está diferente no documento:",
     "answerAgain": "Responder de novo",
     "thirdAttempt": "Vou deixar este ponto marcado para {lawyer} conversar com você. Podemos seguir para o próximo tópico.",
-    "understood": "Entendido. Vamos para o próximo."
+    "understood": "Entendido. Vamos para o próximo.",
+    "reviewTitle": "Antes de conferir, os pontos de uma vez",
+    "reviewIntro": "Toque em qualquer ponto para voltar a ele. Quando estiver pronta, siga para as perguntas.",
+    "reviewBack": "Voltar a este ponto",
+    "reviewGo": "Estou pronta, vamos conferir"
   },
   "c5": {
     "title": "O que você entendeu",
@@ -387,6 +391,19 @@
         "saving": "Salvando.",
         "saved": "Tipo salvo.",
         "failed": "Não foi possível salvar o tipo. Tente de novo."
+      },
+      "edit": {
+        "summaryLabel": "Explicação que a cliente vai ler",
+        "summaryHint": "Mantenha os títulos das seções como estão. O vínculo entre a seção e o trecho do documento é pelo título, e renomear um título tira o trecho da tela.",
+        "keep": "Perguntar isto",
+        "kept": "{n} de {total} perguntas marcadas",
+        "floor": "Marque pelo menos {n} perguntas, ou nenhuma. Com menos que isso o comprovante afirma mais do que mediu.",
+        "none": "Nenhuma pergunta marcada: a cliente vai ler a explicação e terminar sem conferência e sem comprovante.",
+        "save": "Salvar alterações",
+        "saving": "Salvando.",
+        "saved": "Alterações salvas.",
+        "failed": "Não foi possível salvar. Tente de novo.",
+        "lostGround": "Atenção: depois desta edição, {motivo}"
       }
     }
   },
