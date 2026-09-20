@@ -601,3 +601,46 @@ def test_the_mock_keeps_the_proof_itself_and_not_the_report_around_it(monkeypatc
     assert client.get(f"/verify/{r['hash_imutavel']}?format=json").json()["otsPresent"] is True
     assert client.get(f"/verify/{r['hash_imutavel']}/proof.ots").status_code == 200, \
         "o comprovante do mock nunca oferece a prova para baixar"
+
+
+# ── DDL de índice: construída como estrutura, nunca como texto ────────────────
+
+def test_unique_index_ddl_is_not_built_by_string_interpolation():
+    """Identificador de SQL não pode ser parâmetro de bind, então "use bind parameters" não é o conserto
+    aqui: o conserto é não construir a instrução por texto.
+
+    Os valores de hoje são literais no módulo e ninguém de fora os alcança, então não há injeção agora. O
+    que o padrão deixa aberto é a próxima edição: no dia em que um desses vier de configuração ou de rota,
+    a interpolação vira injeção sem que nada avise."""
+    import inspect
+    import core.db as db
+
+    fonte = inspect.getsource(db._garantir_indices_unicos)
+    assert 'text(f"' not in fonte and "text(f'" not in fonte, (
+        "a DDL do índice ainda é montada por interpolação de string"
+    )
+
+
+def test_a_hostile_index_name_cannot_smuggle_sql(tmp_path, monkeypatch):
+    """A garantia precisa valer para o valor, não para a origem dele: um nome com ponto e vírgula tem que
+    ser recusado mesmo que alguém o coloque em UNIQUE_INDEXES amanhã."""
+    from sqlalchemy import create_engine, inspect as sa_inspect
+    import core.db as db
+
+    eng = create_engine(f"sqlite:///{tmp_path / 'ddl.db'}")
+    db.SQLModel.metadata.create_all(eng)
+    monkeypatch.setattr(db, "engine", eng)
+    monkeypatch.setattr(db, "UNIQUE_INDEXES", (
+        ("uq_ok", "tentativa", "tarefa_id, numero"),
+        ("x; DROP TABLE tentativa", "tentativa", "numero"),
+    ))
+    db._garantir_indices_unicos()
+
+    assert "tentativa" in sa_inspect(eng).get_table_names(), "a tabela foi derrubada pelo nome hostil"
+    indices = {i["name"] for i in sa_inspect(eng).get_indexes("tentativa")}
+    assert "uq_ok" in indices, "o índice legítimo deixou de ser criado"
+    # O nome hostil sobreviveu INTEIRO, como um identificador só. É essa a prova: ele foi citado como dado
+    # em vez de virar instrução. Exigir que ele fosse recusado testaria cosmética, não segurança.
+    assert "x; DROP TABLE tentativa" in indices, (
+        f"o nome hostil não virou um identificador citado, então foi interpretado como SQL: {indices}"
+    )
