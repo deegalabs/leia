@@ -14,7 +14,7 @@ export function anchorClaim(anchor?: Anchor | null): string | null {
 }
 
 /* LeIA: score comes from the external flow ("_ui.score_trecho_verbatim"), 0..1 or 0..100; absent on the local pipeline */
-export type InferenceItem = { ref: string; campo: string | null; valor: string | null; trecho: string; pos: [number, number] | null; conferido: boolean; cor: string; score?: number; conferencia?: Anchor };
+export type InferenceItem = { ref: string; campo: string | null; valor: string | null; trecho: string; pos: [number, number] | null; conferido: boolean; cor: string; pagina?: string | null; score?: number; conferencia?: Anchor };
 export type InferenceClass = { classe: string; rotulo: string; cor: string; itens: InferenceItem[] };
 export type Synthesis = { classe: string; rotulo: string; texto: string; lastro: string[] };
 /* LeIA: parcial = answered while the pipeline runs (docs/API-V3-CONTRACT.md, "Preparação visível"): texto may still be empty

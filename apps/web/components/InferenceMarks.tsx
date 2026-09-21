@@ -4,6 +4,7 @@ import type { Inferences, InferenceClass, InferenceItem } from "@/lib/inferences
 import { scorePercent } from "@/lib/api";
 import { fmt, m } from "@/lib/i18n";
 import { Card, StatusChip } from "./ui";
+import { splitPages, type Folha } from "@/lib/pages";
 
 /* Original text with the tagged quotes, the class cards with "Ver no texto", and the helpers to jump to a mark.
    Used by the citizen's document page and by the lawyer's review. */
@@ -35,14 +36,51 @@ export function scrollToMark(prefix: string, ref: string): boolean {
   return true;
 }
 
+/* O documento desenhado como papel, folha por folha.
+ *
+ * Antes era um bloco de texto corrido de vinte e cinco mil caracteres. A pessoa lê "está no seu documento",
+ * olha para o papel na mão dela, e não tem como ligar um ao outro: no papel há páginas numeradas, na tela
+ * não havia nada. O separador `===== PÁGINA n =====` que o extrator escreve resolve isso e estava ali sem
+ * ninguém usar.
+ *
+ * As marcações continuam sendo desenhadas contra as posições do documento inteiro, convertidas para dentro
+ * de cada folha: é o mesmo dado, recortado, e não uma segunda contagem que poderia divergir. */
 export function MarkedText({ texto, items, idPrefix = "mark" }: { texto: string; items: InferenceItem[]; idPrefix?: string }) {
-  const segs = useMemo(() => segments(texto, items), [texto, items]);
+  const folhas = useMemo(() => splitPages(texto), [texto]);
+  const total = folhas.length;
   return (
-    <div className="whitespace-pre-wrap font-mono text-[0.92rem] leading-relaxed">
-      {segs.map((sg, i) => sg.item
-        ? <mark key={i} id={markId(idPrefix, sg.item.ref)} style={{ backgroundColor: sg.item.cor }} className="rounded px-0.5 text-ink no-underline" title={`${sg.item.campo ?? ""}: ${sg.item.valor ?? ""}`}>{sg.text}</mark>
-        : <span key={i}>{sg.text}</span>)}
+    <div className="grid gap-4">
+      {folhas.map((folha, n) => (
+        <FolhaDoDocumento key={n} folha={folha} total={total} items={items} idPrefix={idPrefix} />
+      ))}
     </div>
+  );
+}
+
+function FolhaDoDocumento({ folha, total, items, idPrefix }:
+  { folha: Folha; total: number; items: InferenceItem[]; idPrefix: string }) {
+  /* Só os itens desta folha, com a posição convertida para dentro dela. Item que atravessa a virada de
+     página fica na folha onde começa: recortá-lo em dois daria à pessoa duas marcações para um trecho. */
+  const daFolha = useMemo(() => items
+    .filter((i) => i.pos && i.pos[0] >= folha.conteudoInicio && i.pos[0] < folha.fim)
+    .map((i) => ({ ...i, pos: [i.pos![0] - folha.conteudoInicio,
+                              Math.min(i.pos![1], folha.fim) - folha.conteudoInicio] as [number, number] })),
+    [items, folha]);
+  const segs = useMemo(() => segments(folha.texto, daFolha), [folha.texto, daFolha]);
+
+  return (
+    <article className="rounded-card border border-line bg-surface p-4 shadow-[0_1px_2px_rgba(8,24,32,0.06)]">
+      {folha.numero !== null && (
+        <p className="mb-2 border-b border-line pb-2 font-mono text-[0.8rem] uppercase tracking-wide text-ink-2">
+          {total > 1 ? `Página ${folha.numero} de ${total}` : `Página ${folha.numero}`}
+        </p>
+      )}
+      <div className="whitespace-pre-wrap font-mono text-[0.92rem] leading-relaxed">
+        {segs.map((sg, i) => sg.item
+          ? <mark key={i} id={markId(idPrefix, sg.item.ref)} style={{ backgroundColor: sg.item.cor }} className="rounded px-0.5 text-ink no-underline" title={`${sg.item.campo ?? ""}: ${sg.item.valor ?? ""}`}>{sg.text}</mark>
+          : <span key={i}>{sg.text}</span>)}
+      </div>
+    </article>
   );
 }
 
@@ -92,6 +130,9 @@ export function ClassCards({ classes, onView, withSeal = false }: { classes: Inf
                   </span>
                 </div>
                 <p className="mt-1 text-ink-2">“{it.trecho}”</p>
+                {/* Onde achar isto no papel. O advogado revisando confere a marcação contra o documento
+                    dele, e sem a página isso custa varrer o documento inteiro por item. */}
+                {it.pagina && <p className="mt-0.5 font-mono text-[0.85rem] text-ink-2">{it.pagina}</p>}
                 {it.conferido
                   ? <button type="button" onClick={() => onView(it.ref)} className="mt-1 min-h-[44px] font-bold text-teal-deep underline underline-offset-2">{m.panel.review.viewInText}</button>
                   : !withSeal && <p className="mt-1 text-[0.9rem] text-pend">Não localizado palavra por palavra no texto.</p>}

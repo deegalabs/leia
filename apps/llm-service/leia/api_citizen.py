@@ -153,6 +153,35 @@ def _quotes(obj: Any, out: list[str]) -> list[str]:
     return out
 
 
+SEPARADOR_PAGINA = re.compile(r"=+ *P[ÁA]GINA (\d+) *=+")
+
+
+def page_label(documento: str, posicao: Optional[int]) -> Optional[str]:
+    """"Página 3 de 14" para esta posição do texto, ou ``None`` quando o documento não diz.
+
+    O extrator escreve ``===== PÁGINA n =====`` entre as folhas (``core/pdf_extract.py``), e essa informação
+    ficava no texto sem ninguém usá-la. Ela importa por um motivo só: o produto afirma "isto está no seu
+    documento", e sem o número da página conferir um agravo de catorze folhas custa varrer as catorze.
+    Afirmação cara demais de conferir não é conferível na prática.
+
+    Documento sem separador devolve ``None``, nunca "página 1": inventar o número seria fabricar exatamente
+    o dado que esta função existe para trazer. O cálculo mora aqui, e não na tela, porque a página é fato do
+    documento e o documento está deste lado; a tela receberia vinte e cinco mil caracteres só por um rótulo.
+    """
+    if not documento or posicao is None or posicao < 0 or posicao > len(documento):
+        return None
+    marcas = list(SEPARADOR_PAGINA.finditer(documento))
+    if not marcas:
+        return None
+    numero = int(marcas[-1].group(1))
+    for i, m in enumerate(marcas):
+        fim = marcas[i + 1].start() if i + 1 < len(marcas) else len(documento)
+        if m.start() <= posicao < fim:
+            numero = int(m.group(1))
+            break
+    return f"Página {numero} de {len(marcas)}" if len(marcas) > 1 else f"Página {numero}"
+
+
 def _section_key(titulo: str) -> str:
     """The heading as a comparable key: no accents, no emoji, no punctuation, one space between words.
     The model writes the heading with an emoji in front, and that emoji is decoration, not identity."""
@@ -249,6 +278,7 @@ def _sections(resumo_md: str, memoria: Any, documento: str = "",
                     a, b = found["pos"]
                     topic["trecho"] = documento[a:b]
                     topic["pos"] = [a, b]
+                    topic["pagina"] = page_label(documento, a)
                     topic["conferencia"] = {"metodo": found["metodo"], "score": found["score"]}
                     break
             if "trecho" not in topic:
@@ -608,7 +638,8 @@ def _item(cls: str, n: int, it: dict[str, Any], texto: str, text_norm: str, idx:
     # ``documento[pos] == trecho`` verdade por construção, que é a promessa do produto escrita em código.
     trecho = texto[found["pos"][0]:found["pos"][1]] if found else quote
     out = {"ref": f"{cls}[{n}]", "campo": it.get("campo"), "valor": it.get("valor"), "trecho": trecho,
-           "pos": found["pos"] if found else None, "conferido": bool(found), "cor": cor}
+           "pos": found["pos"] if found else None, "conferido": bool(found), "cor": cor,
+           "pagina": page_label(texto, found["pos"][0]) if found else None}
     if found:
         out["conferencia"] = {"metodo": found["metodo"], "score": found["score"]}
     score = _score(ui_entry) if ui_entry else None
