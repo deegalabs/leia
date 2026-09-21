@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Check, MessageCircle } from "lucide-react";
 import { bindTask, getTask, submitQuiz, topicsOf, type QuizResult, type Task } from "@/lib/api";
 import { isReady } from "@/lib/status";
@@ -7,6 +7,8 @@ import { useAuth } from "@/lib/auth"; /* LeIA: v3 accounts */
 import { anchorClaim } from "@/lib/inferences";
 import { AssistantBanner, BottomActionBar, Button, Card, LinkButton, Page, ProgressSteps, SpeakButton, SpeakOne, StatusChip } from "./ui";
 import { ChatSheet } from "./ChatSheet";
+import { DocumentRail, TopicRail } from "./JourneyRails";
+import { useWide } from "@/lib/wide";
 import { Paragraphs, cleanTitle } from "./Inline"; /* LeIA: Paragraphs moved to Inline.tsx, shared with the lawyer review */
 import { Preparing } from "./Preparing"; /* LeIA: visible preparation (steps and partial marks) */
 import { ScoreChip } from "./InferenceMarks";
@@ -19,6 +21,7 @@ export function Journey({ hash }: { hash: string }) {
   const [task, setTask] = useState<Task | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [step, setStep] = useState<Step>({ kind: "welcome" });
+  const larga = useWide();
   const [answers, setAnswers] = useState<Record<string, number>>({});
   /* Quantas vezes ela pediu para rever o trecho de cada pergunta, e qual está aberto agora. A contagem
      viaja com as respostas e entra no hash da tentativa. */
@@ -130,8 +133,19 @@ export function Journey({ hash }: { hash: string }) {
     </button>
   );
 
+  /* No computador a jornada abre em três zonas: os pontos à esquerda, a explicação no centro e o documento
+     à direita. No celular continua sendo uma coisa de cada vez, que é deliberado — a pessoa lê um ponto,
+     entende, segue. O trilho do documento só é montado quando a tela é larga, porque ele busca o texto
+     extraído inteiro e trazer isso para um celular básico só para escondê-lo com CSS seria gastar dados de
+     quem menos os tem. No celular o caminho do documento continua sendo `/t/{hash}/documento`. */
+  const pontoAtual = step.kind === "topic" ? step.n : step.kind === "welcome" ? -1 : topics.length;
+
   return (
-    <Page>
+    <JourneyShell
+      larga={larga}
+      pontos={<TopicRail topics={topics} atual={pontoAtual} onIr={(n) => setStep({ kind: "topic", n })} />}
+      documento={<DocumentRail hash={hash} />}
+    >
       <AssistantBanner />
       {step.kind === "welcome" && (
         <>
@@ -364,6 +378,26 @@ export function Journey({ hash }: { hash: string }) {
 
       {fab}
       <ChatSheet hash={hash} open={chatOpen} onClose={() => setChatOpen(false)} temAdvogado={Boolean(task.tem_advogado)} />
-    </Page>
+    </JourneyShell>
+  );
+}
+
+/* A casca da jornada: uma coluna no celular, três zonas no computador.
+ *
+ * Os trilhos ficam grudados e rolam por conta, e o centro rola com a página. É o padrão que o `DocsShell`
+ * já usa, e é mais robusto que três painéis de altura fixa, que dependem de acertar a altura do cabeçalho e
+ * do rodapé e quebram quando qualquer um deles muda.
+ *
+ * Rolagem separada é o que torna a conferência suportável: sem ela, rolar o documento leva a explicação
+ * junto, e a pessoa perde a linha que estava lendo toda vez que vai conferir um trecho. */
+function JourneyShell({ larga, pontos, documento, children }:
+  { larga: boolean; pontos: ReactNode; documento: ReactNode; children: ReactNode }) {
+  if (!larga) return <Page>{children}</Page>;
+  return (
+    <div className="mx-auto grid w-full max-w-[1400px] grid-cols-[220px_minmax(0,1fr)_minmax(0,440px)] gap-6 px-4 pb-6">
+      <aside className="sticky top-4 max-h-[calc(100vh-2rem)] self-start overflow-y-auto py-1">{pontos}</aside>
+      <div className="min-w-0">{children}</div>
+      <aside className="sticky top-4 max-h-[calc(100vh-2rem)] self-start overflow-y-auto py-1">{documento}</aside>
+    </div>
   );
 }

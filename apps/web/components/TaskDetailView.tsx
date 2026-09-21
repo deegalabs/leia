@@ -6,17 +6,17 @@ import { answerDoubt, clientLinkUrl, formatDateTime, getTaskDetail, issueInvite,
 import { useAuth } from "@/lib/auth";
 import { fmt, m } from "@/lib/i18n";
 import { hasReview, isSettled, needsReview, statusInfo } from "@/lib/status";
-import { AppHeader, Button, Card, CopyButton, LinkButton, Page, StatusChip } from "./ui";
+import { Button, Card, CopyButton, LinkButton, StatusChip } from "./ui";
 import { AuthNav, RequireAuth } from "./Session";
+import { LawyerShell } from "./LawyerShell";
 import { Inline } from "./Inline";
 import { SkeletonCard } from "./Skeleton";
 
 export function TaskDetailView({ id }: { id: string }) {
   return (
-    <Page wide>
-      <AppHeader right={<AuthNav />} />
+    <LawyerShell right={<AuthNav />}>
       <RequireAuth next={`/painel/${id}`}><Body id={id} /></RequireAuth>
-    </Page>
+    </LawyerShell>
   );
 }
 

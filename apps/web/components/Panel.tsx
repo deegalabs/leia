@@ -6,21 +6,23 @@ import { clientLinkUrl, formatDateTime, listTasks, type TaskSummary } from "@/li
 import { useAuth } from "@/lib/auth";
 import { fmt, m } from "@/lib/i18n";
 import { isSettled, needsReview, statusInfo } from "@/lib/status";
-import { AppHeader, Card, CopyButton, LinkButton, Page, StatusChip } from "./ui";
+import { Card, CopyButton, LinkButton, StatusChip } from "./ui";
+import { LawyerShell } from "./LawyerShell";
+import { useWide } from "@/lib/wide";
 import { AuthNav, RequireAuth } from "./Session";
 import { SkeletonCard } from "./Skeleton";
 
 export function Panel() {
   return (
-    <Page wide>
-      <AppHeader right={<AuthNav />} />
+    <LawyerShell right={<AuthNav />}>
       <RequireAuth next="/painel"><PanelBody /></RequireAuth>
-    </Page>
+    </LawyerShell>
   );
 }
 
 function PanelBody() {
   const { isCitizen } = useAuth();
+  const larga = useWide();
   const [tasks, setTasks] = useState<TaskSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
@@ -47,11 +49,17 @@ function PanelBody() {
         ? <p role="status" className="text-ink-2">{error}</p>
         : <div className="grid gap-3"><SkeletonCard linhas={2} rotulo={m.panel.loading} /><SkeletonCard linhas={2} rotulo="" /></div>)}
       {tasks && tasks.length === 0 && <Card tone="soft"><p>{isCitizen ? m.panel.emptyCitizen : m.panel.emptyLawyer}</p></Card>}
-      {tasks && tasks.length > 0 && (
-        <ul className="grid gap-3">
-          {tasks.map((t) => <li key={t.id}>{isCitizen ? <CitizenCard t={t} /> : <LawyerCard t={t} />}</li>)}
-        </ul>
-      )}
+      {/* Cartão no celular, colunas no computador, e nunca os dois ao mesmo tempo escondidos por CSS.
+          O advogado percorre a lista todo dia, e comparar dez documentos empilhados em cartão custa rolar;
+          em colunas, ele lê na vertical. A cidadã tem um documento, às vezes dois, e para ela o cartão diz
+          mais. Por isso a cidadã fica no cartão mesmo no computador. */}
+      {tasks && tasks.length > 0 && (larga && !isCitizen
+        ? <LawyerTable tasks={tasks} />
+        : (
+          <ul className="grid gap-3">
+            {tasks.map((t) => <li key={t.id}>{isCitizen ? <CitizenCard t={t} /> : <LawyerCard t={t} />}</li>)}
+          </ul>
+        ))}
     </>
   );
 }
@@ -97,5 +105,58 @@ function CitizenCard({ t }: { t: TaskSummary }) {
         <Link href={`/painel/${t.id}`} className="inline-flex min-h-[48px] items-center gap-1 px-1 font-bold text-teal-deep underline underline-offset-4 wide:col-span-2">{m.panel.details} <ChevronRight size={18} aria-hidden /></Link>
       </div>
     </Card>
+  );
+}
+
+/* A lista do advogado em colunas. Tabela de verdade, e não uma grade de `div`: são dados tabulares, e o
+   leitor de tela anuncia linha e coluna, o que transforma "o terceiro campo desta linha" em "Estado:
+   aguardando revisão". A versão de celular continua sendo o cartão, sem tabela e sem rolagem lateral. */
+function LawyerTable({ tasks }: { tasks: TaskSummary[] }) {
+  return (
+    <table className="w-full border-collapse text-left text-[0.95rem]">
+      <caption className="sr-only">{m.panel.lawyerTitle}</caption>
+      <thead>
+        <tr className="border-b-2 border-line text-[0.85rem] uppercase tracking-wide text-ink-2">
+          <th scope="col" className="py-2 pr-3 font-bold">Documento</th>
+          <th scope="col" className="py-2 pr-3 font-bold">Estado</th>
+          <th scope="col" className="py-2 pr-3 font-bold">Conferência</th>
+          <th scope="col" className="py-2 pr-3 font-bold">Dúvidas</th>
+          <th scope="col" className="py-2 font-bold"><span className="sr-only">Ações</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        {tasks.map((t) => {
+          const s = statusInfo(t.status, false, t.origem);
+          const a = t.ultima_tentativa;
+          return (
+            <tr key={t.id} className="border-b border-line align-top">
+              <th scope="row" className="py-3 pr-3 font-bold">
+                {t.titulo}
+                <span className="block font-normal text-[0.9rem] text-ink-2">
+                  {formatDateTime(t.criada_em)}{t.cidadao ? ` · ${t.cidadao.nome}` : ""}
+                </span>
+              </th>
+              <td className="py-3 pr-3"><StatusChip tone={s.tone}>{s.label}</StatusChip></td>
+              <td className="py-3 pr-3 tabular-nums">
+                {a ? fmt(m.panel.detail.attemptLine, { n: a.numero ?? 1, acertos: a.acertos, total: a.total })
+                   : m.panel.detail.noAttempts}
+              </td>
+              <td className="py-3 pr-3 tabular-nums">
+                {t.duvidas_abertas === 1 ? m.panel.openDoubtsOne
+                  : t.duvidas_abertas > 0 ? fmt(m.panel.openDoubts, { n: t.duvidas_abertas })
+                  : m.panel.noDoubts}
+              </td>
+              <td className="py-3">
+                <Link href={needsReview(t.status, t.origem) ? `/painel/${t.id}/revisao` : `/painel/${t.id}`}
+                      className="inline-flex min-h-[44px] items-center gap-1 font-bold text-teal-deep underline underline-offset-4">
+                  {needsReview(t.status, t.origem) ? m.panel.reviewShort : m.panel.details}
+                  <ChevronRight size={18} aria-hidden />
+                </Link>
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
   );
 }
