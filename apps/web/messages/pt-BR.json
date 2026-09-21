@@ -473,5 +473,14 @@
     "keptAnswers": "O que você já acertou fica guardado. Você responde só as perguntas que faltaram.",
     "claimFailedTitle": "Não deu para guardar este documento no seu nome",
     "readAs": "Lido como:"
+  },
+  "error": {
+    "title": "Deu um problema do nosso lado",
+    "body": "Não foi você, e nada do que você fez se perdeu. Às vezes isso passa sozinho: tente de novo.",
+    "retry": "Tentar de novo",
+    "home": "Ir para o início",
+    "panel": "Ir para os meus documentos",
+    "code": "Se precisar falar com a gente, este é o código deste erro: {codigo}",
+    "codeMissing": "Este erro não gerou código."
   }
 }
