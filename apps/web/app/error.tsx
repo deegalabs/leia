@@ -16,7 +16,11 @@ import { fmt, m } from "@/lib/i18n";
  * costuma carregar caminho de arquivo, nome de coluna e pedaço de consulta. O `digest` aparece, porque é um
  * resumo que o Next gera justamente para ligar o que a pessoa viu ao que ficou no log do servidor. */
 
-export default function Error({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
+/* `retry`, e não `reset`: nesta versão do Next existem os dois, e a documentação em
+   `node_modules/next/dist/docs/01-app/03-api-reference/03-file-conventions/error.md` diz que `retry()`
+   re-busca e re-renderiza, enquanto `reset()` só limpa o estado sem buscar de novo. Para falha transitória
+   de servidor, que é o caso que esta tela atende, buscar de novo é o ponto. */
+export default function Error({ error, retry }: { error: Error & { digest?: string }; retry: () => void }) {
   useEffect(() => {
     /* No console de quem desenvolve, e no relatório de quem monitorar depois. Nunca na tela. */
     console.error(error);
@@ -37,7 +41,7 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
       </Card>
 
       <div className="mt-4 grid gap-2">
-        <Button onClick={reset}>{m.error.retry}</Button>
+        <Button onClick={() => retry()}>{m.error.retry}</Button>
         <LinkButton href="/" variant="secondary">{m.error.home}</LinkButton>
         <LinkButton href="/painel" variant="ghost">{m.error.panel}</LinkButton>
       </div>

@@ -26,7 +26,10 @@ describe("as telas de erro", () => {
 
   it.each(["error.tsx", "global-error.tsx"])("%s oferece tentar de novo e uma saída", (arquivo) => {
     const fonte = ler(arquivo);
-    expect(fonte, "sem `reset` a pessoa fica presa na tela de erro").toMatch(/reset\b/);
+    /* `retry` e não `reset`: os dois existem nesta versão do Next, e a documentação instalada manda usar
+       `retry()`, que re-busca e re-renderiza. A primeira versão deste teste exigia `reset` porque eu
+       escrevi de memória, e ele passou verde travando a suposição errada. */
+    expect(fonte, "sem `retry` a pessoa fica presa na tela de erro").toMatch(/retry\(\)/);
     expect(fonte, "sem saída para o início, o único caminho é o botão de voltar do navegador")
       .toMatch(/href="\/"/);
   });
