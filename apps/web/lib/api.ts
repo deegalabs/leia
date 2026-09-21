@@ -39,7 +39,7 @@ export type Task = {
   cidadao_vinculado?: boolean;
   duvidas_enviadas?: number;
   /* LeIA: o convite que governa este link, sem revelar o endereço da destinatária */
-  convite?: { enderecado: boolean; para: string | null; expira_em: string | null } | null;
+  convite?: { nome: string | null; enderecado: boolean; para: string | null; expira_em: string | null } | null;
   /* LeIA: visible preparation (docs/API-V3-CONTRACT.md, "Preparação visível e tarefas do fluxo externo") */
   etapas?: Stage[];
   tipo_documento?: DocumentType | null;
@@ -157,7 +157,7 @@ export type ChatTurn = { role: "user" | "bot"; text: string };
 export type Doubt = { id: number; texto: string; contexto: ChatTurn[]; criada_em: string; respondida: boolean; resposta: string | null; respondida_em: string | null };
 export type TaskEvent = { tipo?: string; id?: string; idx?: number; total?: number; ts?: string; [k: string]: unknown };
 /* LeIA: o convite que governa o link do documento. Sem convite, o link abre para quem o tiver, como sempre foi. */
-export type Invite = { id: number; email: string | null; expira_em: string | null; revogado_em: string | null; criado_em: string };
+export type Invite = { id: number; nome: string | null; email: string | null; expira_em: string | null; revogado_em: string | null; criado_em: string };
 export type TaskDetail = {
   tarefa: { id: number; hash: string; titulo: string; status: TaskStatus; criada_em: string; atualizada_em: string; origem: "advogado" | "cidadao" };
   link_cliente: string; convite?: Invite | null; resumo_md: string | null; eventos: TaskEvent[];
@@ -228,7 +228,9 @@ export async function getReview(id: string | number): Promise<Review> {
   const r = await check(await busca(`/api/tarefas/${id}/revisao`, { headers: { Accept: "application/json" }, cache: "no-store" }));
   return r.json();
 }
-export async function issueInvite(id: string | number, input: { email?: string; validade_horas?: number } = {}): Promise<Invite> {
+/* `nome` é obrigatório e `email` não: é o nome que a destinatária vê na tela para confirmar que é
+   ela, e nome é o que identifica alguém para alguém. Endereço serve para entregar. */
+export async function issueInvite(id: string | number, input: { nome: string; email?: string; validade_horas?: number }): Promise<Invite> {
   const r = await check(await busca(`/api/tarefas/${id}/convite`, { method: "POST", headers: jsonHeaders(), body: JSON.stringify(input) }));
   return r.json();
 }
@@ -258,6 +260,13 @@ export async function setDocumentType(id: string | number, tipo: string): Promis
 export async function saveReview(id: string | number, input: { resumo_md?: string; questoes?: number[] }):
   Promise<{ ok: boolean; porta_qualidade: { motivo: string | null } }> {
   const r = await check(await busca(`/api/tarefas/${id}/revisao`, { method: "POST", headers: jsonHeaders(), body: JSON.stringify(input) }));
+  return r.json();
+}
+
+/* A cidadã confirma que o nome do convite é o dela, e entra. Sem e-mail, sem senha, sem código: o link que
+   ela recebeu já prova que é ela. O token volta guardado no cookie pela rota do app, nunca no corpo. */
+export async function confirmName(hash: string): Promise<{ usuario: { nome: string; papel: string } }> {
+  const r = await check(await busca(`/api/t/${hash}/confirm-name`, { method: "POST", headers: jsonHeaders(), body: "{}" }));
   return r.json();
 }
 

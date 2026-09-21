@@ -27,12 +27,26 @@ def verify_password(senha: str, hash_: str) -> bool:
         return False
 
 
-def authenticate(session: Session, email: str, senha: str) -> Optional[Usuario]:
-    u = session.exec(select(Usuario).where(Usuario.email == email.strip().lower())).first()
-    if not u or not verify_password(senha, u.senha_hash):
-        return None
+def open_session(session: Session, u: Usuario) -> str:
+    """Abre sessão para uma conta que já existe, e devolve o token.
+
+    Existe porque até agora só `authenticate` emitia token, e ela exige senha. A cidadã que confirma o nome
+    no convite entra sem senha e sem e-mail: o que prova que é ela é o link endereçado a ela, com validade e
+    cancelável por quem o enviou. Emitir token é uma coisa; conferir senha é outra, e misturá-las é o que
+    obrigava toda entrada a passar por um campo."""
     u.session_token = secrets.token_urlsafe(32)
     session.add(u); session.commit(); session.refresh(u)
+    return u.session_token
+
+
+def authenticate(session: Session, email: str, senha: str) -> Optional[Usuario]:
+    u = session.exec(select(Usuario).where(Usuario.email == email.strip().lower())).first()
+    # Conta sem senha não é conta com senha vazia: ela entra por outro caminho e por aqui não entra de jeito
+    # nenhum. Sem esta linha, `verify_password` recebe `None` e o resultado passa a depender da biblioteca de
+    # hash, que é o último lugar onde uma decisão de acesso deveria ser tomada.
+    if not u or not u.senha_hash or not verify_password(senha, u.senha_hash):
+        return None
+    open_session(session, u)
     return u
 
 

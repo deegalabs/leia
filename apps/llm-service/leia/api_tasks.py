@@ -145,6 +145,7 @@ def get_task(tarefa_id: int, request: Request, u: Usuario = Depends(api_user),
 
 
 class ConviteIn(BaseModel):
+    nome: str = Field(min_length=1, max_length=120)
     email: Optional[str] = None
     validade_horas: Optional[int] = None
 
@@ -161,7 +162,7 @@ def _owned(session: Session, u: Usuario, tarefa_id: int) -> Tarefa:
 def issue_invite(tarefa_id: int, body: ConviteIn, u: Usuario = Depends(api_user),
                  session: Session = Depends(get_session)):
     t = _owned(session, u, tarefa_id)
-    inv = invites.issue(session, t, u, email=body.email, hours=body.validade_horas)
+    inv = invites.issue(session, t, u, nome=body.nome, email=body.email, hours=body.validade_horas)
     ws.record_event(t.hash, "convite_emitido", convite_id=inv.id, com_destinataria=bool(inv.email))
     return invites.to_json(inv)
 

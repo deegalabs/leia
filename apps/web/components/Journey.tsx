@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Check, MessageCircle } from "lucide-react";
-import { bindTask, getTask, submitQuiz, topicsOf, type QuizResult, type Task } from "@/lib/api";
+import { confirmName, getTask, submitQuiz, topicsOf, type QuizResult, type Task } from "@/lib/api";
 import { isReady } from "@/lib/status";
 import { useAuth } from "@/lib/auth"; /* LeIA: v3 accounts */
 import { anchorClaim } from "@/lib/inferences";
@@ -35,22 +35,26 @@ export function Journey({ hash }: { hash: string }) {
   /* LeIA: linking is an explicit act, never a side effect of opening the link. The link travels by
      message and gets forwarded: whoever opened it first would otherwise own the record for good, and
      the real recipient would be refused. */
-  const { usuario, ready: authReady } = useAuth();
+  const { ready: authReady } = useAuth();
   const [bound, setBound] = useState(false);
   const [binding, setBinding] = useState(false);
   /* A recusa vinha calada: ela tocava o botão, nada acontecia, e só no fim descobria que não sairia
      comprovante. O serviço já devolve o motivo escrito para ela ler, então é esse motivo que aparece. */
   const [claimError, setClaimError] = useState<string | null>(null);
-  const canBind = Boolean(task && authReady && usuario?.papel === "cidadao" && task.cidadao_vinculado === false && !bound);
+  const [negou, setNegou] = useState(false);
+  /* O convite diz para quem o documento é, e é isso que ela confirma. Não depende de estar logada, que é o
+     ponto inteiro: ela não tem conta, e é a confirmação que cria uma. */
+  const nomeDoConvite = task?.convite?.nome ?? null;
+  const podeConfirmar = Boolean(nomeDoConvite && task?.cidadao_vinculado === false && !bound && !negou);
   /* LeIA: ler e perguntar não exigem conta, de propósito. O que exige é guardar o comprovante, porque ele
      afirma que uma pessoa entendeu. Então aqui a gente avisa, não bloqueia. */
   const addressedTo = task?.convite?.enderecado ? task.convite.para : null;
   const maybeNotTheAddressee = Boolean(addressedTo && authReady && !task?.cidadao_vinculado);
-  async function claim() {
+  async function confirmar() {
     if (binding) return;
     setBinding(true); setClaimError(null);
-    try { await bindTask(hash); setBound(true); }
-    catch (e) { setClaimError((e as Error).message || "Não deu para guardar agora. Tente de novo em instantes."); }
+    try { await confirmName(hash); setBound(true); }
+    catch (e) { setClaimError((e as Error).message || m.journey.confirmFailed); }
     finally { setBinding(false); }
   }
 
@@ -159,11 +163,23 @@ export function Journey({ hash }: { hash: string }) {
               <p className="mb-2">{fmt(noQuestions ? m.journey.welcomeNoQuestions : m.journey.welcomeWithQuestions, { n: topics.length })}</p>
             </div>
           </div>
-          {canBind && (
+          {/* Sem campo nenhum para digitar. O link que ela recebeu já prova que é ela: foi endereçado a
+              ela, tem validade e pode ser cancelado por quem enviou. Pedir senha, e-mail ou código depois
+              disso é pedir duas provas da mesma coisa, e cada campo a mais é uma pessoa a menos que chega
+              ao fim. Quem diz que não é ela continua lendo tudo: o que ela perde é o comprovante, porque
+              ele afirma o nome de quem entendeu. */}
+          {podeConfirmar && (
             <Card tone="pending" className="mt-4">
-              <h2 className="mb-1 text-[1.15rem]">Este documento é seu?</h2>
-              <p className="mb-3 text-[1rem]">Se for, ele passa a aparecer na sua lista de documentos. Se você só está vendo um exemplo, pode seguir sem marcar.</p>
-              <Button variant="secondary" onClick={claim} disabled={binding}>{binding ? "Guardando" : "Sim, este documento é meu"}</Button>
+              <h2 className="mb-1 text-[1.15rem]">{m.journey.confirmTitle}</h2>
+              <p className="mb-3 text-[1rem]">{fmt(m.journey.confirmText, { nome: nomeDoConvite! })}</p>
+              <div className="grid gap-2">
+                <Button onClick={confirmar} disabled={binding}>
+                  {binding ? "Confirmando" : fmt(m.journey.confirmYes, { nome: nomeDoConvite! })}
+                </Button>
+                <Button variant="secondary" onClick={() => setNegou(true)} disabled={binding}>
+                  {m.journey.confirmNo}
+                </Button>
+              </div>
               {claimError && (
                 <div role="alert" className="mt-3">
                   <h3 className="text-[1rem] font-bold text-danger">{m.journey.claimFailedTitle}</h3>
@@ -172,8 +188,11 @@ export function Journey({ hash }: { hash: string }) {
               )}
             </Card>
           )}
+          {negou && <Card tone="soft" className="mt-4"><p>{m.journey.confirmDenied}</p></Card>}
           {bound && <Card tone="soft" className="mt-4"><p>Pronto. Este documento agora aparece na sua lista.</p></Card>}
-          {maybeNotTheAddressee && !bound && (
+          {/* Só quando o convite não traz nome: aí o endereço é tudo o que existe para identificar. Convite
+              com nome cai no cartão de confirmação acima, que não pede nada digitado. */}
+          {maybeNotTheAddressee && !nomeDoConvite && !bound && (
             <Card tone="pending" className="mt-4">
               <h2 className="mb-1 text-[1.15rem]">Este documento foi enviado para {addressedTo}</h2>
               <p className="text-[1rem]">Você pode ler tudo e tirar dúvidas do jeito que estiver, sem criar conta. Para guardar o comprovante no fim, é preciso entrar com esse e-mail.</p>

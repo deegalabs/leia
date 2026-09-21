@@ -35,7 +35,7 @@ import core.document_type as dt
 import core.workspace as ws
 from app_gestao import _read_artifact, _read_json
 from core.anchors import locate, norm_map
-from core.auth import api_user, optional_api_user
+from core.auth import api_user, open_session, optional_api_user
 from leia import invites  # LeIA: the invite that governs the document link
 from leia.registry import sha256_hex
 from core.db import ConsentRecord, Duvida, Tarefa, Tentativa, Usuario, engine, get_session
@@ -455,6 +455,38 @@ async def api_cliente_vincular(hash_: str, u: Usuario = Depends(api_user), sessi
     elif t.cidadao_id != u.id:
         raise HTTPException(409, "Este documento já está vinculado a outra conta.")
     return {"ok": True}
+
+
+@router.post("/api/t/{hash_}/confirm-name", dependencies=[Depends(rate_limit)])
+async def api_confirmar_nome(hash_: str, session: Session = Depends(get_session)):
+    """A cidadã confirma que o nome do convite é o dela, e entra. Sem e-mail, sem senha, sem código.
+
+    O que prova que é ela é o próprio link: ele foi endereçado a ela, tem validade e pode ser cancelado por
+    quem o enviou. Pedir uma segunda prova depois disso é pedir duas vezes a mesma coisa, e cada campo a mais
+    é uma pessoa a menos que chega ao fim. O código de seis dígitos foi descartado por isso e porque
+    transcrever código é teste de função cognitiva sob a WCAG 2.2 SC 3.3.8, o que atinge justamente o público
+    que esta entrada existe para atender.
+
+    A segunda pessoa no mesmo documento recebe 409, como em ``api_cliente_vincular``: o comprovante afirma
+    que **uma** pessoa entendeu, e deixar a segunda se vincular por cima faria o registro falar de alguém que
+    não respondeu.
+    """
+    t = _task_or_404(session, hash_)
+    invites.ensure_linkable(session, t, None)
+    inv = invites.active_invite(session, t.id)
+    if inv is None or not (inv.nome or "").strip():
+        raise HTTPException(409, "Este convite não diz para quem é. Peça um link novo a quem enviou.")
+    if t.cidadao_id is not None:
+        raise HTTPException(409, "Este documento já está vinculado a outra conta.")
+
+    u = Usuario(nome=inv.nome.strip(), papel="cidadao")
+    session.add(u); session.commit(); session.refresh(u)
+    token = open_session(session, u)
+
+    t.cidadao_id = u.id
+    session.add(t); session.commit()
+    ws.record_event(t.hash, "cidadao_vinculado", cidadao_id=u.id)
+    return {"token": token, "usuario": {"nome": u.nome, "papel": u.papel}}
 
 
 def _ots_path(tarefa_hash: str, numero: int):

@@ -631,8 +631,8 @@ def test_a_hostile_index_name_cannot_smuggle_sql(tmp_path, monkeypatch):
     db.SQLModel.metadata.create_all(eng)
     monkeypatch.setattr(db, "engine", eng)
     monkeypatch.setattr(db, "UNIQUE_INDEXES", (
-        ("uq_ok", "tentativa", "tarefa_id, numero"),
-        ("x; DROP TABLE tentativa", "tentativa", "numero"),
+        ("uq_ok", "tentativa", "tarefa_id, numero", None),
+        ("x; DROP TABLE tentativa", "tentativa", "numero", None),
     ))
     db._garantir_indices_unicos()
 

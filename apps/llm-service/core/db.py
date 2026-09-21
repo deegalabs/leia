@@ -34,9 +34,19 @@ engine = (create_engine(DATABASE_URL, echo=False) if IS_SQLITE
 # ══════════════════════════════════════════════════════════════════════════
 class Usuario(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
-    email: str = Field(index=True, unique=True)
-    senha_hash: str
+    # LeIA: os dois são opcionais porque a cidadã não cria conta. O link que ela recebeu já prova que é ela:
+    # foi endereçado a ela, tem validade e pode ser cancelado por quem enviou. Pedir senha depois disso é
+    # pedir duas provas da mesma coisa, e cada campo a mais é uma pessoa a menos que chega ao fim.
+    #
+    # O `unique=True` do e-mail saiu daqui e virou índice único **parcial** em ``UNIQUE_INDEXES``: com várias
+    # contas sem e-mail, "único" precisa passar a significar "único entre os que têm", senão a segunda
+    # cidadã que entrar pelo link colide com a primeira.
+    email: Optional[str] = Field(default=None, index=True)
+    senha_hash: Optional[str] = None
     nome: str
+    # LeIA: o número da OAB de quem se cadastra como advogado. Fica aqui e não em tabela própria porque é um
+    # dado do cadastro, e é o que E16 vai precisar para publicar quem se cadastrou.
+    oab: Optional[str] = None
     papel: str = "advogado"
     session_token: Optional[str] = Field(default=None, index=True)
     criado_em: datetime = Field(default_factory=datetime.utcnow)
@@ -113,6 +123,10 @@ class ConsentRecord(SQLModel, table=True):
 class Invite(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     task_id: int = Field(foreign_key="tarefa.id", index=True)
+    # LeIA: o nome de quem vai receber o documento. É obrigatório e o e-mail não é, porque é ele que a tela
+    # da cidadã mostra para ela confirmar ("Sou eu, Maria") — e é o nome, não o endereço, que identifica
+    # alguém para alguém. Endereço serve para entregar; nome serve para reconhecer.
+    nome: Optional[str] = None
     email: Optional[str] = Field(default=None, index=True)
     expires_at: Optional[datetime] = None
     revoked_at: Optional[datetime] = None
@@ -188,6 +202,28 @@ def _aplicar_migracoes() -> None:
             ))
             print("🔧 migração: tarefa.origem adicionada")
 
+        # ── Tabela usuario e convite ─────────────────────────────────────
+        if inspect(conn).has_table("usuario") and "oab" not in _colunas(conn, "usuario"):
+            conn.execute(text("ALTER TABLE usuario ADD COLUMN oab VARCHAR"))
+            print("🔧 migração: usuario.oab adicionada")
+        if inspect(conn).has_table("invite") and "nome" not in _colunas(conn, "invite"):
+            conn.execute(text("ALTER TABLE invite ADD COLUMN nome VARCHAR"))
+            print("🔧 migração: invite.nome adicionada")
+        # O e-mail e a senha deixaram de ser obrigatórios, e banco que já existe mantém o `NOT NULL` de
+        # quando foi criado. No Postgres dá para soltar; no SQLite exigiria reconstruir a tabela, e banco de
+        # desenvolvimento é descartável, então ali a falha é registrada e a vida segue.
+        if inspect(conn).has_table("usuario"):
+            for coluna in ("email", "senha_hash"):
+                try:
+                    conn.execute(text(f"ALTER TABLE usuario ALTER COLUMN {coluna} DROP NOT NULL"))
+                except Exception:
+                    pass
+            # O índice único antigo do e-mail precisa sair para o parcial entrar no lugar dele.
+            try:
+                conn.execute(text("DROP INDEX IF EXISTS ix_usuario_email"))
+            except Exception:
+                pass
+
         if "document_sha256" not in cols:
             conn.execute(text("ALTER TABLE tarefa ADD COLUMN document_sha256 VARCHAR"))
             print("🔧 migração: tarefa.document_sha256 adicionada")
@@ -216,9 +252,13 @@ def _aplicar_migracoes() -> None:
 
 # LeIA: ``create_all`` cria tabela que falta, nunca restrição em tabela que já existe. Um índice único
 # criado à mão vale nos dois bancos e alcança o banco que já está em produção, que é onde a corrida mora.
+# Cada linha é (nome, tabela, colunas, coluna que precisa não ser nula). A quarta, quando existe, torna o
+# índice **parcial**: ele vale só para as linhas em que aquela coluna está preenchida. É o que permite muitas
+# contas sem e-mail convivendo com e-mail único entre as que têm.
 UNIQUE_INDEXES = (
-    ("uq_tentativa_rodada", "tentativa", "tarefa_id, numero"),
-    ("uq_tentativa_hash", "tentativa", "hash_imutavel"),
+    ("uq_tentativa_rodada", "tentativa", "tarefa_id, numero", None),
+    ("uq_tentativa_hash", "tentativa", "hash_imutavel", None),
+    ("uq_usuario_email", "usuario", "email", "email"),
 )
 
 
@@ -232,12 +272,18 @@ def _garantir_indices_unicos() -> None:
     módulo, e o driver do SQLite recusa duas instruções num ``execute``. Nenhuma das duas garantias é do
     nosso desenho, e produção roda Postgres.
     """
-    for nome, tabela, colunas in UNIQUE_INDEXES:
+    for nome, tabela, colunas, nao_nula in UNIQUE_INDEXES:
         try:
             alvo = SQLModel.metadata.tables[tabela]
             colunas_do_indice = [alvo.c[c.strip()] for c in colunas.split(",")]
+            # O predicado do índice parcial vai nos dois dialetos: os dois bancos o suportam, e a alternativa
+            # seria escrever a instrução à mão, que é justamente o que esta função existe para não fazer.
+            extra = {}
+            if nao_nula:
+                onde = alvo.c[nao_nula].isnot(None)
+                extra = {"sqlite_where": onde, "postgresql_where": onde}
             with engine.begin() as conn:
-                Index(nome, *colunas_do_indice, unique=True).create(conn, checkfirst=True)
+                Index(nome, *colunas_do_indice, unique=True, **extra).create(conn, checkfirst=True)
         except Exception as e:
             # Falha aqui quase sempre significa que o banco já tem duplicata, e recusar o boot por isso
             # seria pior que seguir. Mas o defeito precisa aparecer inteiro, não virar silêncio.

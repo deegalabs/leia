@@ -31,10 +31,11 @@ def active_invite(session: Session, task_id: int) -> Optional[Invite]:
     ).first()
 
 
-def issue(session: Session, t: Tarefa, by: Usuario, email: Optional[str] = None,
+def issue(session: Session, t: Tarefa, by: Usuario, nome: str, email: Optional[str] = None,
           hours: Optional[int] = None) -> Invite:
+    """O nome é obrigatório e o e-mail não. É o nome que a tela mostra para a pessoa confirmar que é ela."""
     horas = DEFAULT_HOURS if hours is None else max(1, int(hours))
-    inv = Invite(task_id=t.id, email=normalize_email(email), created_by=by.id,
+    inv = Invite(task_id=t.id, nome=nome.strip(), email=normalize_email(email), created_by=by.id,
                  expires_at=datetime.utcnow() + timedelta(hours=horas))
     session.add(inv)
     session.commit()
@@ -54,7 +55,7 @@ def revoke(session: Session, inv: Invite) -> Invite:
 def to_json(inv: Optional[Invite]) -> Optional[dict]:
     if inv is None:
         return None
-    return {"id": inv.id, "email": inv.email,
+    return {"id": inv.id, "nome": inv.nome, "email": inv.email,
             "expira_em": inv.expires_at.isoformat() if inv.expires_at else None,
             "revogado_em": inv.revoked_at.isoformat() if inv.revoked_at else None,
             "criado_em": inv.created_at.isoformat()}
@@ -73,7 +74,7 @@ def public_json(session: Session, t: Tarefa) -> Optional[dict]:
     inv = active_invite(session, t.id)
     if inv is None or inv.revoked_at is not None:
         return None
-    return {"enderecado": bool(inv.email), "para": masked(inv.email),
+    return {"nome": inv.nome, "enderecado": bool(inv.email), "para": masked(inv.email),
             "expira_em": inv.expires_at.isoformat() if inv.expires_at else None}
 
 
