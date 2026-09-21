@@ -21,7 +21,7 @@ const trust = [
 export default function Landing() {
   const demoHash = process.env.NEXT_PUBLIC_DEMO_HASH || "demo";
   return (
-    <main className="flex-1">
+    <div className="flex-1">
       <section className="dark bg-navy px-4 pb-12 pt-10 text-paper">
         <div className="mx-auto max-w-[680px]">
           <div className="mb-8 flex items-center justify-between gap-3">
@@ -93,6 +93,6 @@ export default function Landing() {
           <p>A assistente explica o que está escrito. Não dá conselho jurídico e não substitui o advogado. O comprovante não é assinatura de nada: ele registra que você leu a explicação e respondeu às perguntas.</p>
         </div>
       </footer>
-    </main>
+    </div>
   );
 }

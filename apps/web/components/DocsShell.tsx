@@ -13,8 +13,13 @@ export function DocsShell({ current, parts, toc }: { current: DocEntry; parts: D
   const next = idx < DOCS.length - 1 ? DOCS[idx + 1] : null;
   const groups = Array.from(new Set(DOCS.map((d) => d.group)));
   return (
-    <main className="relative flex-1">
-      <a href="#conteudo" className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-3 focus:z-50 focus:rounded-button focus:bg-teal focus:px-4 focus:py-2 focus:font-bold focus:text-navy">Pular para o conteúdo</a>
+    /* Sem `<main>` próprio: ele passou para o layout raiz, porque duas marcas de conteúdo principal na
+       mesma página dão à pessoa dois destinos para o mesmo atalho do leitor de tela. */
+    <div className="relative flex-1">
+      {/* O atalho do layout raiz leva ao `<main>`, que aqui começa antes da navegação da documentação. Este
+          segundo atalho existe para quem já está dentro do `/docs` pular também aquela navegação, e aponta
+          para um alvo próprio: dois `id="conteudo"` na mesma página fariam o atalho de cima cair no errado. */}
+      <a href="#doc-conteudo" className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-3 focus:z-50 focus:rounded-button focus:bg-teal focus:px-4 focus:py-2 focus:font-bold focus:text-navy">Pular para o texto da página</a>
       <header className="bg-navy px-4 py-3 text-paper">
         <div className="mx-auto flex max-w-[1100px] items-center justify-between gap-3">
           <Link href="/" className="inline-flex min-h-[44px] items-center gap-2" aria-label="LeIA, página inicial">
@@ -38,7 +43,7 @@ export function DocsShell({ current, parts, toc }: { current: DocEntry; parts: D
           </details>
           <div className="hidden wide:block"><DocsNav groups={groups} current={current.slug} /></div>
         </nav>
-        <article id="conteudo" tabIndex={-1} className="min-w-0 outline-none">
+        <article id="doc-conteudo" tabIndex={-1} className="min-w-0 outline-none">
           <p className="mb-2 text-[0.9rem] text-ink-2">{current.group}</p>
           {toc.length >= 3 && (
             <details className="group mb-5 rounded-card border border-line bg-surface">
@@ -72,7 +77,7 @@ export function DocsShell({ current, parts, toc }: { current: DocEntry; parts: D
           </nav>
         </article>
       </div>
-    </main>
+    </div>
   );
 }
 

@@ -194,6 +194,8 @@ export function Field({ id, label, hint, children }: { id: string; label: string
    divisor dá 1,34:1. O campo precisa ter borda que a pessoa enxergue sem adivinhar onde ele começa. */
 export const inputClass = "min-h-[48px] w-full rounded-button border-2 border-line-strong bg-surface px-3 text-[1.05rem] focus:border-teal-deep";
 
+/* `div`, e não `main`: o `<main>` é único e nasce no layout raiz. Esta função continua sendo o que dá
+   largura e respiro à tela, que é o trabalho dela. */
 export function Page({ children, wide = false }: { children: ReactNode; wide?: boolean }) {
-  return <main className={`mx-auto w-full flex-1 px-4 pb-6 ${wide ? "max-w-[760px]" : "max-w-[560px] wide:max-w-[680px]"}`}>{children}</main>;
+  return <div className={`mx-auto w-full flex-1 px-4 pb-6 ${wide ? "max-w-[760px]" : "max-w-[560px] wide:max-w-[680px]"}`}>{children}</div>;
 }
