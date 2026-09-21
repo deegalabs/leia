@@ -13,6 +13,7 @@ import { ScoreChip } from "./InferenceMarks";
 import { fmt, m } from "@/lib/i18n";
 /* LeIA: "done" ends a journey without questions (external flow): no receipt, no chip */
 import { firstUnanswered, keptAfterRetry, restore, type Step } from "@/lib/journey-state";
+import { SkeletonCard } from "./Skeleton";
 
 export function Journey({ hash }: { hash: string }) {
   const [task, setTask] = useState<Task | null>(null);
@@ -98,7 +99,12 @@ export function Journey({ hash }: { hash: string }) {
     finally { setSending(false); }
   }
 
-  if (!task) return <Page><AssistantBanner /><p role="status" className="text-ink-2">{error ?? "Carregando sua explicação."}</p></Page>;
+  if (!task) return (
+    <Page><AssistantBanner />
+      {error ? <p role="status" className="text-ink-2">{error}</p>
+             : <SkeletonCard linhas={5} rotulo="Carregando sua explicação." />}
+    </Page>
+  );
   if (task.tarefa.status === "falhou") return (
     <Page><AssistantBanner />
       <Card><h1 className="mb-2 text-[1.5rem]">Não deu certo desta vez</h1><p>A explicação deste documento não pôde ser preparada. Fale com quem enviou o documento para tentar de novo.</p></Card>

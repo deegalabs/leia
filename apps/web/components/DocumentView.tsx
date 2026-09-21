@@ -5,6 +5,7 @@ import { getInferences } from "@/lib/api";
 import type { Inferences } from "@/lib/inferences";
 import { AssistantBanner, Card, Page, StatusChip } from "./ui";
 import { InferenceMarks, scrollToMark } from "./InferenceMarks"; /* LeIA: marks shared with the lawyer review */
+import { Skeleton } from "./Skeleton";
 
 export function DocumentView({ hash }: { hash: string }) {
   const [data, setData] = useState<Inferences | null>(null);
@@ -18,7 +19,9 @@ export function DocumentView({ hash }: { hash: string }) {
     <Page wide>
       <AssistantBanner />
       <h1 className="mb-2 text-[1.5rem]">O documento e o que a assistente encontrou nele</h1>
-      {!data && <p role="status" className="text-ink-2">{error ?? "Carregando o documento."}</p>}
+      {!data && (error
+        ? <p role="status" className="text-ink-2">{error}</p>
+        : <Skeleton linhas={6} titulo rotulo="Carregando o documento." />)}
       {data && (
         <>
           <p className="mb-3">Cada marcação mostra de onde veio uma informação usada na explicação. Marcações conferidas foram encontradas palavra por palavra no texto.</p>

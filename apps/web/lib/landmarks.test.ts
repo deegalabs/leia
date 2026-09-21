@@ -60,3 +60,15 @@ describe("os marcos da página", () => {
       .toEqual([]);
   });
 });
+
+/* LeIA (E13-T06): a barra do topo só é verdadeira enquanto toda busca passar por ela. `lib/api.ts` tinha
+   dezenove `fetch` soltos, e um vigésimo acrescentado por descuido seria uma tela carregando em silêncio. */
+describe("o indicador de progresso", () => {
+  it("nenhuma busca escapa do contador", () => {
+    const api = readFileSync(join(RAIZ, "lib", "api.ts"), "utf8");
+    const soltos = [...api.matchAll(/(?<!\w)fetch\(/g)].length;
+    expect(soltos, "use `busca()` de lib/progress.ts no lugar de `fetch`, senão a barra mente por omissão")
+      .toBe(0);
+    expect(api).toMatch(/import \{ busca \} from "\.\/progress"/);
+  });
+});

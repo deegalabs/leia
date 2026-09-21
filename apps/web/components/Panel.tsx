@@ -8,6 +8,7 @@ import { fmt, m } from "@/lib/i18n";
 import { isSettled, needsReview, statusInfo } from "@/lib/status";
 import { AppHeader, Card, CopyButton, LinkButton, Page, StatusChip } from "./ui";
 import { AuthNav, RequireAuth } from "./Session";
+import { SkeletonCard } from "./Skeleton";
 
 export function Panel() {
   return (
@@ -42,7 +43,9 @@ function PanelBody() {
         <h1 className="text-[1.5rem]">{isCitizen ? m.panel.citizenTitle : m.panel.lawyerTitle}</h1>
         <LinkButton href="/enviar" className="!w-auto"><FilePlus2 size={20} aria-hidden /> {isCitizen ? m.panel.sendMyDocument : m.panel.sendDocument}</LinkButton>
       </div>
-      {!tasks && <p role="status" className="text-ink-2">{error ?? m.panel.loading}</p>}
+      {!tasks && (error
+        ? <p role="status" className="text-ink-2">{error}</p>
+        : <div className="grid gap-3"><SkeletonCard linhas={2} rotulo={m.panel.loading} /><SkeletonCard linhas={2} rotulo="" /></div>)}
       {tasks && tasks.length === 0 && <Card tone="soft"><p>{isCitizen ? m.panel.emptyCitizen : m.panel.emptyLawyer}</p></Card>}
       {tasks && tasks.length > 0 && (
         <ul className="grid gap-3">

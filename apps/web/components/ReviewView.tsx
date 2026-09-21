@@ -12,6 +12,7 @@ import { AuthNav, RequireAuth } from "./Session";
 import { DocumentTypeCard } from "./DocumentTypeCard";
 import { Paragraphs, cleanTitle } from "./Inline";
 import { ClassCards, MarkCounts, MarkedText, scrollToMark } from "./InferenceMarks";
+import { SkeletonCard } from "./Skeleton";
 
 /* Lawyer review before release (docs/API-V3-CONTRACT.md, "Revisão do advogado antes de liberar"):
    what the workflow marked in the text, what it concluded, what the citizen will read and the questions,
@@ -115,7 +116,9 @@ function Body({ id }: { id: string }) {
   }
 
   if (isCitizen) return <p role="status" className="text-ink-2">{m.common.loading}</p>;
-  if (!data) return <p role="status" className="text-ink-2">{error ?? m.panel.review.loading}</p>;
+  if (!data) return error
+    ? <p role="status" className="text-ink-2">{error}</p>
+    : <SkeletonCard linhas={6} rotulo={m.panel.review.loading} />;
   const s = statusInfo(data.tarefa.status, false, data.tarefa.origem);
   const link = clientLinkUrl(data.link_cliente || data.tarefa.hash);
   const pending = needsReview(data.tarefa.status, data.tarefa.origem);

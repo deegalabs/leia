@@ -3,6 +3,8 @@
    The route handlers in app/api/* either forward to the service (SERVICE_URL) or answer from the in-app mock,
    which is what the hosted demo uses. */
 
+import { busca } from "./progress";
+
 /* LeIA: score (0..1 or 0..100) only on topics from the external "Resumo estruturado" flow */
 export type Topic = { id: number; titulo: string; explicacao?: string; explicacao_md?: string; trecho?: string; clausula?: string; score?: number; conferencia?: import("./inferences").Anchor };
 /* LeIA: the species the engine read the document as. It comes first in the pipeline and it is what chooses
@@ -72,7 +74,7 @@ async function check(r: Response) {
 }
 
 export async function getTask(hash: string): Promise<Task> {
-  const r = await check(await fetch(`/api/t/${hash}`, { headers: { Accept: "application/json" }, cache: "no-store" }));
+  const r = await check(await busca(`/api/t/${hash}`, { headers: { Accept: "application/json" }, cache: "no-store" }));
   return r.json();
 }
 
@@ -81,7 +83,7 @@ export async function getTask(hash: string): Promise<Task> {
    sem estar dentro dela é número que qualquer um troca depois. */
 export async function submitQuiz(hash: string, respostas: Record<string, number>,
                                  consultas: Record<string, number> = {}): Promise<QuizResult> {
-  const r = await check(await fetch(`/api/t/${hash}/quiz`, {
+  const r = await check(await busca(`/api/t/${hash}/quiz`, {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ respostas, consultas }),
   }));
   return r.json();
@@ -89,7 +91,7 @@ export async function submitQuiz(hash: string, respostas: Record<string, number>
 
 /* SSE over fetch: "data: {t: '...'}" per token, "data: {error: '...'}" on failure. */
 export async function chat(hash: string, mensagem: string, onText: (acc: string) => void): Promise<string> {
-  const r = await check(await fetch(`/api/t/${hash}/chat`, {
+  const r = await check(await busca(`/api/t/${hash}/chat`, {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mensagem }),
   }));
   if (!r.body) throw new Error("sem corpo");
@@ -115,7 +117,7 @@ export async function chat(hash: string, mensagem: string, onText: (acc: string)
 }
 
 export async function getVerify(attempt: string): Promise<VerifyResult> {
-  const r = await check(await fetch(`/api/verify/${attempt}`, { cache: "no-store" }));
+  const r = await check(await busca(`/api/verify/${attempt}`, { cache: "no-store" }));
   return r.json();
 }
 
@@ -164,7 +166,7 @@ export type TaskDetail = {
 const jsonHeaders = () => ({ "Content-Type": "application/json", Accept: "application/json" });
 
 export async function listTasks(): Promise<TaskSummary[]> {
-  const r = await check(await fetch(`/api/tarefas`, { headers: { Accept: "application/json" }, cache: "no-store" }));
+  const r = await check(await busca(`/api/tarefas`, { headers: { Accept: "application/json" }, cache: "no-store" }));
   const { tarefas } = (await r.json()) as { tarefas: TaskSummary[] };
   return tarefas;
 }
@@ -172,23 +174,23 @@ export async function createTask(titulo: string, pdf: File): Promise<{ id: numbe
   const form = new FormData();
   form.append("titulo", titulo);
   form.append("pdf", pdf, pdf.name);
-  const r = await check(await fetch(`/api/tarefas`, { method: "POST", headers: { Accept: "application/json" }, body: form }));
+  const r = await check(await busca(`/api/tarefas`, { method: "POST", headers: { Accept: "application/json" }, body: form }));
   return r.json();
 }
 export async function getTaskDetail(id: string | number): Promise<TaskDetail> {
-  const r = await check(await fetch(`/api/tarefas/${id}`, { headers: { Accept: "application/json" }, cache: "no-store" }));
+  const r = await check(await busca(`/api/tarefas/${id}`, { headers: { Accept: "application/json" }, cache: "no-store" }));
   return r.json();
 }
 export async function answerDoubt(id: string | number, duvidaId: number, resposta: string): Promise<{ ok: boolean }> {
-  const r = await check(await fetch(`/api/tarefas/${id}/duvidas/${duvidaId}/responder`, { method: "POST", headers: jsonHeaders(), body: JSON.stringify({ resposta }) }));
+  const r = await check(await busca(`/api/tarefas/${id}/duvidas/${duvidaId}/responder`, { method: "POST", headers: jsonHeaders(), body: JSON.stringify({ resposta }) }));
   return r.json();
 }
 export async function sendDoubt(hash: string, texto: string, contexto: ChatTurn[] = []): Promise<{ id: number; criada_em: string }> {
-  const r = await check(await fetch(`/api/t/${hash}/duvida`, { method: "POST", headers: jsonHeaders(), body: JSON.stringify({ texto, contexto }) }));
+  const r = await check(await busca(`/api/t/${hash}/duvida`, { method: "POST", headers: jsonHeaders(), body: JSON.stringify({ texto, contexto }) }));
   return r.json();
 }
 export async function bindTask(hash: string): Promise<{ ok: boolean }> {
-  const r = await check(await fetch(`/api/t/${hash}/vincular`, { method: "POST", headers: jsonHeaders(), body: "{}" }));
+  const r = await check(await busca(`/api/t/${hash}/vincular`, { method: "POST", headers: jsonHeaders(), body: "{}" }));
   return r.json();
 }
 /* The citizen link is always a page of this app; the service may send it relative or absolute. */
@@ -203,7 +205,7 @@ export function clientLinkUrl(linkOrHash: string): string {
    409 only while the lawyer reviews, 404 when the hash is unknown. */
 import type { Inferences } from "./inferences";
 export async function getInferences(hash: string): Promise<Inferences> {
-  const r = await check(await fetch(`/api/t/${hash}/inferencias`, { cache: "no-store" }));
+  const r = await check(await busca(`/api/t/${hash}/inferencias`, { cache: "no-store" }));
   const data = (await r.json()) as Inferences;
   return { ...data, texto: data.texto ?? "", classes: data.classes ?? [], sinteses: data.sinteses ?? [], total: data.total ?? 0, conferidos: data.conferidos ?? 0 };
 }
@@ -221,30 +223,30 @@ export type Review = {
   tipo_documento?: DocumentType | null; tipos_documento?: DocumentTypeOption[];
 };
 export async function getReview(id: string | number): Promise<Review> {
-  const r = await check(await fetch(`/api/tarefas/${id}/revisao`, { headers: { Accept: "application/json" }, cache: "no-store" }));
+  const r = await check(await busca(`/api/tarefas/${id}/revisao`, { headers: { Accept: "application/json" }, cache: "no-store" }));
   return r.json();
 }
 export async function issueInvite(id: string | number, input: { email?: string; validade_horas?: number } = {}): Promise<Invite> {
-  const r = await check(await fetch(`/api/tarefas/${id}/convite`, { method: "POST", headers: jsonHeaders(), body: JSON.stringify(input) }));
+  const r = await check(await busca(`/api/tarefas/${id}/convite`, { method: "POST", headers: jsonHeaders(), body: JSON.stringify(input) }));
   return r.json();
 }
 export async function retryTask(id: string | number): Promise<{ ok: boolean; status: string }> {
-  const r = await check(await fetch(`/api/tarefas/${id}/reprocessar`, { method: "POST", headers: jsonHeaders() }));
+  const r = await check(await busca(`/api/tarefas/${id}/reprocessar`, { method: "POST", headers: jsonHeaders() }));
   return r.json();
 }
 export async function unbindTask(id: string | number): Promise<{ ok: boolean }> {
-  const r = await check(await fetch(`/api/tarefas/${id}/cidadao`, { method: "DELETE", headers: jsonHeaders() }));
+  const r = await check(await busca(`/api/tarefas/${id}/cidadao`, { method: "DELETE", headers: jsonHeaders() }));
   return r.json();
 }
 export async function revokeInvite(id: string | number): Promise<Invite> {
-  const r = await check(await fetch(`/api/tarefas/${id}/convite`, { method: "DELETE", headers: jsonHeaders() }));
+  const r = await check(await busca(`/api/tarefas/${id}/convite`, { method: "DELETE", headers: jsonHeaders() }));
   return r.json();
 }
 
 /* The lawyer's answer about the species. It does not redo the explanation: the run that produced what is on
    screen already read the document with the old vocabulary, so the screen says so and offers "refazer". */
 export async function setDocumentType(id: string | number, tipo: string): Promise<{ ok: boolean; tipo_documento: DocumentType }> {
-  const r = await check(await fetch(`/api/tarefas/${id}/tipo-documento`, { method: "POST", headers: jsonHeaders(), body: JSON.stringify({ tipo }) }));
+  const r = await check(await busca(`/api/tarefas/${id}/tipo-documento`, { method: "POST", headers: jsonHeaders(), body: JSON.stringify({ tipo }) }));
   return r.json();
 }
 
@@ -253,11 +255,11 @@ export async function setDocumentType(id: string | number, tipo: string): Promis
    desliga a âncora dela sem barulho nenhum e isso precisa aparecer antes de liberar. */
 export async function saveReview(id: string | number, input: { resumo_md?: string; questoes?: number[] }):
   Promise<{ ok: boolean; porta_qualidade: { motivo: string | null } }> {
-  const r = await check(await fetch(`/api/tarefas/${id}/revisao`, { method: "POST", headers: jsonHeaders(), body: JSON.stringify(input) }));
+  const r = await check(await busca(`/api/tarefas/${id}/revisao`, { method: "POST", headers: jsonHeaders(), body: JSON.stringify(input) }));
   return r.json();
 }
 
 export async function approveTask(id: string | number): Promise<{ ok: boolean; status: TaskStatus }> {
-  const r = await check(await fetch(`/api/tarefas/${id}/aprovar`, { method: "POST", headers: jsonHeaders(), body: "{}" }));
+  const r = await check(await busca(`/api/tarefas/${id}/aprovar`, { method: "POST", headers: jsonHeaders(), body: "{}" }));
   return r.json();
 }

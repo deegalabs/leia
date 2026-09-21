@@ -5,6 +5,7 @@ import { formatDateTime, getVerify, proofUrl, type VerifyResult } from "@/lib/ap
 import { Card, CopyButton, HashDisplay, Page, StatusChip } from "./ui";
 import { m } from "@/lib/i18n";
 import { stampView } from "@/lib/stamp";
+import { SkeletonCard } from "./Skeleton";
 
 export function Verify({ attempt }: { attempt: string }) {
   const [data, setData] = useState<VerifyResult | null>(null);
@@ -29,7 +30,9 @@ export function Verify({ attempt }: { attempt: string }) {
         <span className="text-[0.95rem] text-paper/85">Verificação pública</span>
       </header>
       <h1 className="mb-3 text-[1.5rem]">Registro de entendimento</h1>
-      {!data && <p role="status" className="text-ink-2">{error ?? "Carregando o registro."}</p>}
+      {!data && (error
+        ? <p role="status" className="text-ink-2">{error}</p>
+        : <SkeletonCard linhas={4} rotulo="Carregando o registro." />)}
       {data && stamp && (
         <div className="space-y-3">
           <StatusChip tone={stamp.tone}>{stamp.chip}</StatusChip>
