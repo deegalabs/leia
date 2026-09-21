@@ -257,7 +257,7 @@ def test_link_citizen(lawyer, lawyer_task, citizen):
     assert client.post(f"/api/t/{h}/vincular", headers=bearer(lawyer["token"])).status_code == 403
     # vincular é virar dona do documento, então exige convite vivo; ler segue aberto sem ele
     assert client.post(f"/api/t/{h}/vincular", headers=bearer(citizen["token"])).status_code == 403
-    client.post(f"/api/tarefas/{lawyer_task['id']}/convite", json={"email": None}, headers=bearer(lawyer["token"]))
+    client.post(f"/api/tarefas/{lawyer_task['id']}/convite", json={"nome": "Destinatária", "email": None}, headers=bearer(lawyer["token"]))
     assert client.post(f"/api/t/{h}/vincular", headers=bearer(citizen["token"])).json() == {"ok": True}
     assert client.post(f"/api/t/{h}/vincular", headers=bearer(citizen["token"])).json() == {"ok": True}  # idempotent
     assert client.get(f"/api/t/{h}").json()["cidadao_vinculado"] is True
@@ -788,6 +788,9 @@ def _nova_tarefa(lawyer) -> dict:
 
 
 def _convidar(lawyer, tarefa_id: int, **corpo) -> dict:
+    # O nome virou obrigatório no convite (E15-T02): é ele que a tela mostra para a pessoa confirmar que é
+    # ela. Quem chama pode sobrescrever, e quem não se importa não precisa repetir a cada teste.
+    corpo.setdefault("nome", "Destinatária")
     r = client.post(f"/api/tarefas/{tarefa_id}/convite", json=corpo, headers=bearer(lawyer["token"]))
     assert r.status_code == 200, r.text
     return r.json()
@@ -800,7 +803,7 @@ def test_a_link_without_an_invite_keeps_working(lawyer_task):
 
 def test_only_whoever_sent_the_document_can_invite_or_revoke(lawyer, citizen):
     t = _nova_tarefa(lawyer)
-    r = client.post(f"/api/tarefas/{t['id']}/convite", json={}, headers=bearer(citizen["token"]))
+    r = client.post(f"/api/tarefas/{t['id']}/convite", json={"nome": "Destinatária"}, headers=bearer(citizen["token"]))
     assert r.status_code in (403, 404), "uma conta qualquer conseguiu emitir convite para documento de outra pessoa"
     _convidar(lawyer, t["id"])
     r = client.delete(f"/api/tarefas/{t['id']}/convite", headers=bearer(citizen["token"]))
@@ -1308,7 +1311,7 @@ def test_linking_requires_an_invite(lawyer, citizen):
     assert r.status_code == 403, "uma conta qualquer se vinculou a um documento sem convite nenhum"
     assert client.get(f"/api/t/{t['hash']}").status_code == 200, "ler continua aberto"
 
-    client.post(f"/api/tarefas/{t['id']}/convite", json={"email": None},
+    client.post(f"/api/tarefas/{t['id']}/convite", json={"nome": "Destinatária", "email": None},
                 headers=bearer(lawyer["token"])).raise_for_status()
     assert client.post(f"/api/t/{t['hash']}/vincular", headers=bearer(citizen["token"])).status_code == 200
 
@@ -1316,7 +1319,7 @@ def test_linking_requires_an_invite(lawyer, citizen):
 def test_the_owner_can_undo_a_link(lawyer, citizen):
     """Sem desfazer, um vínculo errado trancava a destinatária legítima para fora do próprio documento."""
     t = create_task(lawyer["token"], "Desvínculo")
-    client.post(f"/api/tarefas/{t['id']}/convite", json={"email": None}, headers=bearer(lawyer["token"]))
+    client.post(f"/api/tarefas/{t['id']}/convite", json={"nome": "Destinatária", "email": None}, headers=bearer(lawyer["token"]))
     client.post(f"/api/t/{t['hash']}/vincular", headers=bearer(citizen["token"]))
 
     assert client.delete(f"/api/tarefas/{t['id']}/cidadao",
@@ -1368,7 +1371,7 @@ def test_undoing_a_link_does_not_hand_the_next_person_the_previous_one_s_record(
 
     t = create_task(lawyer["token"], "Herança")
     fake_artifacts(t["hash"])
-    client.post(f"/api/tarefas/{t['id']}/convite", json={"email": None}, headers=bearer(lawyer["token"]))
+    client.post(f"/api/tarefas/{t['id']}/convite", json={"nome": "Destinatária", "email": None}, headers=bearer(lawyer["token"]))
     client.post(f"/api/t/{t['hash']}/vincular", headers=bearer(citizen["token"]))
 
     with Session(engine) as s:
@@ -2818,3 +2821,115 @@ def test_every_excerpt_says_which_page_of_the_document_it_is_on():
     resumo = "# Resumo em uma linha\n\nPaga ao final.\n\n## 🤝 O que está sendo pedido\n\nO pagamento é ao final."
     topico = next(t for t in topics_from_summary(resumo, memoria, doc, sinteses) if "pedido" in t["titulo"])
     assert topico["pagina"] == "Página 2 de 2", topico
+
+
+# ── Entrar sem entrar: o link recebido é a credencial (E15) ───────────────────
+
+def test_an_account_can_exist_without_password_or_email(lawyer):
+    """A cidadã não cria conta. O link que ela recebeu já prova que é ela: foi endereçado a ela, tem validade
+    e pode ser cancelado por quem enviou. Pedir senha depois disso é pedir duas provas da mesma coisa, e cada
+    campo a mais é uma pessoa a menos que chega ao fim."""
+    from core.auth import open_session
+    from core.db import Usuario, engine as _engine
+    from sqlmodel import Session as _S
+
+    with _S(_engine) as s:
+        u = Usuario(nome="Maria do convite", papel="cidadao")
+        s.add(u); s.commit(); s.refresh(u)
+        assert u.email is None and u.senha_hash is None, "a conta sem senha não pôde nascer"
+        token = open_session(s, u)
+        assert token and len(token) > 20
+
+    # E o token abre as rotas de quem está logado, como qualquer outro.
+    eu = client.get("/api/auth/me", headers=bearer(token))
+    assert eu.status_code == 200, eu.text
+    assert eu.json()["usuario"]["nome"] == "Maria do convite"
+
+
+def test_more_than_one_account_may_have_no_email(lawyer):
+    """O e-mail era único. Com várias contas sem e-mail, "único" precisa passar a significar "único entre os
+    que têm", senão a segunda cidadã que entrar pelo link colide com a primeira."""
+    from core.db import Usuario, engine as _engine
+    from sqlmodel import Session as _S
+
+    with _S(_engine) as s:
+        for nome in ("Sem email um", "Sem email dois"):
+            s.add(Usuario(nome=nome, papel="cidadao"))
+        s.commit()   # não pode levantar IntegrityError
+
+
+def test_a_passwordless_account_refuses_any_password(lawyer):
+    """Conta sem senha não é conta com senha vazia. Sem esta guarda, `verify_password` recebe `None` e o
+    comportamento passa a depender da biblioteca de hash, que é o pior lugar para uma decisão de acesso."""
+    from core.auth import authenticate
+    from core.db import Usuario, engine as _engine
+    from sqlmodel import Session as _S
+
+    with _S(_engine) as s:
+        u = Usuario(nome="Sem senha", papel="cidadao", email="semsenha@teste.local")
+        s.add(u); s.commit()
+        for tentativa in ("", "qualquer-coisa", "None"):
+            assert authenticate(s, "semsenha@teste.local", tentativa) is None, tentativa
+
+
+def test_the_invite_carries_the_name_of_who_it_is_for(lawyer):
+    """O nome é o que a tela vai mostrar para a pessoa confirmar: "Sou eu, Maria". Sem ele não há o que
+    confirmar, e o e-mail deixa de ser obrigatório justamente porque ele não é o que identifica."""
+    t = create_task(lawyer["token"], "Convite com nome")
+    r = client.post(f"/api/tarefas/{t['id']}/convite", json={"nome": "Maria Souza"},
+                    headers=bearer(lawyer["token"]))
+    assert r.status_code == 200, r.text
+    assert r.json()["nome"] == "Maria Souza"
+
+    publico = client.get(f"/api/t/{t['hash']}").json()["convite"]
+    assert publico["nome"] == "Maria Souza", publico
+    assert publico["enderecado"] is False, "sem e-mail, o convite não é endereçado a um endereço"
+
+    sem_nome = client.post(f"/api/tarefas/{t['id']}/convite", json={}, headers=bearer(lawyer["token"]))
+    assert sem_nome.status_code == 422, sem_nome.text
+
+
+def test_confirming_the_name_creates_the_account_and_opens_the_session(lawyer):
+    """O fluxo inteiro, sem campo nenhum para digitar: o advogado manda o link endereçado a Maria, Maria abre
+    numa janela anônima, vê "Sou eu, Maria" e toca. A conta nasce ali, sem e-mail e sem senha, o documento
+    fica vinculado a ela, e o comprovante passa a poder afirmar que **uma pessoa com nome** entendeu."""
+    from core.db import Tarefa, Usuario, engine as _engine
+    from sqlmodel import Session as _S, select as _sel
+
+    t = create_task(lawyer["token"], "Confirmação de nome")
+    client.post(f"/api/tarefas/{t['id']}/convite", json={"nome": "Maria Souza"},
+                headers=bearer(lawyer["token"])).raise_for_status()
+
+    r = client.post(f"/api/t/{t['hash']}/confirm-name")
+    assert r.status_code == 200, r.text
+    token = r.json()["token"]
+
+    eu = client.get("/api/auth/me", headers=bearer(token)).json()["usuario"]
+    assert eu["nome"] == "Maria Souza" and eu["papel"] == "cidadao"
+
+    with _S(_engine) as s:
+        conta = s.exec(_sel(Usuario).where(Usuario.session_token == token)).one()
+        assert conta.email is None and conta.senha_hash is None, "nasceu conta com e-mail ou senha"
+        tarefa = s.exec(_sel(Tarefa).where(Tarefa.hash == t["hash"])).one()
+        assert tarefa.cidadao_id == conta.id, "o documento não ficou vinculado a quem confirmou"
+
+    assert client.get(f"/api/t/{t['hash']}").json()["cidadao_vinculado"] is True
+
+
+def test_the_second_person_on_the_same_document_is_refused(lawyer):
+    """O comprovante afirma que **uma** pessoa entendeu. Se a segunda a abrir o link pudesse se vincular por
+    cima, o registro passaria a falar de outra pessoa que não a que respondeu."""
+    t = create_task(lawyer["token"], "Segunda pessoa")
+    client.post(f"/api/tarefas/{t['id']}/convite", json={"nome": "Maria Souza"},
+                headers=bearer(lawyer["token"])).raise_for_status()
+
+    assert client.post(f"/api/t/{t['hash']}/confirm-name").status_code == 200
+    segunda = client.post(f"/api/t/{t['hash']}/confirm-name")
+    assert segunda.status_code == 409, segunda.text
+
+
+def test_confirming_the_name_needs_a_live_invite(lawyer):
+    """Sem convite vivo, o link não prova nada sobre quem o abriu, e criar conta ali seria dar nome de
+    destinatária a quem só tem o endereço."""
+    t = create_task(lawyer["token"], "Sem convite vivo")
+    assert client.post(f"/api/t/{t['hash']}/confirm-name").status_code in (403, 409), "entrou sem convite"

@@ -208,6 +208,7 @@ function DoubtItem({ taskId, d, canReply, onReplied }: { taskId: string; d: Doub
 /* LeIA: o link deixou de ser credencial de quem o tiver. Aqui quem enviou o documento decide até quando ele
    vale, para quem ele abre, e pode cancelá-lo (apps/llm-service/leia/invites.py). */
 function InviteControl({ id, invite, onChange }: { id: string; invite: Invite | null; onChange: () => void }) {
+  const [nome, setNome] = useState(invite?.nome ?? "");
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -216,6 +217,7 @@ function InviteControl({ id, invite, onChange }: { id: string; invite: Invite | 
   const revoked = Boolean(invite?.revogado_em);
   const estado = revoked ? t.inviteRevoked
     : invite?.email ? fmt(t.inviteAddressed, { email: invite.email })
+    : invite?.nome ? `Para ${invite.nome}`
     : t.inviteAnyone;
 
   async function run(action: () => Promise<unknown>) {
@@ -235,16 +237,25 @@ function InviteControl({ id, invite, onChange }: { id: string; invite: Invite | 
       )}
       {!invite && <p className="mt-1 text-[0.9rem] text-ink-3">{t.inviteOpenHint}</p>}
       {!revoked && (
-        <div className="mt-2 grid gap-2 wide:grid-cols-[1fr_auto]">
+        <div className="mt-2 grid gap-2">
+          {/* O nome é obrigatório e vem primeiro; o e-mail é opcional e ficou abaixo. É o nome que a
+              destinatária vê na tela para confirmar que é ela, e é ele que o comprovante vai afirmar. */}
+          <label className="grid gap-1">
+            <span className="text-[0.9rem] text-ink-2">{t.inviteName}</span>
+            <input type="text" autoComplete="off" value={nome} required
+              onChange={(e) => setNome(e.target.value)}
+              className="min-h-[44px] rounded-button border-2 border-line-strong bg-surface px-3 text-[1rem]" />
+            <span className="text-[0.85rem] text-ink-3">{t.inviteNameHint}</span>
+          </label>
           <label className="grid gap-1">
             <span className="text-[0.9rem] text-ink-2">{t.inviteEmailLabel}</span>
             <input type="email" inputMode="email" autoComplete="off" value={email} placeholder={t.inviteEmailPlaceholder}
               onChange={(e) => setEmail(e.target.value)}
-              className="min-h-[44px] rounded-button border border-line bg-surface px-3 text-[1rem]" />
+              className="min-h-[44px] rounded-button border-2 border-line-strong bg-surface px-3 text-[1rem]" />
           </label>
           <div className="flex flex-wrap items-end gap-2">
-            <Button variant="secondary" className="!w-auto" disabled={busy}
-              onClick={() => run(() => issueInvite(id, email.trim() ? { email: email.trim() } : {}))}>{t.inviteLimit}</Button>
+            <Button variant="secondary" className="!w-auto" disabled={busy || !nome.trim()}
+              onClick={() => run(() => issueInvite(id, { nome: nome.trim(), ...(email.trim() ? { email: email.trim() } : {}) }))}>{t.inviteLimit}</Button>
             {invite && (
               <Button variant="ghost" className="!w-auto" disabled={busy}
                 onClick={() => run(() => revokeInvite(id))}>{t.inviteCancel}</Button>

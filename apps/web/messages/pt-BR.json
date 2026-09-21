@@ -329,7 +329,9 @@
       "inviteCancel": "Cancelar este link",
       "inviteFailed": "Não deu para mudar quem pode abrir. Tente de novo.",
       "retry": "Preparar de novo",
-      "retryHelp": "A preparação deste documento não chegou ao fim. Isso acontece, por exemplo, quando o serviço reinicia no meio. Você pode pedir de novo sem enviar o arquivo outra vez."
+      "retryHelp": "A preparação deste documento não chegou ao fim. Isso acontece, por exemplo, quando o serviço reinicia no meio. Você pode pedir de novo sem enviar o arquivo outra vez.",
+      "inviteName": "Nome de quem vai receber",
+      "inviteNameHint": "É o nome que ela vai ver na tela para confirmar que é ela. Obrigatório."
     },
     "openDoubtsOne": "1 dúvida aberta",
     "reviewAndRelease": "Revisar e liberar",
@@ -472,7 +474,13 @@
     "retryKeeping": "Ler de novo e responder só o que faltou",
     "keptAnswers": "O que você já acertou fica guardado. Você responde só as perguntas que faltaram.",
     "claimFailedTitle": "Não deu para guardar este documento no seu nome",
-    "readAs": "Lido como:"
+    "readAs": "Lido como:",
+    "confirmTitle": "Este documento é para você?",
+    "confirmText": "Quem enviou disse que é para {nome}. Confirme para o documento ficar guardado com você e para o comprovante do fim dizer o seu nome.",
+    "confirmYes": "Sou eu, {nome}",
+    "confirmNo": "Esse nome não é o meu",
+    "confirmDenied": "Tudo bem. Você pode ler o documento inteiro e tirar dúvidas do mesmo jeito. O que não dá é guardar o comprovante, porque ele diz o nome de quem entendeu.",
+    "confirmFailed": "Não deu para confirmar agora. Tente de novo em instantes."
   },
   "error": {
     "title": "Deu um problema do nosso lado",
