@@ -7,8 +7,9 @@ import { approveTask, clientLinkUrl, formatDateTime, getReview, getTaskDetail, s
 import { useAuth } from "@/lib/auth";
 import { fmt, m } from "@/lib/i18n";
 import { hasReview, needsReview, statusInfo } from "@/lib/status";
-import { AppHeader, BottomActionBar, Button, Card, CopyButton, LinkButton, Page, StatusChip } from "./ui";
+import { BottomActionBar, Button, Card, CopyButton, LinkButton, StatusChip } from "./ui";
 import { AuthNav, RequireAuth } from "./Session";
+import { LawyerShell } from "./LawyerShell";
 import { DocumentTypeCard } from "./DocumentTypeCard";
 import { Paragraphs, cleanTitle } from "./Inline";
 import { ClassCards, MarkCounts, MarkedText, scrollToMark } from "./InferenceMarks";
@@ -24,10 +25,9 @@ const MARK_PREFIX = "review-mark";
 
 export function ReviewView({ id }: { id: string }) {
   return (
-    <Page wide>
-      <AppHeader right={<AuthNav />} />
+    <LawyerShell right={<AuthNav />}>
       <RequireAuth next={`/painel/${id}/revisao`}><Body id={id} /></RequireAuth>
-    </Page>
+    </LawyerShell>
   );
 }
 
