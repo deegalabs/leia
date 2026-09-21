@@ -2788,3 +2788,33 @@ def test_the_attempt_stops_carrying_the_network_address(lawyer):
     tent = tn.record(t, {"1": 0, "2": 1, "3": 2}, QUESTOES)
     dados = _dados_assinatura(t, tent)
     assert "ip" not in dados and "user_agent" not in dados, f"o PDF assinado ainda publica: {sorted(dados)}"
+
+
+# ── Cada trecho diz em que página do documento ele está (E13-T12) ─────────────
+
+def test_every_excerpt_says_which_page_of_the_document_it_is_on():
+    """"Está no seu documento" é uma afirmação que a pessoa precisa conferir no papel dela. Sem a página,
+    conferir um agravo de 14 folhas custa varrer as 14, e afirmação cara demais de conferir não é conferível
+    na prática. O extrator já escreve `===== PÁGINA n =====` no texto, e o dado estava lá sem uso."""
+    from leia.api_citizen import _item, page_label, topics_from_summary
+    from core.anchors import norm_map
+
+    doc = ("===== PÁGINA 1 =====\n\nCLÁUSULA 1. O CONTRATANTE contrata a CONTRATADA.\n\n"
+           "===== PÁGINA 2 =====\n\nCLÁUSULA 2. Pagará vinte por cento ao final.\n")
+    assert page_label(doc, doc.index("contrata a")) == "Página 1 de 2"
+    assert page_label(doc, doc.index("vinte por cento")) == "Página 2 de 2"
+
+    # Documento sem separador não ganha página inventada.
+    assert page_label("Um contrato sem marcação nenhuma.", 5) is None
+
+    text_norm, idx = norm_map(doc)
+    item = _item("pedidos", 0, {"campo": "principal", "valor": "pagamento",
+                                "trecho_verbatim": "Pagará vinte por cento"}, doc, text_norm, idx, "#000")
+    assert item["pagina"] == "Página 2 de 2", item
+
+    memoria = {"memoria_persistente": {"pedidos": [
+        {"campo": "principal", "valor": "pagamento", "trecho_verbatim": "Pagará vinte por cento"}]}}
+    sinteses = [("pedidos", {"sintese_pedidos": {"valor": "Ela paga ao final.", "lastro": ["pedidos[0]"]}})]
+    resumo = "# Resumo em uma linha\n\nPaga ao final.\n\n## 🤝 O que está sendo pedido\n\nO pagamento é ao final."
+    topico = next(t for t in topics_from_summary(resumo, memoria, doc, sinteses) if "pedido" in t["titulo"])
+    assert topico["pagina"] == "Página 2 de 2", topico

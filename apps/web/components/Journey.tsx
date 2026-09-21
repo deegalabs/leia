@@ -201,7 +201,15 @@ export function Journey({ hash }: { hash: string }) {
                     <span className="group-open:hidden">Ver trecho original</span><span className="hidden group-open:inline">Fechar trecho original</span>
                   </summary>
                   <blockquote cite={t.clausula ? `Cláusula ${t.clausula}` : undefined} className="mt-2 rounded-[12px] border-l-4 border-teal-deep bg-teal-soft px-3.5 py-3 font-mono text-[0.95rem]">
-                    {t.clausula && <small className="mb-1 block text-ink-2">Cláusula {t.clausula}</small>}
+                    {/* Onde achar isto no papel dela. Sem a página, conferir um documento de catorze folhas
+                        custa varrer as catorze, e afirmação cara demais de conferir não é conferível na
+                        prática. A página vem pronta do serviço: é fato do documento, e o documento está
+                        lá. Calcular aqui exigiria trazer os vinte e cinco mil caracteres só por um rótulo. */}
+                    {(t.clausula || t.pagina) && (
+                      <small className="mb-1 block text-ink-2">
+                        {[t.clausula && `Cláusula ${t.clausula}`, t.pagina].filter(Boolean).join(" · ")}
+                      </small>
+                    )}
                     <mark aria-label="trecho destacado">&ldquo;{t.trecho}&rdquo;</mark>
                   </blockquote>
                   {anchorClaim(t.conferencia) && (

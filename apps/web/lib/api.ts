@@ -6,7 +6,9 @@
 import { busca } from "./progress";
 
 /* LeIA: score (0..1 or 0..100) only on topics from the external "Resumo estruturado" flow */
-export type Topic = { id: number; titulo: string; explicacao?: string; explicacao_md?: string; trecho?: string; clausula?: string; score?: number; conferencia?: import("./inferences").Anchor };
+/* `pos` é onde o trecho está no texto extraído, e é o que permite dizer em que página do documento ele
+   fica. Ele existe desde que o trecho publicado passou a ser a fatia do documento naquela posição. */
+export type Topic = { id: number; titulo: string; explicacao?: string; explicacao_md?: string; trecho?: string; pos?: [number, number] | null; pagina?: string | null; clausula?: string; score?: number; conferencia?: import("./inferences").Anchor };
 /* LeIA: the species the engine read the document as. It comes first in the pipeline and it is what chooses
    the vocabulary every later step uses to name the parties, so it travels with every task: `conferido` says
    whether `trecho` was found in the document, `revisado_por_advogado` that a person answered instead of the
