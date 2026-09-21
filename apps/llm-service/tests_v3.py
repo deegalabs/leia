@@ -617,7 +617,18 @@ def test_no_legacy_template_survives_in_the_repo():
 # ── Rotas de bastidor: exigem papel, não apenas estar logado ──────────────────
 # O cadastro de cidadã é aberto por desenho, então "estar logado" não é barreira.
 
-BACKSTAGE = [("get", "/api/protocolo"), ("get", "/api/help"), ("get", "/api/contexto")]
+BACKSTAGE = [("post", "/api/admin/stamps/reprocess")]
+
+# O produto anterior vivia aqui dentro: um chat sobre documentos, com protocolo editável por HTTP, anexo de
+# arquivo arbitrário e memória por sessão de login. Ele perdeu a tela em setembro e continuou registrado,
+# sem chamador nenhum. Saiu inteiro (#102). Esta lista existe para ele não voltar por descuido: cada uma
+# destas rotas foi, um dia, superfície de exfiltração ou de injeção que ninguém estava olhando.
+REMOVIDAS = [
+    ("post", "/api/chat"), ("post", "/api/pdf/destilar"),
+    ("get", "/api/protocolo"), ("post", "/api/protocolo"),
+    ("get", "/api/help"), ("get", "/api/contexto"), ("post", "/api/contexto/limpar"),
+    ("get", "/api/sessao/memoria"), ("post", "/api/sessao/memoria/limpar"),
+]
 
 
 def test_backstage_routes_require_the_supplier_role(citizen, lawyer):
@@ -627,9 +638,6 @@ def test_backstage_routes_require_the_supplier_role(citizen, lawyer):
         for quem, tok in (("cidadã", citizen["token"]), ("advogado", lawyer["token"])):
             r = call(path, headers=bearer(tok))
             assert r.status_code == 403, f"{path} aberta para {quem}: {r.status_code}"
-    assert client.post("/api/contexto/limpar", headers=bearer(citizen["token"])).status_code == 403
-    assert client.post("/api/protocolo", headers=bearer(citizen["token"]), json={"conteudo": "[]"}).status_code == 403
-    assert client.post("/api/chat", headers=bearer(citizen["token"]), json={"mensagem": "oi"}).status_code == 403
 
 
 def test_backstage_routes_stay_open_to_the_supplier():
@@ -637,6 +645,16 @@ def test_backstage_routes_stay_open_to_the_supplier():
     for method, path in BACKSTAGE:
         r = getattr(client, method)(path, headers=bearer(admin["token"]))
         assert r.status_code == 200, f"{path} fechada para o fornecedor: {r.status_code}"
+
+
+def test_the_previous_product_does_not_come_back(citizen):
+    """Rota removida que volta é pior que rota que nunca saiu: ninguém procura por ela de novo.
+
+    O 404 é conferido com credencial de cidadã, e não sem credencial nenhuma, porque uma rota que voltasse
+    protegida por papel responderia 403 e passaria por 'ausente' num teste feito sem token."""
+    for method, path in REMOVIDAS:
+        r = getattr(client, method)(path, headers=bearer(citizen["token"]))
+        assert r.status_code == 404, f"{path} voltou a existir e respondeu {r.status_code}"
 
 
 # ── Hash da tentativa: reproduzível por terceiro e sem dado pessoal ───────────

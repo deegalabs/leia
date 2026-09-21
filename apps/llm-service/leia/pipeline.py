@@ -52,7 +52,7 @@ def _mark_failed(tarefa_id: int, erro: str) -> None:
         ws.record_event(t.hash, "erro_pipeline", erro=erro[:500])
 
 
-async def run_pipeline(tarefa_id: int, groq_client, variacao: str = "", session_token: str | None = None) -> None:
+async def run_pipeline(tarefa_id: int, groq_client, variacao: str = "") -> None:
     """Drop-in for ``run_pdf_pipeline`` in ``BackgroundTasks.add_task``."""
     from core.pipeline_pdf import run_pdf_pipeline
 
@@ -61,7 +61,7 @@ async def run_pipeline(tarefa_id: int, groq_client, variacao: str = "", session_
         log.info("pipeline queued | tarefa=%s | limit=%s", tarefa_id, concurrency())
     async with sem:
         try:
-            await run_pdf_pipeline(tarefa_id, groq_client, variacao, session_token)
+            await run_pdf_pipeline(tarefa_id, groq_client, variacao)
         except Exception as e:  # noqa: BLE001 (the failure belongs to this task only)
             log.exception("pipeline crashed | tarefa=%s", tarefa_id)
             try:

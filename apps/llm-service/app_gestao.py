@@ -26,7 +26,6 @@ from leia.ratelimit import rate_limit            # LeIA: per-IP limit on public 
 from core.auth import (authenticate, end_session, current_user, optional_api_user,
                        create_initial_user, hash_password)
 from core import workspace as ws
-from core import session as sess
 from core import attempts as tn
 from core.pdf_sign import build_signed_pdf
 
@@ -101,7 +100,6 @@ async def create_pdf_task(
     *,
     origem: str = "advogado",
     cidadao_id: Optional[int] = None,
-    session_token: Optional[str] = None,
 ) -> Tarefa:
     if not _ok_pdf(pdf):
         raise HTTPException(400, "Envie um PDF.")
@@ -147,7 +145,7 @@ async def create_pdf_task(
     session.commit()
 
     from main import groq_client
-    bg.add_task(run_pipeline, t.id, groq_client, "", session_token)
+    bg.add_task(run_pipeline, t.id, groq_client, "")
 
     log.info("📁 Tarefa criada + pipeline agendada | id=%s hash=%s origem=%s", t.id, h, origem)
     return t
@@ -156,74 +154,6 @@ async def create_pdf_task(
 # ══════════════════════════════════════════════════════════════════════════
 #  NOVA TAREFA
 # ══════════════════════════════════════════════════════════════════════════
-@router.post("/api/pdf/destilar")
-async def api_pdf_destilar(
-    request: Request,
-    bg: BackgroundTasks,
-    pdf: UploadFile = File(...),
-    u: Usuario = Depends(current_user),
-    session: Session = Depends(get_session),
-):
-    """
-    Versão JSON (para o chat/LeIA) do fluxo de `nova_post`: recebe um PDF,
-    cria a Tarefa e dispara o protocolo de destilação (protocolo_pdf.json)
-    em background. O front-end acompanha o progresso via
-    GET /api/tarefas/{id}/status (eventos task_start/task_done/task_error).
-    Não devolvemos HTML — devolvemos {tarefa_id, hash} para o chat renderizar
-    os blocos de inferência.
-    """
-    if not _ok_pdf(pdf):
-        raise HTTPException(400, "Envie um PDF.")
-
-    h = ws.new_hash()
-    folder = ws.folder(h)
-
-    conteudo = await pdf.read()
-    _validar_pdf(conteudo)
-    (folder / "original.pdf").write_bytes(conteudo)
-
-    t = Tarefa(
-        hash=h,
-        titulo=(pdf.filename or "documento")[:200],
-        advogado_id=u.id,
-        status="criada",
-        pdf_nome=pdf.filename,
-        # Gravado aqui, com o arquivo ainda na mão: o `original.pdf` é apagado logo depois da
-        # extração, e o comprovante precisa continuar sabendo qual documento era.
-        document_sha256=hashlib.sha256(conteudo).hexdigest(),
-        workspace_path=str(folder),
-        rodada=1,
-    )
-    session.add(t); session.commit(); session.refresh(t)
-
-    ws.save_meta(h, {
-        "hash": h,
-        "titulo": t.titulo,
-        "advogado": {"id": u.id, "nome": u.nome},   # LeIA: sem e-mail, o meta.json é baixável
-        "pdf_nome": pdf.filename,
-        "pdf_bytes": len(conteudo),
-        "criada_em": t.criada_em.isoformat(),
-        "origem": "chat_destilacao",
-    })
-    ws.record_event(h, "criada", tarefa_id=t.id, advogado_id=u.id)
-    ws.record_event(h, "pdf_salvo", nome=pdf.filename, bytes=len(conteudo))
-
-    session.add(LogEvento(tarefa_id=t.id, tipo="criada",
-                          payload=f'{{"hash":"{h}"}}'))
-    session.commit()
-
-    token = u.session_token  # LeIA: v5 (Carlos) reads the token from the user
-    from main import groq_client
-    bg.add_task(run_pipeline, t.id, groq_client, "", token)   # LeIA: bounded by PIPELINE_CONCURRENCY
-
-    if not token:
-        log.warning("⚠️  [chat] session_token ausente para usuário %s — "
-                   "destilação NÃO será registrada na memória de sessão", u.id)
-
-    log.info("📁 [chat] Tarefa criada + destilação agendada | id=%s hash=%s", t.id, h)
-    return {"tarefa_id": t.id, "hash": h}
-
-
 @router.get("/api/pdf/{hash_}/destilado")
 async def api_pdf_destilado(
     hash_: str,
@@ -283,41 +213,6 @@ async def api_pdf_log(
 #  estruturado + chat) que acompanha toda pergunta do usuário. Persiste
 #  enquanto a sessão de login estiver aberta; some no logout. NUNCA inclui
 #  nada do fluxo de PDF assinado (esse é isolado por completo).
-# ══════════════════════════════════════════════════════════════════════════
-@router.get("/api/sessao/memoria")
-async def api_sessao_memoria(
-    u: Usuario = Depends(current_user),
-):
-    """
-    Devolve o estado atual da memória de sessão: quais abas já têm uma
-    destilação processada (para o aviso no topo do chat) + o JSON completo
-    das 3 partes (para inspeção/depuração no painel de Contexto).
-    """
-    token = u.session_token
-    return {
-        "processadas": sess.processed_tabs_summary(token),
-        "anexo": sess.shared_attachment(token),
-    }
-
-
-@router.post("/api/sessao/memoria/limpar")
-async def api_sessao_memoria_limpar(
-    aba: Optional[str] = Form(default=None),
-    u: Usuario = Depends(current_user),
-):
-    """
-    Limpa a memória de sessão. Se `aba` vier informado, limpa só aquela aba;
-    senão, limpa a sessão inteira.
-    """
-    if aba is not None and aba not in sess.ABAS:
-        raise HTTPException(400, f"aba inválida: {aba}")
-    token = u.session_token
-    sess.clear(token, aba)  # type: ignore[arg-type]
-    return {"message": "✅ Memória de sessão limpa" + (f" (aba: {aba})" if aba else "")}
-
-
-# ══════════════════════════════════════════════════════════════════════════
-#  REPROCESSAR (reroda pipeline do zero, mesma rodada)
 # ══════════════════════════════════════════════════════════════════════════
 @router.post("/tarefas/{tarefa_id}/reprocess")
 async def reprocess(

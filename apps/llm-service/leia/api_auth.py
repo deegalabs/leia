@@ -12,7 +12,6 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 
-from core import session as sess
 from core.auth import authenticate, end_session, hash_password, api_user
 from core.db import Usuario, get_session
 from leia.ratelimit import rate_limit
@@ -64,13 +63,9 @@ def cadastro(body: CadastroIn, session: Session = Depends(get_session)):
 @router.post("/api/auth/login", dependencies=[Depends(rate_limit)])
 def login(body: LoginIn, session: Session = Depends(get_session)):
     email = body.email.strip().lower()
-    previous = session.exec(select(Usuario).where(Usuario.email == email)).first()
-    old_token = previous.session_token if previous else None
     u = authenticate(session, email, body.senha)
     if not u:
         raise HTTPException(401, "E-mail ou senha não conferem.")
-    if old_token:
-        sess.close(old_token)  # the previous token is gone; its session memory goes with it
     return {"token": u.session_token, "usuario": public_user(u)}
 
 
@@ -81,8 +76,5 @@ def me(u: Usuario = Depends(api_user)):
 
 @router.post("/api/auth/logout")
 def logout(u: Usuario = Depends(api_user), session: Session = Depends(get_session)):
-    token = u.session_token
     end_session(session, u)
-    if token:
-        sess.close(token)
     return {"ok": True}

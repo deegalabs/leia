@@ -532,7 +532,6 @@ async def run_pdf_pipeline(
     tarefa_id: int,
     groq_client,
     variacao: str = "",
-    session_token: str | None = None,
 ) -> None:
     """
     Entry-point chamado por BackgroundTasks.
@@ -541,8 +540,6 @@ async def run_pdf_pipeline(
         tarefa_id:     id da Tarefa no banco
         groq_client:   AsyncGroq já instanciado
         variacao:      (opcional) string para forçar questões diferentes na clonagem
-        session_token: (opcional) sessão de login para registrar a destilação
-                       (aba "chat") na memória de sessão ao concluir
     """
     log.info("═" * 70)
     log.info("🎬 PIPELINE PDF | tarefa_id=%s | variacao=%s",
@@ -740,24 +737,3 @@ async def run_pdf_pipeline(
         # Leaves before the session distillation: the chat attachment would keep a document whose explanation
         # nobody may read, and it would come back in another conversation looking like a checked one.
         return
-
-    # Memória de sessão — SÓ o T6_FUSAO_MEMORIA (processo estruturado),
-    # nunca o PDF, nunca o texto extraído, nunca o resumo humanizado.
-    if session_token:
-        with Session(engine) as s:
-            t = s.get(Tarefa, tarefa_id)
-            titulo = t.titulo if t else hash_
-        from core import session as sess
-        try:
-            sess.record_distillation(
-                session_token, "chat",
-                hash_=hash_, titulo=titulo,
-                resumo_estruturado=outputs_anteriores.get("T6_FUSAO_MEMORIA"),
-            )
-        except Exception as e:
-            log.error("💥 falha ao registrar memória de sessão (chat) | %s", e)
-    else:
-        log.warning("⚠️  pipeline_pdf sem session_token — destilação (chat) "
-                   "não entrará no anexo compartilhado do chat")
-
-    log.info("🏁 PIPELINE | %.2fs | tarefa=%s", tempo_total, tarefa_id)
