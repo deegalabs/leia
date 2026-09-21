@@ -443,6 +443,16 @@
     "onlyQuestion": "Vai só a sua pergunta.",
     "withChat": "Vão a sua pergunta e as últimas mensagens da nossa conversa."
   },
+  "resume": {
+    "title": "Como voltar a este documento depois",
+    "intro": "Este endereço é o que abre o seu documento. Não existe senha para recuperar, então guarde o endereço em algum lugar que seja seu.",
+    "messageTitle": "Mensagem pronta para você mandar para você mesma",
+    "sendWhatsapp": "Mandar no WhatsApp",
+    "copy": "Copiar a mensagem",
+    "opensWhatsapp": "O WhatsApp abre numa janela nova. Se ele não estiver neste aparelho, use o botão de copiar.",
+    "onlyAddress": "A mensagem leva só o endereço. Nada do que está escrito no documento vai junto.",
+    "back": "Voltar para a explicação"
+  },
   "journey": {
     "reviewWaitTitle": "O advogado está revisando a explicação",
     "reviewWaitText": "Você recebe o link liberado em breve. Pode fechar e abrir esta página depois.",

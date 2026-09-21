@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import Link from "next/link";
 import { Check, MessageCircle } from "lucide-react";
 import { confirmName, denyName, getTask, submitQuiz, topicsOf, type QuizResult, type Task } from "@/lib/api";
 import { isReady } from "@/lib/status";
@@ -201,7 +202,16 @@ export function Journey({ hash }: { hash: string }) {
             </Card>
           )}
           {negou && <Card tone="soft" className="mt-4"><p>{m.journey.confirmDenied}</p></Card>}
-          {bound && <Card tone="soft" className="mt-4"><p>Pronto. Este documento agora aparece na sua lista.</p></Card>}
+          {bound && (
+            <Card tone="soft" className="mt-4">
+              <p>Pronto. Este documento agora aparece na sua lista.</p>
+              <p className="mt-2">
+                <Link href={`/t/${hash}/resume`} className="font-bold text-teal-deep underline underline-offset-4">
+                  {m.resume.title}
+                </Link>
+              </p>
+            </Card>
+          )}
           {/* Só quando o convite não traz nome: aí o endereço é tudo o que existe para identificar. Convite
               com nome cai no cartão de confirmação acima, que não pede nada digitado. */}
           {maybeNotTheAddressee && !nomeDoConvite && !bound && (
@@ -382,6 +392,14 @@ export function Journey({ hash }: { hash: string }) {
               <h2 className="mb-2 text-[1.15rem]">O que você viu</h2>
               <ul className="space-y-1">{topics.map((t) => <li key={t.id} className="flex gap-2"><span aria-hidden className="text-ok">✓</span>{cleanTitle(t.titulo)}</li>)}</ul>
             </Card>
+            {/* O comprovante fica no endereço, e o endereço é a única chave que ela tem: a conta nasceu sem
+                e-mail e sem senha, então não existe "esqueci minha senha" para socorrer depois. Guardar é
+                coisa de agora, com o aparelho na mão. */}
+            <p className="mt-4">
+              <Link href={`/t/${hash}/resume`} className="font-bold text-teal-deep underline underline-offset-4">
+                {m.resume.title}
+              </Link>
+            </p>
             <BottomActionBar>
               <LinkButton href={`/comprovante/${result.comprovante_token ?? result.hash_imutavel}`}>Ver meu comprovante</LinkButton>
               <Button variant="secondary" onClick={() => { setResult(null); setStep({ kind: "topic", n: 0 }); }}>Rever a explicação</Button>
