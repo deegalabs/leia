@@ -160,6 +160,16 @@ export function Journey({ hash }: { hash: string }) {
             </span>
             <div>
               <h1 className="mb-2 text-[1.5rem]">Olá. Vou explicar o documento &ldquo;{task.tarefa.titulo}&rdquo; com você.</h1>
+              {/* Quem mandou, e o número que ela pode conferir no cadastro da Ordem. Vem antes da explicação
+                  porque a primeira pergunta de quem recebe um documento jurídico de um desconhecido não é o
+                  que ele diz, é de quem ele veio. Sem número a frase não inventa um: só diz o nome. */}
+              {task.advogado?.nome && (
+                <p className="mb-2 text-[0.95rem] text-ink-2">
+                  {task.advogado.oab
+                    ? fmt(m.c0.sentYou, { lawyer: task.advogado.nome, oab: task.advogado.oab })
+                    : fmt(m.c0.sentYouNoOab, { lawyer: task.advogado.nome })}
+                </p>
+              )}
               <p className="mb-2">{fmt(noQuestions ? m.journey.welcomeNoQuestions : m.journey.welcomeWithQuestions, { n: topics.length })}</p>
             </div>
           </div>

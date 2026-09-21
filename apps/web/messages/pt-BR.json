@@ -67,7 +67,8 @@
     "sentBy": "{lawyer} · {date}"
   },
   "c0": {
-    "sentYou": "{lawyer}, {oab}, enviou para você:",
+    "sentYou": "Quem enviou: {lawyer}, OAB {oab}.",
+    "sentYouNoOab": "Quem enviou: {lawyer}.",
     "intro": "Vamos ler este documento juntos, em partes. No fim, você diz se entendeu.",
     "whyLogin": "Pedimos o login para você poder voltar depois e receber seu comprovante.",
     "google": "Entrar com Google",

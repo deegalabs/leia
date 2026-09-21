@@ -4,7 +4,7 @@
 import { useEffect, useSyncExternalStore } from "react";
 
 export type Role = "cidadao" | "advogado" | "fornecedor";
-export type Usuario = { id: number; nome: string; email: string; papel: Role };
+export type Usuario = { id: number; nome: string; email: string; papel: Role; oab?: string | null };
 export type ApiError = Error & { status?: number };
 
 type Estado = { usuario: Usuario | null; pronto: boolean };

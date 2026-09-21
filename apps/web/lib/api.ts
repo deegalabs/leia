@@ -34,7 +34,7 @@ export type Task = {
   ultima_tentativa: (Attempt & { comprovante_token?: string }) | null;
   eventos?: { tipo?: string; id?: string; idx?: number; total?: number; ts?: string; [k: string]: unknown }[];
   /* LeIA: v3 (docs/API-V3-CONTRACT.md) */
-  advogado?: { nome: string } | null;
+  advogado?: { nome: string; oab?: string | null } | null;
   tem_advogado?: boolean;
   cidadao_vinculado?: boolean;
   duvidas_enviadas?: number;

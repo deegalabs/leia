@@ -71,8 +71,9 @@ def small_pdf(text: str = "Contrato de honorarios. O cliente paga vinte por cent
     return buf.getvalue()
 
 
-def signup(email: str, papel: str, nome: str = "Pessoa") -> dict:
-    r = client.post("/api/auth/cadastro", json={"nome": nome, "email": email, "senha": "senha-123", "papel": papel})
+def signup(email: str, papel: str, nome: str = "Pessoa", oab: str | None = None) -> dict:
+    r = client.post("/api/auth/cadastro", json={"nome": nome, "email": email, "senha": "senha-123",
+                                                "papel": papel, "oab": oab})
     assert r.status_code == 200, r.text
     return r.json()
 
@@ -90,7 +91,7 @@ def create_task(token: str, titulo: str = "Contrato") -> dict:
 
 @pytest.fixture(scope="module")
 def lawyer() -> dict:
-    return signup("Advogada@Teste.local", "advogado", "Dra. Ana")
+    return signup("Advogada@Teste.local", "advogado", "Dra. Ana", oab="PR 12.345")
 
 
 @pytest.fixture(scope="module")
@@ -138,6 +139,24 @@ def test_signup_login_me_logout(lawyer):
 
     again = client.post("/api/auth/login", json={"email": "advogada@teste.local", "senha": "senha-123"})
     lawyer["token"] = again.json()["token"]  # keep the module fixture usable
+
+
+def test_oab_survives_the_signup():
+    """The number typed at signup is what the citizen sees to check who sent her the document.
+
+    Until now the field existed on the form, travelled in the request and was dropped on arrival, which is
+    worse than not asking: it promises a check that nothing can perform."""
+    r = client.post("/api/auth/cadastro", json={"nome": "Dr. Ruy", "email": "ruy@teste.local",
+                                                "senha": "senha-123", "papel": "advogado", "oab": " PR 12.345 "})
+    assert r.status_code == 200, r.text
+    assert r.json()["usuario"]["oab"] == "PR 12.345"
+    token = r.json()["token"]
+    assert client.get("/api/auth/me", headers=bearer(token)).json()["usuario"]["oab"] == "PR 12.345"
+
+    # A citizen has no OAB, and the key must still be there: the screen reads it without asking whose it is.
+    c = client.post("/api/auth/cadastro", json={"nome": "Joana", "email": "joana-oab@teste.local",
+                                                "senha": "senha-123", "papel": "cidadao", "oab": "PR 999"})
+    assert c.json()["usuario"]["oab"] is None
 
 
 def test_lawyer_signup_can_be_closed():
@@ -220,7 +239,7 @@ def test_public_json_and_doubt_flow(lawyer, lawyer_task, citizen):
     # document sent by a lawyer: doubt lands on the lawyer's task
     h = lawyer_task["hash"]
     pub = client.get(f"/api/t/{h}").json()
-    assert pub["tem_advogado"] is True and pub["advogado"] == {"nome": "Dra. Ana"} and pub["duvidas_enviadas"] == 0
+    assert pub["tem_advogado"] is True and pub["advogado"] == {"nome": "Dra. Ana", "oab": "PR 12.345"} and pub["duvidas_enviadas"] == 0
     assert client.post(f"/api/t/{h}/duvida", json={"texto": "   "}).status_code == 400
     r = client.post(f"/api/t/{h}/duvida", json={"texto": "Quanto pago se perder?",
                                                  "contexto": [{"role": "user", "text": "oi"}, {"role": "bot", "text": "ola"}]})
@@ -364,7 +383,7 @@ def test_gate_holds_lawyer_task_until_approval(lawyer):
     set_status(h, "pronta")
 
     pub = client.get(f"/api/t/{h}").json()
-    assert pub["tarefa"]["status"] == "revisao" and pub["tem_advogado"] is True and pub["advogado"] == {"nome": "Dra. Ana"}
+    assert pub["tarefa"]["status"] == "revisao" and pub["tem_advogado"] is True and pub["advogado"] == {"nome": "Dra. Ana", "oab": "PR 12.345"}
     assert pub["resumo_md"] is None and pub["topicos"] is None and pub["questoes"] == [] and pub["ultima_tentativa"] is None
     for r in (client.get(f"/api/t/{h}/inferencias"),
               client.post(f"/api/t/{h}/quiz", json={"respostas": {"1": 1}}),

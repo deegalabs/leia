@@ -388,7 +388,10 @@ async def api_cliente_json(hash_: str, visitante: Optional[Usuario] = Depends(op
             # quando ela falha: é a primeira coisa que o motor descobre sobre o documento, e saber que ele
             # foi lido como contrato ou como decisão é o que torna conferível tudo o que vem depois.
             "tipo_documento": dt.public(t.hash),
-            "advogado": {"nome": lawyer.nome} if lawyer else None, "tem_advogado": lawyer is not None,
+            # O número da OAB sai junto do nome porque é aqui que ele serve: a pessoa recebeu um link de
+            # alguém que diz ser advogado, e o número é o que ela pode conferir no cadastro da Ordem.
+            "advogado": {"nome": lawyer.nome, "oab": lawyer.oab} if lawyer else None,
+            "tem_advogado": lawyer is not None,
             "cidadao_vinculado": t.cidadao_id is not None, "duvidas_enviadas": int(doubts or 0),
             "convite": invites.public_json(session, t)}
     if _read_artifact(t.hash, "resumo_humanizado.md") is None and _read_json(t.hash, LEGACY_EXTERNAL_FILE) is not None:
