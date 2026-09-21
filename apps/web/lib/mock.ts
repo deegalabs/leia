@@ -459,11 +459,16 @@ export function saveReview(u: MockUser, id: number, body: { resumo_md?: string; 
 
 /* LeIA (E15): a demonstração cria a conta sem e-mail e sem senha, igual ao serviço, e vincula o documento
    a ela. A segunda pessoa no mesmo documento recebe 409: o comprovante afirma que **uma** pessoa entendeu. */
-export function confirmName(hash: string) {
+export function confirmName(hash: string, visitante: MockUser | null = null) {
   const t = storeTask(hash);
   if (!t) throw fail(404, "não encontrado");
   const inv = t.convite;
   if (!inv || inv.revogado_em || !inv.nome) throw fail(409, "Este convite não diz para quem é.");
+  /* Segunda batida da mesma pessoa não é segunda pessoa: toque duplo em celular lento devolvia a ela que
+     ela é outra pessoa. A sessão devolvida é a mesma, igual ao serviço. */
+  if (visitante && t.cidadao_id === visitante.id && visitante.token) {
+    return { token: visitante.token, usuario: { nome: visitante.nome, papel: visitante.papel } };
+  }
   if (t.cidadao_id !== null || inv.usuario_id !== null) throw fail(409, "Este documento já está vinculado a outra conta.");
   const s = store();
   const id = ++s.seq.user;

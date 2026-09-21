@@ -4,7 +4,7 @@
    O token sai da resposta e vai para o cookie `HttpOnly`, no mesmo molde do cadastro. Devolvê-lo no corpo o
    deixaria alcançável por JavaScript da página, e ele é a credencial de uma conta que ela não escolheu e
    nem sabe que tem. */
-import { confirmName, errorResponse } from "@/lib/mock";
+import { confirmName, errorResponse, userFromRequest } from "@/lib/mock";
 import { callService, hasService } from "@/lib/server/service";
 import { withSession } from "@/lib/server/session";
 
@@ -21,7 +21,7 @@ export async function POST(req: Request, { params }: RouteContext<"/api/t/[hash]
   }
 
   try {
-    const { token, usuario } = confirmName(hash);
+    const { token, usuario } = confirmName(hash, userFromRequest(req));
     return withSession(Response.json({ usuario }), token);
   } catch (e) {
     return errorResponse(e);

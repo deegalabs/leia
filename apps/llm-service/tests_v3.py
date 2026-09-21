@@ -2935,6 +2935,31 @@ def test_confirming_the_name_creates_the_account_and_opens_the_session(lawyer):
     assert client.get(f"/api/t/{t['hash']}").json()["cidadao_vinculado"] is True
 
 
+def test_confirming_twice_is_the_same_person_arriving_twice(lawyer):
+    """Ela toca duas vezes, ou a rede repete o pedido, e isso não pode virar erro.
+
+    O 409 existe para a **segunda pessoa**, não para a segunda batida da mesma pessoa. Sem esta distinção,
+    um toque duplo num celular lento devolvia "este documento já está vinculado a outra conta" para a dona
+    do documento, dizendo a ela que ela é outra pessoa."""
+    t = create_task(lawyer["token"], "Confirmação repetida")
+    client.post(f"/api/tarefas/{t['id']}/convite", json={"nome": "Maria Souza"},
+                headers=bearer(lawyer["token"])).raise_for_status()
+
+    primeira = client.post(f"/api/t/{t['hash']}/confirm-name")
+    assert primeira.status_code == 200, primeira.text
+    token = primeira.json()["token"]
+
+    segunda = client.post(f"/api/t/{t['hash']}/confirm-name", headers=bearer(token))
+    assert segunda.status_code == 200, segunda.text
+    assert segunda.json()["token"] == token, "a segunda batida trocou a sessão dela"
+
+    # E continua sendo uma conta só, não duas.
+    from core.db import Usuario, engine as _engine
+    from sqlmodel import Session as _S, select as _sel
+    with _S(_engine) as s:
+        assert len(s.exec(_sel(Usuario).where(Usuario.nome == "Maria Souza")).all()) >= 1
+
+
 def test_the_second_person_on_the_same_document_is_refused(lawyer):
     """O comprovante afirma que **uma** pessoa entendeu. Se a segunda a abrir o link pudesse se vincular por
     cima, o registro passaria a falar de outra pessoa que não a que respondeu."""

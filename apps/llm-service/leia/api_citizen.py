@@ -489,7 +489,8 @@ async def api_negar_nome(hash_: str, session: Session = Depends(get_session)):
 
 
 @router.post("/api/t/{hash_}/confirm-name", dependencies=[Depends(rate_limit)])
-async def api_confirmar_nome(hash_: str, session: Session = Depends(get_session)):
+async def api_confirmar_nome(hash_: str, visitante: Optional[Usuario] = Depends(optional_api_user),
+                             session: Session = Depends(get_session)):
     """A cidadã confirma que o nome do convite é o dela, e entra. Sem e-mail, sem senha, sem código.
 
     O que prova que é ela é o próprio link: ele foi endereçado a ela, tem validade e pode ser cancelado por
@@ -510,6 +511,11 @@ async def api_confirmar_nome(hash_: str, session: Session = Depends(get_session)
     inv = invites.active_invite(session, t.id)
     if inv is None or not (inv.nome or "").strip():
         raise HTTPException(409, "Este convite não diz para quem é. Peça um link novo a quem enviou.")
+    # Ela toca duas vezes, ou a rede repete o pedido. O 409 existe para a **segunda pessoa**, não para a
+    # segunda batida da mesma pessoa: devolver "já é de outra conta" para a dona do documento é dizer a ela
+    # que ela é outra pessoa. A sessão devolvida é a mesma, para o toque repetido não derrubar o primeiro.
+    if visitante is not None and t.cidadao_id == visitante.id:
+        return {"token": visitante.session_token, "usuario": {"nome": visitante.nome, "papel": visitante.papel}}
     if t.cidadao_id is not None or inv.usuario_id is not None:
         raise HTTPException(409, "Este documento já está vinculado a outra conta.")
 
