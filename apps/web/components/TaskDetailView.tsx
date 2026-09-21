@@ -9,6 +9,7 @@ import { hasReview, isSettled, needsReview, statusInfo } from "@/lib/status";
 import { AppHeader, Button, Card, CopyButton, LinkButton, Page, StatusChip } from "./ui";
 import { AuthNav, RequireAuth } from "./Session";
 import { Inline } from "./Inline";
+import { SkeletonCard } from "./Skeleton";
 
 export function TaskDetailView({ id }: { id: string }) {
   return (
@@ -49,7 +50,9 @@ function Body({ id }: { id: string }) {
     return () => clearTimeout(t);
   }, [data]);
 
-  if (!data) return <p role="status" className="text-ink-2">{error ?? m.common.loading}</p>;
+  if (!data) return error
+    ? <p role="status" className="text-ink-2">{error}</p>
+    : <SkeletonCard linhas={5} rotulo={m.common.loading} />;
   const s = statusInfo(data.tarefa.status, isCitizen, data.tarefa.origem);
   const link = clientLinkUrl(data.link_cliente || data.tarefa.hash);
   /* LeIA: review flow. The lawyer approves in /painel/{id}/revisao before the link opens the explanation. */

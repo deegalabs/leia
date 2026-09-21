@@ -5,6 +5,7 @@ import { AssistantBanner, BottomActionBar, Button, Card, HashDisplay, LinkButton
 import { QrCode } from "./QrCode";
 import { fmt, m } from "@/lib/i18n";
 import { stampView } from "@/lib/stamp";
+import { SkeletonCard } from "./Skeleton";
 
 export function Receipt({ attempt }: { attempt: string }) {
   const [data, setData] = useState<VerifyResult | null>(null);
@@ -24,7 +25,9 @@ export function Receipt({ attempt }: { attempt: string }) {
     <Page>
       <AssistantBanner />
       <h1 className="mb-3 text-[1.5rem]">{m.c6.title}</h1>
-      {!data && <p role="status" className="text-ink-2">{error ?? "Carregando seu comprovante."}</p>}
+      {!data && (error
+        ? <p role="status" className="text-ink-2">{error}</p>
+        : <SkeletonCard linhas={4} rotulo="Carregando seu comprovante." />)}
       {data && stamp && (
         <>
           <StatusChip tone={stamp.tone}>{stamp.chip}</StatusChip>

@@ -3,7 +3,9 @@ import { Archivo, Atkinson_Hyperlegible, IBM_Plex_Mono } from "next/font/google"
 import "./globals.css";
 import Link from "next/link";
 
+import { OfflineBar } from "@/components/OfflineBar";
 import { RouteAnnouncer } from "@/components/RouteAnnouncer";
+import { RouteProgress } from "@/components/RouteProgress";
 import { UpdatePrompt } from "@/components/UpdatePrompt";
 
 const archivo = Archivo({ subsets: ["latin"], weight: ["600", "700", "800"], variable: "--font-archivo" });
@@ -28,6 +30,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full flex flex-col">
         {/* Primeiro elemento focável da página: quem navega por teclado pula o cabeçalho e cai direto no
             conteúdo, em vez de atravessar a navegação inteira em toda tela. Ele só aparece ao receber foco. */}
+        {/* Antes de tudo o que rola: a barra é fixa no topo da janela e a faixa fica grudada acima do
+            conteúdo, porque saber que a conexão caiu vale mais que qualquer coisa abaixo dela. */}
+        <RouteProgress />
+        <OfflineBar />
         <a href="#conteudo"
            className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-3 focus:z-50 focus:rounded-button focus:bg-teal focus:px-4 focus:py-2 focus:font-bold focus:text-navy">
           Pular para o conteúdo
