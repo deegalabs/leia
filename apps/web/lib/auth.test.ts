@@ -56,3 +56,32 @@ describe("sessão no cliente", () => {
     expect(Object.keys(mod)).not.toContain("authHeaders");
   });
 });
+
+/* A conta criada pela confirmação de nome é a que mais precisa desta regra. Ela nasce sem e-mail e sem
+   senha, então o token **é** a conta inteira: quem o lê vira a pessoa, e não há senha para trocar depois.
+   Se ele voltasse no corpo, qualquer script rodando na origem do app o alcançaria, inclusive um que tenha
+   entrado pela área de documentação, que aceita contribuição de fora. */
+describe("confirmação de nome pela rota do app", () => {
+  it("devolve a pessoa no corpo e o token só no cookie HttpOnly", async () => {
+    vi.unstubAllGlobals();   // a rota roda no servidor: precisa do fetch e do storage de verdade
+    const { issueInvite, login } = await import("./mock");
+    const advogada = login({ email: "advogada@exemplo.leia", senha: "leia1234" });
+    const { POST } = await import("@/app/api/t/[hash]/confirm-name/route");
+
+    const { userFromRequest } = await import("./mock");
+    const conta = userFromRequest(new Request("http://t/", { headers: { cookie: `leia_session=${advogada.token}` } }))!;
+    issueInvite(conta, 1, { nome: "Maria Souza" });
+
+    const res = await POST(new Request("http://t/api/t/demo/confirm-name", { method: "POST" }),
+                           { params: Promise.resolve({ hash: "demo" }) });
+    const corpo = await res.clone().json();
+
+    expect(res.status).toBe(200);
+    expect(corpo).not.toHaveProperty("token");
+    expect(JSON.stringify(corpo)).not.toMatch(/token/i);
+
+    const cookie = res.headers.get("set-cookie") ?? "";
+    expect(cookie).toContain("leia_session=");
+    expect(cookie).toContain("HttpOnly");
+  });
+});

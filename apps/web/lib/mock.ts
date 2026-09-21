@@ -110,7 +110,9 @@ export const DOC_TYPES: { tipo: string; rotulo: string }[] = [
   { tipo: "indefinido", rotulo: "Tipo não identificado" },
 ];
 
-export type MockInvite = { id: number; nome: string | null; email: string | null; expira_em: string | null; revogado_em: string | null; criado_em: string };
+/* `usuario_id`: de quem o convite passou a ser. Destinatária é uma conta, não um endereço, porque a conta
+   criada pela confirmação de nome não tem e-mail nenhum para comparar. Igual ao serviço. */
+export type MockInvite = { id: number; nome: string | null; email: string | null; usuario_id: number | null; expira_em: string | null; revogado_em: string | null; criado_em: string };
 
 /* LeIA: the 15 workflow steps in pt-BR (docs/API-V3-CONTRACT.md, "Preparação visível e tarefas do fluxo externo") and the
    seconds each one reports once finished (illustrative; the simulated pipeline is faster than the real one) */
@@ -186,7 +188,9 @@ function settle(t: MockTask): MockTask {
 export const storeTask = (hash: string): MockTask | null => { const t = store().tasks.get(hash); return t ? settle(t) : null; };
 export const storeTaskById = (id: number): MockTask | null => { for (const t of store().tasks.values()) if (t.id === id) return settle(t); return null; };
 const userById = (id: number) => store().users.get(id) ?? null;
-const publicUser = (u: MockUser) => ({ id: u.id, nome: u.nome, email: u.email, papel: u.papel });
+/* A chave `oab` está sempre aqui e é nula para quem não tem número, como no serviço: a tela lê o
+   número sem precisar perguntar antes de quem é a conta. */
+const publicUser = (u: MockUser) => ({ id: u.id, nome: u.nome, email: u.email, papel: u.papel, oab: u.oab });
 const nameOf = (id: number | null) => { const u = id ? userById(id) : null; return u ? { nome: u.nome } : null; };
 
 /* auth */
@@ -198,7 +202,7 @@ export function register(input: { nome?: unknown; email?: unknown; senha?: unkno
   if (papel !== "cidadao" && papel !== "advogado") throw fail(403, "papel não permitido");
   const s = store();
   for (const u of s.users.values()) if (u.email === email) throw fail(409, "e-mail já cadastrado");
-  const user: MockUser = { id: ++s.seq.user, nome, email, papel, oab: input.oab ? String(input.oab) : null, senha_hash: hashPassword(senha), token: newSalt() };
+  const user: MockUser = { id: ++s.seq.user, nome, email, papel, oab: papel === "advogado" ? String(input.oab ?? "").trim() || null : null, senha_hash: hashPassword(senha), token: newSalt() };
   s.users.set(user.id, user);
   return { token: user.token as string, usuario: publicUser(user) };
 }
@@ -227,6 +231,13 @@ const canManage = (u: MockUser, t: MockTask) => u.papel === "fornecedor" || t.do
 const clientLink = (t: MockTask) => `/t/${t.hash}`;
 const lastAttempt = (t: MockTask) => { const a = t.tentativas[t.tentativas.length - 1]; return a ? { aprovado: a.aprovado, acertos: a.acertos, total: a.total, numero: a.numero, hash_imutavel: a.hash_imutavel, comprovante_token: a.comprovante_token } : null; };
 const lawyerOf = (t: MockTask) => (t.origem === "advogado" ? nameOf(t.dono_id) : null);
+/* Para a cidadã o nome vem com o número da OAB, que é o que ela pode conferir no cadastro da Ordem.
+   No painel do advogado o número não acrescenta nada, então `lawyerOf` continua só com o nome. */
+const lawyerForCitizen = (t: MockTask) => {
+  if (t.origem !== "advogado") return null;
+  const u = userById(t.dono_id);
+  return u ? { nome: u.nome, oab: u.oab } : null;
+};
 
 export function listTasks(u: MockUser) {
   const all = [...store().tasks.values()].map(settle).filter((t) => canSee(u, t));
@@ -287,7 +298,7 @@ export function issueInvite(u: MockUser, id: number, input: { nome?: unknown; em
   const email = String(input.email ?? "").trim().toLowerCase() || null;
   const nome = String(input.nome ?? "").trim();
   if (!nome) throw fail(422, "o nome de quem vai receber é obrigatório");
-  t.convite = { id: (t.convite?.id ?? 0) + 1, nome, email, criado_em: nowIso(), revogado_em: null,
+  t.convite = { id: (t.convite?.id ?? 0) + 1, nome, email, usuario_id: null, criado_em: nowIso(), revogado_em: null,
                 expira_em: new Date(Date.now() + horas * 3600_000).toISOString() };
   return t.convite;
 }
@@ -448,19 +459,35 @@ export function saveReview(u: MockUser, id: number, body: { resumo_md?: string; 
 
 /* LeIA (E15): a demonstração cria a conta sem e-mail e sem senha, igual ao serviço, e vincula o documento
    a ela. A segunda pessoa no mesmo documento recebe 409: o comprovante afirma que **uma** pessoa entendeu. */
-export function confirmName(hash: string) {
+export function confirmName(hash: string, visitante: MockUser | null = null) {
   const t = storeTask(hash);
   if (!t) throw fail(404, "não encontrado");
   const inv = t.convite;
   if (!inv || inv.revogado_em || !inv.nome) throw fail(409, "Este convite não diz para quem é.");
-  if (t.cidadao_id !== null) throw fail(409, "Este documento já está vinculado a outra conta.");
+  /* Segunda batida da mesma pessoa não é segunda pessoa: toque duplo em celular lento devolvia a ela que
+     ela é outra pessoa. A sessão devolvida é a mesma, igual ao serviço. */
+  if (visitante && t.cidadao_id === visitante.id && visitante.token) {
+    return { token: visitante.token, usuario: { nome: visitante.nome, papel: visitante.papel } };
+  }
+  if (t.cidadao_id !== null || inv.usuario_id !== null) throw fail(409, "Este documento já está vinculado a outra conta.");
   const s = store();
   const id = ++s.seq.user;
   const token = `tok-${id}-${sha256(`confirm:${hash}:${id}`).slice(0, 16)}`;
   const u: MockUser = { id, nome: inv.nome, email: "", papel: "cidadao", oab: null, senha_hash: "", token };
   s.users.set(id, u);
   t.cidadao_id = id;
+  inv.usuario_id = id;
   return { token, usuario: { nome: u.nome, papel: u.papel } };
+}
+
+/* LeIA (E15): "esse nome não é o meu". Só registra, igual ao serviço: não cria conta, não vincula nada e
+   não tranca a confirmação depois, porque tocar no botão errado não pode deixar ninguém de fora do próprio
+   documento. */
+export function denyName(hash: string) {
+  const t = storeTask(hash);
+  if (!t) throw fail(404, "não encontrado");
+  t.eventos.push({ tipo: "nome_negado", ts: nowIso() });
+  return { ok: true };
 }
 
 export function approve(u: MockUser, id: number) {
@@ -474,7 +501,7 @@ export function approve(u: MockUser, id: number) {
 
 /* citizen side (public by hash) */
 export function publicTaskMeta(t: MockTask) {
-  return { advogado: lawyerOf(t), tem_advogado: t.origem === "advogado", cidadao_vinculado: t.cidadao_id !== null, duvidas_enviadas: t.duvidas.length, ultima_tentativa: lastAttempt(t), tipo_documento: docTypeOf(t) };
+  return { advogado: lawyerForCitizen(t), tem_advogado: t.origem === "advogado", cidadao_vinculado: t.cidadao_id !== null, duvidas_enviadas: t.duvidas.length, ultima_tentativa: lastAttempt(t), tipo_documento: docTypeOf(t) };
 }
 /* O exemplo semeado é um contrato de honorários, então a espécie da demonstração é essa; tarefa que ainda
    não passou pela primeira etapa não tem espécie nenhuma, e ausente é o que a tela precisa saber. */

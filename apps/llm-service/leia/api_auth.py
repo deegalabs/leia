@@ -35,7 +35,11 @@ class LoginIn(BaseModel):
 
 
 def public_user(u: Usuario) -> dict:
-    return {"id": u.id, "nome": u.nome, "email": u.email, "papel": u.papel}
+    """The key is always there, and it is null for whoever has no number.
+
+    A citizen account carries no OAB, so the screen that reads this never has to ask whose account it is
+    before deciding what to show: no number, no claim."""
+    return {"id": u.id, "nome": u.nome, "email": u.email, "papel": u.papel, "oab": u.oab}
 
 
 def advogado_signup_enabled() -> bool:
@@ -54,7 +58,11 @@ def cadastro(body: CadastroIn, session: Session = Depends(get_session)):
         raise HTTPException(422, "Informe um e-mail válido.")
     if session.exec(select(Usuario).where(Usuario.email == email)).first():
         raise HTTPException(409, "Já existe uma conta com este e-mail.")
-    u = Usuario(email=email, senha_hash=hash_password(body.senha), nome=body.nome.strip(), papel=papel)
+    # O número só é guardado em conta de advogado. Numa conta de cidadã ele não afirma nada e seria mais um
+    # dado pessoal parado no banco, então é descartado aqui, onde se sabe o papel.
+    oab = (body.oab or "").strip() if papel == "advogado" else ""
+    u = Usuario(email=email, senha_hash=hash_password(body.senha), nome=body.nome.strip(), papel=papel,
+                oab=oab or None)
     session.add(u); session.commit(); session.refresh(u)
     u = authenticate(session, email, body.senha)  # issues the first token
     return {"token": u.session_token, "usuario": public_user(u)}

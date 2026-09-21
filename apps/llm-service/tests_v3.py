@@ -71,8 +71,9 @@ def small_pdf(text: str = "Contrato de honorarios. O cliente paga vinte por cent
     return buf.getvalue()
 
 
-def signup(email: str, papel: str, nome: str = "Pessoa") -> dict:
-    r = client.post("/api/auth/cadastro", json={"nome": nome, "email": email, "senha": "senha-123", "papel": papel})
+def signup(email: str, papel: str, nome: str = "Pessoa", oab: str | None = None) -> dict:
+    r = client.post("/api/auth/cadastro", json={"nome": nome, "email": email, "senha": "senha-123",
+                                                "papel": papel, "oab": oab})
     assert r.status_code == 200, r.text
     return r.json()
 
@@ -90,7 +91,7 @@ def create_task(token: str, titulo: str = "Contrato") -> dict:
 
 @pytest.fixture(scope="module")
 def lawyer() -> dict:
-    return signup("Advogada@Teste.local", "advogado", "Dra. Ana")
+    return signup("Advogada@Teste.local", "advogado", "Dra. Ana", oab="PR 12.345")
 
 
 @pytest.fixture(scope="module")
@@ -138,6 +139,24 @@ def test_signup_login_me_logout(lawyer):
 
     again = client.post("/api/auth/login", json={"email": "advogada@teste.local", "senha": "senha-123"})
     lawyer["token"] = again.json()["token"]  # keep the module fixture usable
+
+
+def test_oab_survives_the_signup():
+    """The number typed at signup is what the citizen sees to check who sent her the document.
+
+    Until now the field existed on the form, travelled in the request and was dropped on arrival, which is
+    worse than not asking: it promises a check that nothing can perform."""
+    r = client.post("/api/auth/cadastro", json={"nome": "Dr. Ruy", "email": "ruy@teste.local",
+                                                "senha": "senha-123", "papel": "advogado", "oab": " PR 12.345 "})
+    assert r.status_code == 200, r.text
+    assert r.json()["usuario"]["oab"] == "PR 12.345"
+    token = r.json()["token"]
+    assert client.get("/api/auth/me", headers=bearer(token)).json()["usuario"]["oab"] == "PR 12.345"
+
+    # A citizen has no OAB, and the key must still be there: the screen reads it without asking whose it is.
+    c = client.post("/api/auth/cadastro", json={"nome": "Joana", "email": "joana-oab@teste.local",
+                                                "senha": "senha-123", "papel": "cidadao", "oab": "PR 999"})
+    assert c.json()["usuario"]["oab"] is None
 
 
 def test_lawyer_signup_can_be_closed():
@@ -220,7 +239,7 @@ def test_public_json_and_doubt_flow(lawyer, lawyer_task, citizen):
     # document sent by a lawyer: doubt lands on the lawyer's task
     h = lawyer_task["hash"]
     pub = client.get(f"/api/t/{h}").json()
-    assert pub["tem_advogado"] is True and pub["advogado"] == {"nome": "Dra. Ana"} and pub["duvidas_enviadas"] == 0
+    assert pub["tem_advogado"] is True and pub["advogado"] == {"nome": "Dra. Ana", "oab": "PR 12.345"} and pub["duvidas_enviadas"] == 0
     assert client.post(f"/api/t/{h}/duvida", json={"texto": "   "}).status_code == 400
     r = client.post(f"/api/t/{h}/duvida", json={"texto": "Quanto pago se perder?",
                                                  "contexto": [{"role": "user", "text": "oi"}, {"role": "bot", "text": "ola"}]})
@@ -364,7 +383,7 @@ def test_gate_holds_lawyer_task_until_approval(lawyer):
     set_status(h, "pronta")
 
     pub = client.get(f"/api/t/{h}").json()
-    assert pub["tarefa"]["status"] == "revisao" and pub["tem_advogado"] is True and pub["advogado"] == {"nome": "Dra. Ana"}
+    assert pub["tarefa"]["status"] == "revisao" and pub["tem_advogado"] is True and pub["advogado"] == {"nome": "Dra. Ana", "oab": "PR 12.345"}
     assert pub["resumo_md"] is None and pub["topicos"] is None and pub["questoes"] == [] and pub["ultima_tentativa"] is None
     for r in (client.get(f"/api/t/{h}/inferencias"),
               client.post(f"/api/t/{h}/quiz", json={"respostas": {"1": 1}}),
@@ -2916,6 +2935,31 @@ def test_confirming_the_name_creates_the_account_and_opens_the_session(lawyer):
     assert client.get(f"/api/t/{t['hash']}").json()["cidadao_vinculado"] is True
 
 
+def test_confirming_twice_is_the_same_person_arriving_twice(lawyer):
+    """Ela toca duas vezes, ou a rede repete o pedido, e isso não pode virar erro.
+
+    O 409 existe para a **segunda pessoa**, não para a segunda batida da mesma pessoa. Sem esta distinção,
+    um toque duplo num celular lento devolvia "este documento já está vinculado a outra conta" para a dona
+    do documento, dizendo a ela que ela é outra pessoa."""
+    t = create_task(lawyer["token"], "Confirmação repetida")
+    client.post(f"/api/tarefas/{t['id']}/convite", json={"nome": "Maria Souza"},
+                headers=bearer(lawyer["token"])).raise_for_status()
+
+    primeira = client.post(f"/api/t/{t['hash']}/confirm-name")
+    assert primeira.status_code == 200, primeira.text
+    token = primeira.json()["token"]
+
+    segunda = client.post(f"/api/t/{t['hash']}/confirm-name", headers=bearer(token))
+    assert segunda.status_code == 200, segunda.text
+    assert segunda.json()["token"] == token, "a segunda batida trocou a sessão dela"
+
+    # E continua sendo uma conta só, não duas.
+    from core.db import Usuario, engine as _engine
+    from sqlmodel import Session as _S, select as _sel
+    with _S(_engine) as s:
+        assert len(s.exec(_sel(Usuario).where(Usuario.nome == "Maria Souza")).all()) >= 1
+
+
 def test_the_second_person_on_the_same_document_is_refused(lawyer):
     """O comprovante afirma que **uma** pessoa entendeu. Se a segunda a abrir o link pudesse se vincular por
     cima, o registro passaria a falar de outra pessoa que não a que respondeu."""
@@ -2926,6 +2970,71 @@ def test_the_second_person_on_the_same_document_is_refused(lawyer):
     assert client.post(f"/api/t/{t['hash']}/confirm-name").status_code == 200
     segunda = client.post(f"/api/t/{t['hash']}/confirm-name")
     assert segunda.status_code == 409, segunda.text
+
+
+def test_confirming_the_name_works_on_an_invite_that_also_carries_an_email(lawyer):
+    """O advogado que sabe o e-mail da cliente põe o e-mail no convite, e isso não pode fechar a porta.
+
+    A regra de destinatária comparava ``visitor.email`` com ``inv.email``, então uma conta sem e-mail nunca
+    passava, e a conta que a confirmação de nome cria é exatamente essa. O resultado era que pôr o endereço
+    no convite desligava o caminho sem digitação — a pessoa via o botão e recebia 403 ao tocar."""
+    t = create_task(lawyer["token"], "Convite com endereço")
+    client.post(f"/api/tarefas/{t['id']}/convite", json={"nome": "Maria Souza", "email": "maria@exemplo.local"},
+                headers=bearer(lawyer["token"])).raise_for_status()
+
+    r = client.post(f"/api/t/{t['hash']}/confirm-name")
+    assert r.status_code == 200, r.text
+
+
+def test_the_invite_remembers_which_account_claimed_it(lawyer, citizen):
+    """Depois que alguém reivindica o convite, destinatária passa a ser aquela conta, não aquele endereço.
+
+    Sem isso a conta recém-criada não teria como provar que é a destinatária: ela não tem e-mail nenhum
+    para comparar."""
+    from core.db import Invite, Tarefa, Usuario, engine as _engine
+    from sqlmodel import Session as _S, select as _sel
+
+    t = create_task(lawyer["token"], "Convite reivindicado")
+    client.post(f"/api/tarefas/{t['id']}/convite", json={"nome": "Maria Souza", "email": "maria2@exemplo.local"},
+                headers=bearer(lawyer["token"])).raise_for_status()
+    token = client.post(f"/api/t/{t['hash']}/confirm-name").json()["token"]
+
+    with _S(_engine) as s:
+        tarefa = s.exec(_sel(Tarefa).where(Tarefa.hash == t["hash"])).one()
+        inv = s.exec(_sel(Invite).where(Invite.task_id == tarefa.id)).one()
+        conta = s.exec(_sel(Usuario).where(Usuario.session_token == token)).one()
+        assert inv.usuario_id == conta.id, "o convite não guardou de quem ele passou a ser"
+
+    # E outra conta, com e-mail e tudo, não entra por cima: o convite já tem dona.
+    outra = client.post(f"/api/t/{t['hash']}/vincular", headers=bearer(citizen["token"]))
+    assert outra.status_code in (403, 409), outra.text
+
+
+def test_denying_the_name_is_recorded_and_blocks_nothing(lawyer):
+    """"Esse nome não é o meu" é informação para quem enviou, não punição para quem abriu.
+
+    Quem diz que não é ela continua lendo tudo e continua podendo perguntar: o que ela perde é o comprovante,
+    porque ele afirma o nome de quem entendeu. E o aviso precisa chegar ao painel, senão o advogado fica com
+    um documento parado sem descobrir que mandou para a pessoa errada."""
+    t = create_task(lawyer["token"], "Nome negado")
+    client.post(f"/api/tarefas/{t['id']}/convite", json={"nome": "Maria Souza"},
+                headers=bearer(lawyer["token"])).raise_for_status()
+
+    r = client.post(f"/api/t/{t['hash']}/deny-name")
+    assert r.status_code == 200, r.text
+
+    publico = client.get(f"/api/t/{t['hash']}")
+    assert publico.status_code == 200, "negar o nome fechou a leitura"
+    assert any(e.get("tipo") == "nome_negado" for e in publico.json()["eventos"]), publico.json()["eventos"]
+
+    duvida = client.post(f"/api/t/{t['hash']}/duvida", json={"texto": "Quem é Maria Souza?"})
+    assert duvida.status_code == 200, "negar o nome fechou as dúvidas"
+
+    detalhe = client.get(f"/api/tarefas/{t['id']}", headers=bearer(lawyer["token"])).json()
+    assert any(e.get("tipo") == "nome_negado" for e in detalhe["eventos"]), "o aviso não chegou ao painel"
+
+    # Tocar no botão errado não pode trancar ninguém para fora do próprio documento.
+    assert client.post(f"/api/t/{t['hash']}/confirm-name").status_code == 200
 
 
 def test_confirming_the_name_needs_a_live_invite(lawyer):

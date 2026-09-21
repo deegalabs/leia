@@ -34,7 +34,7 @@ export type Task = {
   ultima_tentativa: (Attempt & { comprovante_token?: string }) | null;
   eventos?: { tipo?: string; id?: string; idx?: number; total?: number; ts?: string; [k: string]: unknown }[];
   /* LeIA: v3 (docs/API-V3-CONTRACT.md) */
-  advogado?: { nome: string } | null;
+  advogado?: { nome: string; oab?: string | null } | null;
   tem_advogado?: boolean;
   cidadao_vinculado?: boolean;
   duvidas_enviadas?: number;
@@ -268,6 +268,16 @@ export async function saveReview(id: string | number, input: { resumo_md?: strin
 export async function confirmName(hash: string): Promise<{ usuario: { nome: string; papel: string } }> {
   const r = await check(await busca(`/api/t/${hash}/confirm-name`, { method: "POST", headers: jsonHeaders(), body: "{}" }));
   return r.json();
+}
+
+/* "Esse nome não é o meu". A falha é engolida: o aviso serve a quem enviou, e a pessoa que tocou não pode
+   receber uma tarja vermelha por um problema que não é dela e que não a impede de nada. */
+export async function denyName(hash: string): Promise<void> {
+  try {
+    await busca(`/api/t/${hash}/deny-name`, { method: "POST", headers: jsonHeaders(), body: "{}" });
+  } catch {
+    /* segue */
+  }
 }
 
 export async function approveTask(id: string | number): Promise<{ ok: boolean; status: TaskStatus }> {

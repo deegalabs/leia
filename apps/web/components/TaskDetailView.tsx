@@ -58,6 +58,9 @@ function Body({ id }: { id: string }) {
   /* LeIA: review flow. The lawyer approves in /painel/{id}/revisao before the link opens the explanation. */
   const reviewPending = needsReview(data.tarefa.status, data.tarefa.origem);
   const last = data.eventos.length ? data.eventos[data.eventos.length - 1] : null;
+  /* A recusa só vale enquanto ninguém se vinculou: quem negou pode ter tocado no botão errado e confirmado
+     logo depois, e o aviso ficaria contradizendo a lista, que já mostra a cidadã vinculada. */
+  const nomeNegado = data.cidadao === null && data.eventos.some((e) => e.tipo === "nome_negado");
   const approved = [...data.tentativas].reverse().find((a) => a.aprovado) ?? null;
 
   return (
@@ -74,6 +77,15 @@ function Body({ id }: { id: string }) {
       {error && <p role="alert" className="mb-3 text-danger">{error}</p>}
 
       <div className="grid gap-3">
+        {/* Alguém abriu o link e disse que não é a pessoa do convite. Quem enviou é a única pessoa que pode
+            consertar isso, e sem este aviso o documento fica parado sem nenhuma pista do motivo. Fica acima
+            de tudo porque muda o que vale fazer com o documento inteiro. */}
+        {!isCitizen && nomeNegado && (
+          <Card tone="pending">
+            <h2 className="text-[1.15rem]">{fmt(m.panel.detail.deniedTitle, { nome: data.convite?.nome ?? "" })}</h2>
+            <p className="text-[0.95rem] text-ink-2">{m.panel.detail.deniedText}</p>
+          </Card>
+        )}
         {/* Documento que não chegou ao fim: sem isto ele morria na lista e a pessoa tinha que subir de novo,
             sem saber por quê. A causa comum é o serviço reiniciar no meio da preparação. */}
         {!isCitizen && data.tarefa.status === "falhou" && (

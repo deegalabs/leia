@@ -67,7 +67,8 @@
     "sentBy": "{lawyer} · {date}"
   },
   "c0": {
-    "sentYou": "{lawyer}, {oab}, enviou para você:",
+    "sentYou": "Quem enviou: {lawyer}, OAB {oab}.",
+    "sentYouNoOab": "Quem enviou: {lawyer}.",
     "intro": "Vamos ler este documento juntos, em partes. No fim, você diz se entendeu.",
     "whyLogin": "Pedimos o login para você poder voltar depois e receber seu comprovante.",
     "google": "Entrar com Google",
@@ -308,6 +309,7 @@
         "extracao_texto": "Lendo o PDF",
         "pipeline_concluido": "Explicação pronta",
         "cidadao_vinculado": "Cidadã abriu o link",
+        "nome_negado": "Quem abriu disse que não é a pessoa do convite",
         "tentativa_registrada": "Respostas registradas",
         "entendimento_registrado": "Entendimento registrado",
         "falhou": "Não deu certo",
@@ -331,7 +333,9 @@
       "retry": "Preparar de novo",
       "retryHelp": "A preparação deste documento não chegou ao fim. Isso acontece, por exemplo, quando o serviço reinicia no meio. Você pode pedir de novo sem enviar o arquivo outra vez.",
       "inviteName": "Nome de quem vai receber",
-      "inviteNameHint": "É o nome que ela vai ver na tela para confirmar que é ela. Obrigatório."
+      "inviteNameHint": "É o nome que ela vai ver na tela para confirmar que é ela. Obrigatório.",
+      "deniedTitle": "Quem abriu o link disse que não é {nome}",
+      "deniedText": "A pessoa continua lendo o documento e pode tirar dúvidas, mas não vai sair comprovante no nome dela. Confira o nome e o contato e envie de novo, se for o caso."
     },
     "openDoubtsOne": "1 dúvida aberta",
     "reviewAndRelease": "Revisar e liberar",
@@ -438,6 +442,16 @@
     "includeChatHelp": "Sem marcar, o advogado recebe só a sua pergunta. Marcando, ele lê também as últimas mensagens, o que ajuda ele a entender o contexto.",
     "onlyQuestion": "Vai só a sua pergunta.",
     "withChat": "Vão a sua pergunta e as últimas mensagens da nossa conversa."
+  },
+  "resume": {
+    "title": "Como voltar a este documento depois",
+    "intro": "Este endereço é o que abre o seu documento. Não existe senha para recuperar, então guarde o endereço em algum lugar que seja seu.",
+    "messageTitle": "Mensagem pronta para você mandar para você mesma",
+    "sendWhatsapp": "Mandar no WhatsApp",
+    "copy": "Copiar a mensagem",
+    "opensWhatsapp": "O WhatsApp abre numa janela nova. Se ele não estiver neste aparelho, use o botão de copiar.",
+    "onlyAddress": "A mensagem leva só o endereço. Nada do que está escrito no documento vai junto.",
+    "back": "Voltar para a explicação"
   },
   "journey": {
     "reviewWaitTitle": "O advogado está revisando a explicação",

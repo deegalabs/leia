@@ -46,7 +46,7 @@ READY_STATUSES = ("pronta", "enviada", "assinada")
 GATE_MESSAGE = "Em revisão pelo advogado"
 PUBLIC_EVENT_TYPES = {"criada", "pdf_salvo", "pipeline_start", "texto_extraido", "task_start", "task_done", "task_error",
                       "erro_extracao", "pipeline_done", "tentativa", "carimbo_publico", "carimbo_falhou",
-                      "duvida_enviada", "reprocess", "aprovada", "tipo_documento",
+                      "duvida_enviada", "reprocess", "aprovada", "tipo_documento", "nome_negado",
 }
 # ``tipo_documento_corrigido`` fica fora desta lista de propósito: ele carrega o id de quem corrigiu, e quem
 # revisou o documento de alguém não é assunto de rota pública.
@@ -388,7 +388,10 @@ async def api_cliente_json(hash_: str, visitante: Optional[Usuario] = Depends(op
             # quando ela falha: é a primeira coisa que o motor descobre sobre o documento, e saber que ele
             # foi lido como contrato ou como decisão é o que torna conferível tudo o que vem depois.
             "tipo_documento": dt.public(t.hash),
-            "advogado": {"nome": lawyer.nome} if lawyer else None, "tem_advogado": lawyer is not None,
+            # O número da OAB sai junto do nome porque é aqui que ele serve: a pessoa recebeu um link de
+            # alguém que diz ser advogado, e o número é o que ela pode conferir no cadastro da Ordem.
+            "advogado": {"nome": lawyer.nome, "oab": lawyer.oab} if lawyer else None,
+            "tem_advogado": lawyer is not None,
             "cidadao_vinculado": t.cidadao_id is not None, "duvidas_enviadas": int(doubts or 0),
             "convite": invites.public_json(session, t)}
     if _read_artifact(t.hash, "resumo_humanizado.md") is None and _read_json(t.hash, LEGACY_EXTERNAL_FILE) is not None:
@@ -447,18 +450,47 @@ async def api_cliente_vincular(hash_: str, u: Usuario = Depends(api_user), sessi
     if u.papel != "cidadao":
         raise HTTPException(403, "Só uma conta de cidadã pode se vincular a um documento.")
     t = _task_or_404(session, hash_)
+    # Documento já tomado é conflito, não falta de permissão, e o 409 vem antes para dizer isso com as
+    # palavras certas: quem chega depois não está proibido de nada, chegou tarde.
+    if t.cidadao_id is not None and t.cidadao_id != u.id:
+        raise HTTPException(409, "Este documento já está vinculado a outra conta.")
     invites.ensure_linkable(session, t, u)
     if t.cidadao_id is None:
         t.cidadao_id = u.id
         session.add(t); session.commit()
+        inv = invites.active_invite(session, t.id)
+        if inv is not None:
+            invites.claim(session, inv, u)
         ws.record_event(t.hash, "cidadao_vinculado", cidadao_id=u.id)
     elif t.cidadao_id != u.id:
         raise HTTPException(409, "Este documento já está vinculado a outra conta.")
     return {"ok": True}
 
 
+@router.post("/api/t/{hash_}/deny-name", dependencies=[Depends(rate_limit)])
+async def api_negar_nome(hash_: str, session: Session = Depends(get_session)):
+    """"Esse nome não é o meu": registra e não faz mais nada.
+
+    Quem toca aqui continua lendo tudo e continua podendo perguntar, de propósito. O que ela perde é o
+    comprovante, porque ele afirma o nome de quem entendeu, e nenhum nome dela existe para afirmar. Também
+    não tranca a confirmação depois: tocar no botão errado não pode deixar ninguém de fora do próprio
+    documento.
+
+    O aviso é para quem enviou. Sem ele, o advogado fica com um documento parado e nenhuma pista de que o
+    mandou para a pessoa errada, que é a única coisa que ele pode consertar sozinho.
+    """
+    t = _task_or_404(session, hash_)
+    invites.ensure_valid(session, t, None)
+    inv = invites.active_invite(session, t.id)
+    # O nome recusado vai junto porque é ele que diz ao advogado o que conferir. É o nome que ele mesmo
+    # escreveu no convite, então não é dado novo de ninguém.
+    ws.record_event(t.hash, "nome_negado", nome=(inv.nome if inv else None))
+    return {"ok": True}
+
+
 @router.post("/api/t/{hash_}/confirm-name", dependencies=[Depends(rate_limit)])
-async def api_confirmar_nome(hash_: str, session: Session = Depends(get_session)):
+async def api_confirmar_nome(hash_: str, visitante: Optional[Usuario] = Depends(optional_api_user),
+                             session: Session = Depends(get_session)):
     """A cidadã confirma que o nome do convite é o dela, e entra. Sem e-mail, sem senha, sem código.
 
     O que prova que é ela é o próprio link: ele foi endereçado a ela, tem validade e pode ser cancelado por
@@ -472,11 +504,19 @@ async def api_confirmar_nome(hash_: str, session: Session = Depends(get_session)
     não respondeu.
     """
     t = _task_or_404(session, hash_)
-    invites.ensure_linkable(session, t, None)
+    # Aqui não cabe a regra de destinatária: reivindicar o convite **é** virar a destinatária, e exigir que
+    # ela já fosse antes fecharia a porta em cima de quem tem o link e o nome. O que precisa valer é que o
+    # link ainda funciona, e é isso que `ensure_valid` responde.
+    invites.ensure_valid(session, t, None)
     inv = invites.active_invite(session, t.id)
     if inv is None or not (inv.nome or "").strip():
         raise HTTPException(409, "Este convite não diz para quem é. Peça um link novo a quem enviou.")
-    if t.cidadao_id is not None:
+    # Ela toca duas vezes, ou a rede repete o pedido. O 409 existe para a **segunda pessoa**, não para a
+    # segunda batida da mesma pessoa: devolver "já é de outra conta" para a dona do documento é dizer a ela
+    # que ela é outra pessoa. A sessão devolvida é a mesma, para o toque repetido não derrubar o primeiro.
+    if visitante is not None and t.cidadao_id == visitante.id:
+        return {"token": visitante.session_token, "usuario": {"nome": visitante.nome, "papel": visitante.papel}}
+    if t.cidadao_id is not None or inv.usuario_id is not None:
         raise HTTPException(409, "Este documento já está vinculado a outra conta.")
 
     u = Usuario(nome=inv.nome.strip(), papel="cidadao")
@@ -485,6 +525,7 @@ async def api_confirmar_nome(hash_: str, session: Session = Depends(get_session)
 
     t.cidadao_id = u.id
     session.add(t); session.commit()
+    invites.claim(session, inv, u)
     ws.record_event(t.hash, "cidadao_vinculado", cidadao_id=u.id)
     return {"token": token, "usuario": {"nome": u.nome, "papel": u.papel}}
 

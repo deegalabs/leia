@@ -247,6 +247,14 @@ def unlink_citizen(tarefa_id: int, u: Usuario = Depends(api_user), session: Sess
                                  "de novo para a outra pessoa, em vez de trocar quem está vinculado aqui.")
     t.cidadao_id = None
     session.add(t); session.commit()
+    # O convite também precisa esquecer de quem ele era. Desde que destinatária virou conta e não endereço,
+    # deixar `usuario_id` apontando para a conta desfeita trancaria o documento para sempre: ninguém mais
+    # passaria pela regra de destinatária, nem a pessoa certa.
+    from leia import invites
+    inv = invites.active_invite(session, t.id)
+    if inv is not None and inv.usuario_id is not None:
+        inv.usuario_id = None
+        session.add(inv); session.commit()
     ws.record_event(t.hash, "cidadao_desvinculado")
     return {"ok": True}
 
