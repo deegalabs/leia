@@ -270,6 +270,16 @@ export async function confirmName(hash: string): Promise<{ usuario: { nome: stri
   return r.json();
 }
 
+/* "Esse nome não é o meu". A falha é engolida: o aviso serve a quem enviou, e a pessoa que tocou não pode
+   receber uma tarja vermelha por um problema que não é dela e que não a impede de nada. */
+export async function denyName(hash: string): Promise<void> {
+  try {
+    await busca(`/api/t/${hash}/deny-name`, { method: "POST", headers: jsonHeaders(), body: "{}" });
+  } catch {
+    /* segue */
+  }
+}
+
 export async function approveTask(id: string | number): Promise<{ ok: boolean; status: TaskStatus }> {
   const r = await check(await busca(`/api/tarefas/${id}/aprovar`, { method: "POST", headers: jsonHeaders(), body: "{}" }));
   return r.json();

@@ -309,6 +309,7 @@
         "extracao_texto": "Lendo o PDF",
         "pipeline_concluido": "Explicação pronta",
         "cidadao_vinculado": "Cidadã abriu o link",
+        "nome_negado": "Quem abriu disse que não é a pessoa do convite",
         "tentativa_registrada": "Respostas registradas",
         "entendimento_registrado": "Entendimento registrado",
         "falhou": "Não deu certo",
@@ -332,7 +333,9 @@
       "retry": "Preparar de novo",
       "retryHelp": "A preparação deste documento não chegou ao fim. Isso acontece, por exemplo, quando o serviço reinicia no meio. Você pode pedir de novo sem enviar o arquivo outra vez.",
       "inviteName": "Nome de quem vai receber",
-      "inviteNameHint": "É o nome que ela vai ver na tela para confirmar que é ela. Obrigatório."
+      "inviteNameHint": "É o nome que ela vai ver na tela para confirmar que é ela. Obrigatório.",
+      "deniedTitle": "Quem abriu o link disse que não é {nome}",
+      "deniedText": "A pessoa continua lendo o documento e pode tirar dúvidas, mas não vai sair comprovante no nome dela. Confira o nome e o contato e envie de novo, se for o caso."
     },
     "openDoubtsOne": "1 dúvida aberta",
     "reviewAndRelease": "Revisar e liberar",

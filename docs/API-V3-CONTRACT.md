@@ -67,6 +67,7 @@ e-mail, não para alguém coletá-lo.
 | `GET /api/t/{hash}` | | como hoje **mais** `advogado: { nome, oab } \| null` (nulo quando o dono é `cidadao`), `tem_advogado: bool`, `cidadao_vinculado: bool`, `duvidas_enviadas: n` |
 | `POST /api/t/{hash}/duvida` | `{ texto, contexto?: [ { role: "user" \| "bot", text } ] }` | `{ id, criada_em }`; 409 se a tarefa não tem advogado; limitado por IP |
 | `POST /api/t/{hash}/vincular` | Bearer (`cidadao`) | `{ ok: true }`; define `tarefa.cidadao_id` se ainda vazio e marca o convite como reivindicado; 409 quando o documento já é de outra conta |
+| `POST /api/t/{hash}/deny-name` | sem conta, link válido | `{ ok: true }`; registra o evento `nome_negado` e não faz mais nada: não cria conta, não vincula e não tranca a confirmação depois |
 | `POST /api/t/{hash}/confirm-name` | sem conta, convite vivo com nome | `{ token, usuario: { nome, papel } }`; cria a conta sem e-mail e sem senha, vincula o documento e reivindica o convite; 409 para a segunda pessoa |
 | `GET /api/t/{hash}/inferencias` | | `{ tarefa, texto (texto extraído), classes: [ { classe, rotulo, cor, itens: [ { ref, campo, valor, trecho, pos: [inicio, fim] \| null, conferido, conferencia: { metodo, score } \| ausente, cor } ] } ], sinteses: [ { classe, rotulo, texto, lastro[] } ], total, conferidos }`; 409 enquanto não está pronta |
 

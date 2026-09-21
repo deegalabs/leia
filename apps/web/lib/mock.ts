@@ -475,6 +475,16 @@ export function confirmName(hash: string) {
   return { token, usuario: { nome: u.nome, papel: u.papel } };
 }
 
+/* LeIA (E15): "esse nome não é o meu". Só registra, igual ao serviço: não cria conta, não vincula nada e
+   não tranca a confirmação depois, porque tocar no botão errado não pode deixar ninguém de fora do próprio
+   documento. */
+export function denyName(hash: string) {
+  const t = storeTask(hash);
+  if (!t) throw fail(404, "não encontrado");
+  t.eventos.push({ tipo: "nome_negado", ts: nowIso() });
+  return { ok: true };
+}
+
 export function approve(u: MockUser, id: number) {
   const t = storeTaskById(id);
   if (!t) throw fail(404, "não encontrado");

@@ -2985,6 +2985,33 @@ def test_the_invite_remembers_which_account_claimed_it(lawyer, citizen):
     assert outra.status_code in (403, 409), outra.text
 
 
+def test_denying_the_name_is_recorded_and_blocks_nothing(lawyer):
+    """"Esse nome não é o meu" é informação para quem enviou, não punição para quem abriu.
+
+    Quem diz que não é ela continua lendo tudo e continua podendo perguntar: o que ela perde é o comprovante,
+    porque ele afirma o nome de quem entendeu. E o aviso precisa chegar ao painel, senão o advogado fica com
+    um documento parado sem descobrir que mandou para a pessoa errada."""
+    t = create_task(lawyer["token"], "Nome negado")
+    client.post(f"/api/tarefas/{t['id']}/convite", json={"nome": "Maria Souza"},
+                headers=bearer(lawyer["token"])).raise_for_status()
+
+    r = client.post(f"/api/t/{t['hash']}/deny-name")
+    assert r.status_code == 200, r.text
+
+    publico = client.get(f"/api/t/{t['hash']}")
+    assert publico.status_code == 200, "negar o nome fechou a leitura"
+    assert any(e.get("tipo") == "nome_negado" for e in publico.json()["eventos"]), publico.json()["eventos"]
+
+    duvida = client.post(f"/api/t/{t['hash']}/duvida", json={"texto": "Quem é Maria Souza?"})
+    assert duvida.status_code == 200, "negar o nome fechou as dúvidas"
+
+    detalhe = client.get(f"/api/tarefas/{t['id']}", headers=bearer(lawyer["token"])).json()
+    assert any(e.get("tipo") == "nome_negado" for e in detalhe["eventos"]), "o aviso não chegou ao painel"
+
+    # Tocar no botão errado não pode trancar ninguém para fora do próprio documento.
+    assert client.post(f"/api/t/{t['hash']}/confirm-name").status_code == 200
+
+
 def test_confirming_the_name_needs_a_live_invite(lawyer):
     """Sem convite vivo, o link não prova nada sobre quem o abriu, e criar conta ali seria dar nome de
     destinatária a quem só tem o endereço."""

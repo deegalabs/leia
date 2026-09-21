@@ -46,7 +46,7 @@ READY_STATUSES = ("pronta", "enviada", "assinada")
 GATE_MESSAGE = "Em revisão pelo advogado"
 PUBLIC_EVENT_TYPES = {"criada", "pdf_salvo", "pipeline_start", "texto_extraido", "task_start", "task_done", "task_error",
                       "erro_extracao", "pipeline_done", "tentativa", "carimbo_publico", "carimbo_falhou",
-                      "duvida_enviada", "reprocess", "aprovada", "tipo_documento",
+                      "duvida_enviada", "reprocess", "aprovada", "tipo_documento", "nome_negado",
 }
 # ``tipo_documento_corrigido`` fica fora desta lista de propósito: ele carrega o id de quem corrigiu, e quem
 # revisou o documento de alguém não é assunto de rota pública.
@@ -464,6 +464,27 @@ async def api_cliente_vincular(hash_: str, u: Usuario = Depends(api_user), sessi
         ws.record_event(t.hash, "cidadao_vinculado", cidadao_id=u.id)
     elif t.cidadao_id != u.id:
         raise HTTPException(409, "Este documento já está vinculado a outra conta.")
+    return {"ok": True}
+
+
+@router.post("/api/t/{hash_}/deny-name", dependencies=[Depends(rate_limit)])
+async def api_negar_nome(hash_: str, session: Session = Depends(get_session)):
+    """"Esse nome não é o meu": registra e não faz mais nada.
+
+    Quem toca aqui continua lendo tudo e continua podendo perguntar, de propósito. O que ela perde é o
+    comprovante, porque ele afirma o nome de quem entendeu, e nenhum nome dela existe para afirmar. Também
+    não tranca a confirmação depois: tocar no botão errado não pode deixar ninguém de fora do próprio
+    documento.
+
+    O aviso é para quem enviou. Sem ele, o advogado fica com um documento parado e nenhuma pista de que o
+    mandou para a pessoa errada, que é a única coisa que ele pode consertar sozinho.
+    """
+    t = _task_or_404(session, hash_)
+    invites.ensure_valid(session, t, None)
+    inv = invites.active_invite(session, t.id)
+    # O nome recusado vai junto porque é ele que diz ao advogado o que conferir. É o nome que ele mesmo
+    # escreveu no convite, então não é dado novo de ninguém.
+    ws.record_event(t.hash, "nome_negado", nome=(inv.nome if inv else None))
     return {"ok": True}
 
 

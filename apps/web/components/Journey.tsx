@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Check, MessageCircle } from "lucide-react";
-import { confirmName, getTask, submitQuiz, topicsOf, type QuizResult, type Task } from "@/lib/api";
+import { confirmName, denyName, getTask, submitQuiz, topicsOf, type QuizResult, type Task } from "@/lib/api";
 import { isReady } from "@/lib/status";
 import { useAuth } from "@/lib/auth"; /* LeIA: v3 accounts */
 import { anchorClaim } from "@/lib/inferences";
@@ -186,7 +186,9 @@ export function Journey({ hash }: { hash: string }) {
                 <Button onClick={confirmar} disabled={binding}>
                   {binding ? "Confirmando" : fmt(m.journey.confirmYes, { nome: nomeDoConvite! })}
                 </Button>
-                <Button variant="secondary" onClick={() => setNegou(true)} disabled={binding}>
+                {/* O aviso vai para quem enviou, que é a única pessoa que pode consertar um documento mandado
+                    para o nome errado. A tela não espera a resposta: negar já vale aqui. */}
+                <Button variant="secondary" onClick={() => { setNegou(true); void denyName(hash); }} disabled={binding}>
                   {m.journey.confirmNo}
                 </Button>
               </div>
