@@ -2947,6 +2947,44 @@ def test_the_second_person_on_the_same_document_is_refused(lawyer):
     assert segunda.status_code == 409, segunda.text
 
 
+def test_confirming_the_name_works_on_an_invite_that_also_carries_an_email(lawyer):
+    """O advogado que sabe o e-mail da cliente põe o e-mail no convite, e isso não pode fechar a porta.
+
+    A regra de destinatária comparava ``visitor.email`` com ``inv.email``, então uma conta sem e-mail nunca
+    passava, e a conta que a confirmação de nome cria é exatamente essa. O resultado era que pôr o endereço
+    no convite desligava o caminho sem digitação — a pessoa via o botão e recebia 403 ao tocar."""
+    t = create_task(lawyer["token"], "Convite com endereço")
+    client.post(f"/api/tarefas/{t['id']}/convite", json={"nome": "Maria Souza", "email": "maria@exemplo.local"},
+                headers=bearer(lawyer["token"])).raise_for_status()
+
+    r = client.post(f"/api/t/{t['hash']}/confirm-name")
+    assert r.status_code == 200, r.text
+
+
+def test_the_invite_remembers_which_account_claimed_it(lawyer, citizen):
+    """Depois que alguém reivindica o convite, destinatária passa a ser aquela conta, não aquele endereço.
+
+    Sem isso a conta recém-criada não teria como provar que é a destinatária: ela não tem e-mail nenhum
+    para comparar."""
+    from core.db import Invite, Tarefa, Usuario, engine as _engine
+    from sqlmodel import Session as _S, select as _sel
+
+    t = create_task(lawyer["token"], "Convite reivindicado")
+    client.post(f"/api/tarefas/{t['id']}/convite", json={"nome": "Maria Souza", "email": "maria2@exemplo.local"},
+                headers=bearer(lawyer["token"])).raise_for_status()
+    token = client.post(f"/api/t/{t['hash']}/confirm-name").json()["token"]
+
+    with _S(_engine) as s:
+        tarefa = s.exec(_sel(Tarefa).where(Tarefa.hash == t["hash"])).one()
+        inv = s.exec(_sel(Invite).where(Invite.task_id == tarefa.id)).one()
+        conta = s.exec(_sel(Usuario).where(Usuario.session_token == token)).one()
+        assert inv.usuario_id == conta.id, "o convite não guardou de quem ele passou a ser"
+
+    # E outra conta, com e-mail e tudo, não entra por cima: o convite já tem dona.
+    outra = client.post(f"/api/t/{t['hash']}/vincular", headers=bearer(citizen["token"]))
+    assert outra.status_code in (403, 409), outra.text
+
+
 def test_confirming_the_name_needs_a_live_invite(lawyer):
     """Sem convite vivo, o link não prova nada sobre quem o abriu, e criar conta ali seria dar nome de
     destinatária a quem só tem o endereço."""

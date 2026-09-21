@@ -106,12 +106,38 @@ def ensure_recipient(session: Session, t: Tarefa, visitor: Optional[Usuario]) ->
     if _mine(t, visitor):
         return
     inv = active_invite(session, t.id)
-    if inv is None or not inv.email:
+    if inv is None:
+        return
+
+    # Destinatária é uma conta, não um endereço. Enquanto a comparação era por e-mail, a conta criada pela
+    # confirmação de nome nunca passava, porque ela não tem e-mail nenhum para comparar: pôr o endereço no
+    # convite desligava justamente o caminho sem digitação que este épico existe para abrir.
+    if inv.usuario_id is not None:
+        if visitor is None or visitor.id != inv.usuario_id:
+            raise HTTPException(403, "Este documento já é de outra pessoa, então o comprovante não pode sair nesta conta.")
+        return
+
+    # Convite ainda sem dona: vale a regra antiga, por endereço. Ela é o que ainda existe para convite
+    # emitido antes desta coluna, e continua certa enquanto ninguém reivindicou o convite. Reivindicar é
+    # outro ato e não passa por aqui: quem confirma o nome **vira** a destinatária, e exigir que já fosse
+    # antes fecharia a porta em cima de quem tem o link e o nome.
+    if not inv.email:
         return
     if visitor is None:
         raise HTTPException(403, "Para guardar o comprovante, entre com o e-mail que recebeu este documento.")
     if normalize_email(visitor.email) != inv.email:
         raise HTTPException(403, "Este documento foi enviado para outra pessoa, então o comprovante não pode sair nesta conta.")
+
+
+def claim(session: Session, inv: Invite, u: Usuario) -> Invite:
+    """Marca de quem o convite passou a ser. Só a primeira reivindicação vale."""
+    if inv.usuario_id is not None and inv.usuario_id != u.id:
+        raise HTTPException(409, "Este documento já está vinculado a outra conta.")
+    inv.usuario_id = u.id
+    session.add(inv)
+    session.commit()
+    session.refresh(inv)
+    return inv
 
 
 def ensure_linkable(session: Session, t: Tarefa, visitor: Optional[Usuario]) -> None:

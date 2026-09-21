@@ -12,7 +12,7 @@ para `advogado` só quando `ADVOGADO_SIGNUP=true` (padrão `true` no hackathon).
 ## Autenticação
 | Método e rota | Entrada | Saída |
 |---|---|---|
-| `POST /api/auth/cadastro` | `{ nome, email, senha, papel: "cidadao" \| "advogado", oab? }` | `{ token, usuario: { id, nome, email, papel } }`; 409 se o e-mail existe; 403 se papel não permitido |
+| `POST /api/auth/cadastro` | `{ nome, email, senha, papel: "cidadao" \| "advogado", oab? }` | `{ token, usuario: { id, nome, email, papel, oab } }`; `oab` só é guardado em conta de advogado e volta nulo nas demais; 409 se o e-mail existe; 403 se papel não permitido |
 | `POST /api/auth/login` | `{ email, senha }` | `{ token, usuario }`; 401 se inválido |
 | `GET /api/auth/me` | Bearer | `{ usuario }` |
 | `POST /api/auth/logout` | Bearer | `{ ok: true }` (invalida o token) |
@@ -44,12 +44,19 @@ O convite trabalha em **duas camadas**, e a diferença é deliberada:
 | Camada | O que confere | Onde vale |
 |---|---|---|
 | Validade do link | cancelado, vencido | todas as rotas públicas, com ou sem conta |
-| Destinatária declarada | a conta é a do e-mail do convite | só `POST /api/t/{hash}/quiz` e `POST /api/t/{hash}/vincular` |
+| Destinatária declarada | a conta é a que reivindicou o convite; enquanto ninguém reivindicou, a do e-mail do convite | só `POST /api/t/{hash}/quiz` e `POST /api/t/{hash}/vincular` |
 
 **Ler e perguntar não exigem conta, de propósito.** Exigir cadastro para ler é barreira justamente para quem
 este produto atende, que pode estar num celular emprestado. O que a destinatária protege é o comprovante, que
 afirma que **uma pessoa** entendeu o documento. Quem não é ela lê tudo, tira dúvidas, e recebe 403 ao tentar
 gravar o registro.
+
+**Destinatária é uma conta, não um endereço.** Enquanto a comparação era por e-mail, a conta criada pela
+confirmação de nome nunca passava, porque ela não tem e-mail nenhum para comparar: pôr o endereço no convite
+desligava justamente o caminho sem digitação. O convite guarda agora de quem ele passou a ser, e reivindicar
+é outro ato — `POST /api/t/{hash}/confirm-name` confere só a validade do link, porque confirmar o nome **é**
+virar a destinatária. Quem desfaz o vínculo (`DELETE /api/tarefas/{id}/cidadao`) devolve o convite ao estado
+sem dona, senão o documento ficaria trancado para todo mundo, inclusive para a pessoa certa.
 
 `GET /api/t/{hash}` traz `convite: { enderecado: bool, para: "ma***@exemplo.com" | null, expira_em } | null`,
 para a tela avisar antes de a pessoa responder. O endereço vai mascarado: serve para ela reconhecer o próprio
@@ -57,9 +64,10 @@ e-mail, não para alguém coletá-lo.
 
 | Método e rota | Entrada | Saída |
 |---|---|---|
-| `GET /api/t/{hash}` | | como hoje **mais** `advogado: { nome } \| null` (nulo quando o dono é `cidadao`), `tem_advogado: bool`, `cidadao_vinculado: bool`, `duvidas_enviadas: n` |
+| `GET /api/t/{hash}` | | como hoje **mais** `advogado: { nome, oab } \| null` (nulo quando o dono é `cidadao`), `tem_advogado: bool`, `cidadao_vinculado: bool`, `duvidas_enviadas: n` |
 | `POST /api/t/{hash}/duvida` | `{ texto, contexto?: [ { role: "user" \| "bot", text } ] }` | `{ id, criada_em }`; 409 se a tarefa não tem advogado; limitado por IP |
-| `POST /api/t/{hash}/vincular` | Bearer (`cidadao`) | `{ ok: true }`; define `tarefa.cidadao_id` se ainda vazio |
+| `POST /api/t/{hash}/vincular` | Bearer (`cidadao`) | `{ ok: true }`; define `tarefa.cidadao_id` se ainda vazio e marca o convite como reivindicado; 409 quando o documento já é de outra conta |
+| `POST /api/t/{hash}/confirm-name` | sem conta, convite vivo com nome | `{ token, usuario: { nome, papel } }`; cria a conta sem e-mail e sem senha, vincula o documento e reivindica o convite; 409 para a segunda pessoa |
 | `GET /api/t/{hash}/inferencias` | | `{ tarefa, texto (texto extraído), classes: [ { classe, rotulo, cor, itens: [ { ref, campo, valor, trecho, pos: [inicio, fim] \| null, conferido, conferencia: { metodo, score } \| ausente, cor } ] } ], sinteses: [ { classe, rotulo, texto, lastro[] } ], total, conferidos }`; 409 enquanto não está pronta |
 
 ### Quem confere o trecho

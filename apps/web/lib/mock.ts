@@ -110,7 +110,9 @@ export const DOC_TYPES: { tipo: string; rotulo: string }[] = [
   { tipo: "indefinido", rotulo: "Tipo não identificado" },
 ];
 
-export type MockInvite = { id: number; nome: string | null; email: string | null; expira_em: string | null; revogado_em: string | null; criado_em: string };
+/* `usuario_id`: de quem o convite passou a ser. Destinatária é uma conta, não um endereço, porque a conta
+   criada pela confirmação de nome não tem e-mail nenhum para comparar. Igual ao serviço. */
+export type MockInvite = { id: number; nome: string | null; email: string | null; usuario_id: number | null; expira_em: string | null; revogado_em: string | null; criado_em: string };
 
 /* LeIA: the 15 workflow steps in pt-BR (docs/API-V3-CONTRACT.md, "Preparação visível e tarefas do fluxo externo") and the
    seconds each one reports once finished (illustrative; the simulated pipeline is faster than the real one) */
@@ -296,7 +298,7 @@ export function issueInvite(u: MockUser, id: number, input: { nome?: unknown; em
   const email = String(input.email ?? "").trim().toLowerCase() || null;
   const nome = String(input.nome ?? "").trim();
   if (!nome) throw fail(422, "o nome de quem vai receber é obrigatório");
-  t.convite = { id: (t.convite?.id ?? 0) + 1, nome, email, criado_em: nowIso(), revogado_em: null,
+  t.convite = { id: (t.convite?.id ?? 0) + 1, nome, email, usuario_id: null, criado_em: nowIso(), revogado_em: null,
                 expira_em: new Date(Date.now() + horas * 3600_000).toISOString() };
   return t.convite;
 }
@@ -462,13 +464,14 @@ export function confirmName(hash: string) {
   if (!t) throw fail(404, "não encontrado");
   const inv = t.convite;
   if (!inv || inv.revogado_em || !inv.nome) throw fail(409, "Este convite não diz para quem é.");
-  if (t.cidadao_id !== null) throw fail(409, "Este documento já está vinculado a outra conta.");
+  if (t.cidadao_id !== null || inv.usuario_id !== null) throw fail(409, "Este documento já está vinculado a outra conta.");
   const s = store();
   const id = ++s.seq.user;
   const token = `tok-${id}-${sha256(`confirm:${hash}:${id}`).slice(0, 16)}`;
   const u: MockUser = { id, nome: inv.nome, email: "", papel: "cidadao", oab: null, senha_hash: "", token };
   s.users.set(id, u);
   t.cidadao_id = id;
+  inv.usuario_id = id;
   return { token, usuario: { nome: u.nome, papel: u.papel } };
 }
 

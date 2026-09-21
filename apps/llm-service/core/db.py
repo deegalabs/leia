@@ -128,6 +128,10 @@ class Invite(SQLModel, table=True):
     # alguém para alguém. Endereço serve para entregar; nome serve para reconhecer.
     nome: Optional[str] = None
     email: Optional[str] = Field(default=None, index=True)
+    # LeIA: de quem este convite passou a ser. A destinatária deixou de ser um endereço e passou a ser uma
+    # conta, porque a conta que a confirmação de nome cria não tem e-mail nenhum para comparar. Fica nulo
+    # enquanto ninguém reivindicou o convite.
+    usuario_id: Optional[int] = Field(default=None, foreign_key="usuario.id", index=True)
     expires_at: Optional[datetime] = None
     revoked_at: Optional[datetime] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
@@ -209,6 +213,10 @@ def _aplicar_migracoes() -> None:
         if inspect(conn).has_table("invite") and "nome" not in _colunas(conn, "invite"):
             conn.execute(text("ALTER TABLE invite ADD COLUMN nome VARCHAR"))
             print("🔧 migração: invite.nome adicionada")
+        if inspect(conn).has_table("invite") and "usuario_id" not in _colunas(conn, "invite"):
+            conn.execute(text("ALTER TABLE invite ADD COLUMN usuario_id INTEGER"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_invite_usuario_id ON invite (usuario_id)"))
+            print("🔧 migração: invite.usuario_id adicionada")
         # O e-mail e a senha deixaram de ser obrigatórios, e banco que já existe mantém o `NOT NULL` de
         # quando foi criado. No Postgres dá para soltar; no SQLite exigiria reconstruir a tabela, e banco de
         # desenvolvimento é descartável, então ali a falha é registrada e a vida segue.

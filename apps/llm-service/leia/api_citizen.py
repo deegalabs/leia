@@ -450,10 +450,17 @@ async def api_cliente_vincular(hash_: str, u: Usuario = Depends(api_user), sessi
     if u.papel != "cidadao":
         raise HTTPException(403, "Só uma conta de cidadã pode se vincular a um documento.")
     t = _task_or_404(session, hash_)
+    # Documento já tomado é conflito, não falta de permissão, e o 409 vem antes para dizer isso com as
+    # palavras certas: quem chega depois não está proibido de nada, chegou tarde.
+    if t.cidadao_id is not None and t.cidadao_id != u.id:
+        raise HTTPException(409, "Este documento já está vinculado a outra conta.")
     invites.ensure_linkable(session, t, u)
     if t.cidadao_id is None:
         t.cidadao_id = u.id
         session.add(t); session.commit()
+        inv = invites.active_invite(session, t.id)
+        if inv is not None:
+            invites.claim(session, inv, u)
         ws.record_event(t.hash, "cidadao_vinculado", cidadao_id=u.id)
     elif t.cidadao_id != u.id:
         raise HTTPException(409, "Este documento já está vinculado a outra conta.")
@@ -475,11 +482,14 @@ async def api_confirmar_nome(hash_: str, session: Session = Depends(get_session)
     não respondeu.
     """
     t = _task_or_404(session, hash_)
-    invites.ensure_linkable(session, t, None)
+    # Aqui não cabe a regra de destinatária: reivindicar o convite **é** virar a destinatária, e exigir que
+    # ela já fosse antes fecharia a porta em cima de quem tem o link e o nome. O que precisa valer é que o
+    # link ainda funciona, e é isso que `ensure_valid` responde.
+    invites.ensure_valid(session, t, None)
     inv = invites.active_invite(session, t.id)
     if inv is None or not (inv.nome or "").strip():
         raise HTTPException(409, "Este convite não diz para quem é. Peça um link novo a quem enviou.")
-    if t.cidadao_id is not None:
+    if t.cidadao_id is not None or inv.usuario_id is not None:
         raise HTTPException(409, "Este documento já está vinculado a outra conta.")
 
     u = Usuario(nome=inv.nome.strip(), papel="cidadao")
@@ -488,6 +498,7 @@ async def api_confirmar_nome(hash_: str, session: Session = Depends(get_session)
 
     t.cidadao_id = u.id
     session.add(t); session.commit()
+    invites.claim(session, inv, u)
     ws.record_event(t.hash, "cidadao_vinculado", cidadao_id=u.id)
     return {"token": token, "usuario": {"nome": u.nome, "papel": u.papel}}
 
