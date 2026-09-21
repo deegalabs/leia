@@ -37,6 +37,10 @@ todo dado desta página é **indefinido**, e é isso que a política tem que diz
 Tudo abaixo vive em `WORKSPACE_DIR/<hash da tarefa>/`. O `hash` é a credencial do link, então **quem tem o
 link alcança o que as rotas públicas expõem**.
 
+A primeira versão desta tabela saiu de ler `core/workspace.py`, que é quem grava quase tudo. Faltou o
+`chat_llm_debug.jsonl`, escrito direto pelo `main.py` e por isso invisível para aquela leitura. Levantamento
+por um módulo só encontra o que passa por aquele módulo.
+
 | Arquivo | O que é | Para quê | Quem vê | Prazo real hoje |
 |---|---|---|---|---|
 | `original.pdf` | o documento como chegou, íntegro | extrair o texto, e nada além disso | ninguém: **ele é apagado assim que o texto é gravado** (E17-T06) | existe entre o envio e a extração, medido em segundos |
@@ -48,6 +52,7 @@ link alcança o que as rotas públicas expõem**.
 | `resumo_humanizado.md` e `questoes.json` | a explicação e as perguntas | é o que a pessoa lê e responde | ela, depois de liberado | indefinido |
 | `pdf_assinado.pdf` | comprovante em PDF | entregar o registro em papel | quem baixa | indefinido |
 | `carimbo_*.ots` | prova OpenTimestamps do `payloadHash` | provar anterioridade | qualquer pessoa pelo link de verificação | permanente por natureza; não contém dado pessoal |
+| `chat_llm_debug.jsonl` | o prompt mandado ao modelo e a resposta, texto integral | depurar o chat do orquestrador | quem tem acesso ao disco do serviço | indefinido · ver [#102](https://github.com/deegalabs/leia/issues/102) |
 
 ## 3. Quem é controlador, e a pergunta que o ADR precisa responder
 
